@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Cw20HookMsg",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "bond"
+      ],
+      "properties": {
+        "bond": {
+          "type": "object"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "deposit_reward"
+      ],
+      "properties": {
+        "deposit_reward": {
+          "type": "object"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HandleMsg",
+  "anyOf": [
+    {
+      "description": "Public Message Sweep all given denom balance to ANC token and execute Distribute message",
+      "type": "object",
+      "required": [
+        "sweep"
+      ],
+      "properties": {
+        "sweep": {
+          "type": "object",
+          "required": [
+            "denom"
+          ],
+          "properties": {
+            "denom": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Internal Message Distribute all ANC token to gov_contract",
+      "type": "object",
+      "required": [
+        "distribute"
+      ],
+      "properties": {
+        "distribute": {
+          "type": "object"
+        }
+      }
+    }
+  ]
+}

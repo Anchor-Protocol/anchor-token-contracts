@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ConfigResponse",
+  "type": "object",
+  "required": [
+    "gov_contract",
+    "anchor_token",
+    "terraswap_factory"
+  ],
+  "properties": {
+    "gov_contract": {
+      "$ref": "#/definitions/HumanAddr"
+    },
+    "anchor_token": {
+      "$ref": "#/definitions/HumanAddr"
+    },
+    "terraswap_factory": {
+      "$ref": "#/definitions/HumanAddr"
+    }
+  },
+  "definitions": {
+    "HumanAddr": {
+      "type": "string"
+    }
+  }
+}
