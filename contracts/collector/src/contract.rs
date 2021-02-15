@@ -39,10 +39,10 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-/// Convert
-/// Anyone can execute convert function to swap
-/// asset token => collateral token
-/// collateral token => MIR token
+/// Sweep
+/// Anyone can execute sweep function to swap
+/// asset token => ANC token and distribute
+/// result ANC token to gov contract
 pub fn sweep<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
