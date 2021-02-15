@@ -53,7 +53,6 @@ fn proper_initialization() {
     let mut deps = mock_instance(WASM, &[]);
 
     let msg = InitMsg {
-        owner: HumanAddr::from("owner0000"),
         anchor_token: HumanAddr::from("reward0000"),
         staking_token: HumanAddr::from("staking0000"),
     };
@@ -67,7 +66,6 @@ fn proper_initialization() {
     // it worked, let's query the state
     let res = query(&mut deps, QueryMsg::Config {}).unwrap();
     let value: ConfigResponse = from_binary(&res).unwrap();
-    assert_eq!("owner0000", value.owner.as_str());
     assert_eq!("reward0000", value.anchor_token.as_str());
 }
 
@@ -76,7 +74,6 @@ fn test_bond_tokens() {
     let mut deps = mock_instance(WASM, &[]);
 
     let msg = InitMsg {
-        owner: HumanAddr::from("owner0000"),
         anchor_token: HumanAddr::from("reward0000"),
         staking_token: HumanAddr::from("staking0000"),
     };
@@ -160,7 +157,6 @@ fn test_deposit_reward() {
     let mut deps = mock_instance(WASM, &[]);
 
     let msg = InitMsg {
-        owner: HumanAddr::from("owner0000"),
         anchor_token: HumanAddr::from("reward0000"),
         staking_token: HumanAddr::from("staking0000"),
     };
@@ -212,7 +208,6 @@ fn test_unbond() {
     let mut deps = mock_instance(WASM, &[]);
 
     let msg = InitMsg {
-        owner: HumanAddr::from("owner0000"),
         anchor_token: HumanAddr::from("reward0000"),
         staking_token: HumanAddr::from("staking0000"),
     };

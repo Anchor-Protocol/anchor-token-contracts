@@ -6,7 +6,6 @@ use cw20::Cw20ReceiveMsg;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
-    pub owner: HumanAddr,
     pub anchor_token: HumanAddr,
     pub staking_token: HumanAddr, // lp token of ANC-UST pair contract
 }
@@ -15,9 +14,6 @@ pub struct InitMsg {
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
     Receive(Cw20ReceiveMsg),
-    UpdateConfig {
-        owner: Option<HumanAddr>,
-    },
     Unbond {
         amount: Uint128,
     },
@@ -47,7 +43,6 @@ pub enum QueryMsg {
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    pub owner: HumanAddr,
     pub anchor_token: HumanAddr,
     pub staking_token: HumanAddr,
 }

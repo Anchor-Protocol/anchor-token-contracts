@@ -16,12 +16,12 @@
 //!          //...
 //!      });
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
+use anchor_token::community::{ConfigResponse, InitMsg, QueryMsg};
 use cosmwasm_std::{from_binary, Coin, HumanAddr, InitResponse, Uint128};
 use cosmwasm_vm::testing::{
     init, mock_dependencies, mock_env, query, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_vm::Instance;
-use anchor_token::community::{ConfigResponse, InitMsg, QueryMsg};
 
 // This line will test the output of cargo wasm
 static WASM: &[u8] =
@@ -47,8 +47,8 @@ fn proper_initialization() {
     let mut deps = mock_instance(WASM, &[]);
 
     let msg = InitMsg {
-        owner: HumanAddr("owner0000".to_string()),
-        anchor_token: HumanAddr("mirror0000".to_string()),
+        gov_contract: HumanAddr("gov".to_string()),
+        anchor_token: HumanAddr("anchor".to_string()),
         spend_limit: Uint128::from(1000000u128),
     };
 
@@ -60,7 +60,7 @@ fn proper_initialization() {
     // it worked, let's query the state
     let config: ConfigResponse =
         from_binary(&query(&mut deps, QueryMsg::Config {}).unwrap()).unwrap();
-    assert_eq!("owner0000", config.owner.as_str());
-    assert_eq!("mirror0000", config.anchor_token.as_str());
+    assert_eq!("gov", config.gov_contract.as_str());
+    assert_eq!("anchor", config.anchor_token.as_str());
     assert_eq!(Uint128::from(1000000u128), config.spend_limit);
 }

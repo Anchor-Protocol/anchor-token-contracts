@@ -1,24 +1,31 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::{Decimal, HumanAddr};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
     pub gov_contract: HumanAddr, // collected rewards receiver
     pub terraswap_factory: HumanAddr,
     pub anchor_token: HumanAddr,
+    pub faucet_contract: HumanAddr,
+    pub reward_weight: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
+    /// Update config interface
+    /// to enable reward_weight update
+    UpdateConfig {
+        reward_weight: Option<Decimal>,
+    },
     /// Public Message
-    /// Sweep all given denom balance to ANC token 
+    /// Sweep all given denom balance to ANC token
     /// and execute Distribute message
     Sweep { denom: String },
 
-    /// Internal Message 
+    /// Internal Message
     /// Distribute all ANC token to gov_contract
     Distribute {},
 }
@@ -35,6 +42,8 @@ pub struct ConfigResponse {
     pub gov_contract: HumanAddr, // collected rewards receiver
     pub terraswap_factory: HumanAddr,
     pub anchor_token: HumanAddr,
+    pub faucet_contract: HumanAddr,
+    pub reward_weight: Decimal,
 }
 
 /// We currently take no arguments for migrations

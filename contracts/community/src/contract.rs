@@ -18,7 +18,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     store_config(
         &mut deps.storage,
         &Config {
-            owner: deps.api.canonical_address(&msg.owner)?,
+            gov_contract: deps.api.canonical_address(&msg.gov_contract)?,
             anchor_token: deps.api.canonical_address(&msg.anchor_token)?,
             spend_limit: msg.spend_limit,
         },
@@ -33,9 +33,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
     match msg {
-        HandleMsg::UpdateConfig { owner, spend_limit } => {
-            udpate_config(deps, env, owner, spend_limit)
-        }
+        HandleMsg::UpdateConfig { spend_limit } => udpate_config(deps, env, spend_limit),
         HandleMsg::Spend { recipient, amount } => spend(deps, env, recipient, amount),
     }
 }
@@ -43,16 +41,11 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 pub fn udpate_config<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    owner: Option<HumanAddr>,
     spend_limit: Option<Uint128>,
 ) -> HandleResult {
     let mut config: Config = read_config(&deps.storage)?;
-    if config.owner != deps.api.canonical_address(&env.message.sender)? {
+    if config.gov_contract != deps.api.canonical_address(&env.message.sender)? {
         return Err(StdError::unauthorized());
-    }
-
-    if let Some(owner) = owner {
-        config.owner = deps.api.canonical_address(&owner)?;
     }
 
     if let Some(spend_limit) = spend_limit {
@@ -78,7 +71,7 @@ pub fn spend<S: Storage, A: Api, Q: Querier>(
     amount: Uint128,
 ) -> HandleResult {
     let config: Config = read_config(&deps.storage)?;
-    if config.owner != deps.api.canonical_address(&env.message.sender)? {
+    if config.gov_contract != deps.api.canonical_address(&env.message.sender)? {
         return Err(StdError::unauthorized());
     }
 
@@ -119,7 +112,7 @@ pub fn query_config<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<ConfigResponse> {
     let state = read_config(&deps.storage)?;
     let resp = ConfigResponse {
-        owner: deps.api.human_address(&state.owner)?,
+        gov_contract: deps.api.human_address(&state.gov_contract)?,
         anchor_token: deps.api.human_address(&state.anchor_token)?,
         spend_limit: state.spend_limit,
     };

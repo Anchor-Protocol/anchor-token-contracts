@@ -87,11 +87,11 @@ impl TaxQuerier {
 }
 
 pub(crate) fn caps_to_map(caps: &[(&String, &Uint128)]) -> HashMap<String, Uint128> {
-    let mut owner_map: HashMap<String, Uint128> = HashMap::new();
+    let mut gov_contract_map: HashMap<String, Uint128> = HashMap::new();
     for (denom, cap) in caps.iter() {
-        owner_map.insert(denom.to_string(), **cap);
+        gov_contract_map.insert(denom.to_string(), **cap);
     }
-    owner_map
+    gov_contract_map
 }
 
 #[derive(Clone, Default)]
@@ -264,7 +264,7 @@ impl WasmMockQuerier {
         self.token_querier = TokenQuerier::new(balances);
     }
 
-    // configure the token owner mock querier
+    // configure the token gov_contract mock querier
     pub fn with_tax(&mut self, rate: Decimal, caps: &[(&String, &Uint128)]) {
         self.tax_querier = TaxQuerier::new(rate, caps);
     }

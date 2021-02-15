@@ -13,7 +13,6 @@ fn proper_initialization() {
     let mut deps = mock_dependencies(20, &[]);
 
     let msg = InitMsg {
-        owner: HumanAddr("owner0000".to_string()),
         anchor_token: HumanAddr("reward0000".to_string()),
         staking_token: HumanAddr("staking0000".to_string()),
     };
@@ -26,47 +25,8 @@ fn proper_initialization() {
     // it worked, let's query the state
     let res = query(&deps, QueryMsg::Config {}).unwrap();
     let config: ConfigResponse = from_binary(&res).unwrap();
-    assert_eq!("owner0000", config.owner.as_str());
     assert_eq!("reward0000", config.anchor_token.as_str());
     assert_eq!("staking0000", config.staking_token.as_str());
-}
-
-#[test]
-fn update_config() {
-    let mut deps = mock_dependencies(20, &[]);
-
-    let msg = InitMsg {
-        owner: HumanAddr::from("owner0000"),
-        anchor_token: HumanAddr::from("mirror0000"),
-        staking_token: HumanAddr("staking0000".to_string()),
-    };
-
-    let env = mock_env("addr0000", &[]);
-    let _res = init(&mut deps, env.clone(), msg).unwrap();
-
-    // update owner
-    let env = mock_env("owner0000", &[]);
-    let msg = HandleMsg::UpdateConfig {
-        owner: Some(HumanAddr("owner0001".to_string())),
-    };
-
-    let res = handle(&mut deps, env, msg).unwrap();
-    assert_eq!(0, res.messages.len());
-
-    // it worked, let's query the state
-    let res = query(&deps, QueryMsg::Config {}).unwrap();
-    let config: ConfigResponse = from_binary(&res).unwrap();
-    assert_eq!("owner0001", config.owner.as_str());
-
-    // Unauthorzied err
-    let env = mock_env("owner0000", &[]);
-    let msg = HandleMsg::UpdateConfig { owner: None };
-
-    let res = handle(&mut deps, env, msg);
-    match res {
-        Err(StdError::Unauthorized { .. }) => {}
-        _ => panic!("Must return unauthorized error"),
-    }
 }
 
 #[test]
@@ -74,7 +34,6 @@ fn test_bond_tokens() {
     let mut deps = mock_dependencies(20, &[]);
 
     let msg = InitMsg {
-        owner: HumanAddr("owner0000".to_string()),
         anchor_token: HumanAddr("reward0000".to_string()),
         staking_token: HumanAddr("staking0000".to_string()),
     };
@@ -160,7 +119,6 @@ fn test_deposit_reward() {
     let mut deps = mock_dependencies(20, &[]);
 
     let msg = InitMsg {
-        owner: HumanAddr("owner0000".to_string()),
         anchor_token: HumanAddr("reward0000".to_string()),
         staking_token: HumanAddr("staking0000".to_string()),
     };
@@ -226,7 +184,6 @@ fn test_unbond() {
     let mut deps = mock_dependencies(20, &[]);
 
     let msg = InitMsg {
-        owner: HumanAddr("owner0000".to_string()),
         anchor_token: HumanAddr("reward0000".to_string()),
         staking_token: HumanAddr("staking0000".to_string()),
     };
@@ -283,7 +240,6 @@ fn test_before_share_changes() {
     let mut deps = mock_dependencies(20, &[]);
 
     let msg = InitMsg {
-        owner: HumanAddr("owner0000".to_string()),
         anchor_token: HumanAddr("reward0000".to_string()),
         staking_token: HumanAddr("staking0000".to_string()),
     };
@@ -375,7 +331,6 @@ fn test_withdraw() {
     let mut deps = mock_dependencies(20, &[]);
 
     let msg = InitMsg {
-        owner: HumanAddr("owner0000".to_string()),
         anchor_token: HumanAddr("reward0000".to_string()),
         staking_token: HumanAddr("staking0000".to_string()),
     };

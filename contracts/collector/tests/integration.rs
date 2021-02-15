@@ -17,7 +17,7 @@
 //!      });
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 use anchor_token::collector::{ConfigResponse, InitMsg, QueryMsg};
-use cosmwasm_std::{from_binary, Coin, HumanAddr, InitResponse};
+use cosmwasm_std::{from_binary, Coin, Decimal, HumanAddr, InitResponse};
 use cosmwasm_vm::testing::{
     init, mock_dependencies, mock_env, query, MockApi, MockQuerier, MockStorage,
 };
@@ -48,8 +48,10 @@ fn proper_initialization() {
 
     let msg = InitMsg {
         terraswap_factory: HumanAddr("terraswapfactory".to_string()),
-        gov_contract: HumanAddr("gov0000".to_string()),
-        anchor_token: HumanAddr("mirror0000".to_string()),
+        gov_contract: HumanAddr("gov".to_string()),
+        anchor_token: HumanAddr("tokenANC".to_string()),
+        faucet_contract: HumanAddr::from("faucet"),
+        reward_weight: Decimal::percent(90),
     };
 
     let env = mock_env("addr0000", &[]);
@@ -59,6 +61,8 @@ fn proper_initialization() {
     let res = query(&mut deps, QueryMsg::Config {}).unwrap();
     let config: ConfigResponse = from_binary(&res).unwrap();
     assert_eq!("terraswapfactory", config.terraswap_factory.as_str());
-    assert_eq!("gov0000", config.gov_contract.as_str());
-    assert_eq!("mirror0000", config.anchor_token.as_str());
+    assert_eq!("gov", config.gov_contract.as_str());
+    assert_eq!("tokenANC", config.anchor_token.as_str());
+    assert_eq!("faucet", config.faucet_contract.as_str());
+    assert_eq!(Decimal::percent(90), config.reward_weight);
 }

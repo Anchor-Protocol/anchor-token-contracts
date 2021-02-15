@@ -24,7 +24,6 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     store_config(
         &mut deps.storage,
         &Config {
-            owner: deps.api.canonical_address(&msg.owner)?,
             anchor_token: deps.api.canonical_address(&msg.anchor_token)?,
             staking_token: deps.api.canonical_address(&msg.staking_token)?,
         },
@@ -49,7 +48,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     match msg {
         HandleMsg::Receive(msg) => receive_cw20(deps, env, msg),
-        HandleMsg::UpdateConfig { owner } => update_config(deps, env, owner),
         HandleMsg::Unbond { amount } => unbond(deps, env, amount),
         HandleMsg::Withdraw {} => withdraw(deps, env),
     }
@@ -84,29 +82,6 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
     } else {
         Err(StdError::generic_err("data should be given"))
     }
-}
-
-pub fn update_config<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    owner: Option<HumanAddr>,
-) -> StdResult<HandleResponse> {
-    let mut config: Config = read_config(&deps.storage)?;
-
-    if deps.api.canonical_address(&env.message.sender)? != config.owner {
-        return Err(StdError::unauthorized());
-    }
-
-    if let Some(owner) = owner {
-        config.owner = deps.api.canonical_address(&owner)?;
-    }
-
-    store_config(&mut deps.storage, &config)?;
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![log("action", "update_config")],
-        data: None,
-    })
 }
 
 pub fn bond<S: Storage, A: Api, Q: Querier>(
@@ -303,7 +278,6 @@ pub fn query_config<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<ConfigResponse> {
     let state = read_config(&deps.storage)?;
     let resp = ConfigResponse {
-        owner: deps.api.human_address(&state.owner)?,
         anchor_token: deps.api.human_address(&state.anchor_token)?,
         staking_token: deps.api.human_address(&state.staking_token)?,
     };

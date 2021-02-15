@@ -5,7 +5,7 @@ use cosmwasm_std::{HumanAddr, Uint128};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
-    pub owner: HumanAddr,        // anchor gov contract
+    pub gov_contract: HumanAddr, // anchor gov contract
     pub anchor_token: HumanAddr, // anchor token address
     pub spend_limit: Uint128,    // spend limit per each `spend` request
 }
@@ -14,7 +14,6 @@ pub struct InitMsg {
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
     UpdateConfig {
-        owner: Option<HumanAddr>,
         spend_limit: Option<Uint128>,
     },
     Spend {
@@ -36,7 +35,7 @@ pub enum QueryMsg {
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    pub owner: HumanAddr,
+    pub gov_contract: HumanAddr,
     pub anchor_token: HumanAddr,
     pub spend_limit: Uint128,
 }

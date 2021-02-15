@@ -4,14 +4,14 @@
   "type": "object",
   "required": [
     "anchor_token",
-    "owner",
+    "gov_contract",
     "spend_limit"
   ],
   "properties": {
     "anchor_token": {
       "$ref": "#/definitions/HumanAddr"
     },
-    "owner": {
+    "gov_contract": {
       "$ref": "#/definitions/HumanAddr"
     },
     "spend_limit": {

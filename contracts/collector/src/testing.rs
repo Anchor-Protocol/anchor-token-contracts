@@ -15,6 +15,8 @@ fn proper_initialization() {
         terraswap_factory: HumanAddr("terraswapfactory".to_string()),
         gov_contract: HumanAddr("gov".to_string()),
         anchor_token: HumanAddr("tokenANC".to_string()),
+        faucet_contract: HumanAddr::from("faucet"),
+        reward_weight: Decimal::percent(90),
     };
 
     let env = mock_env("addr0000", &[]);
@@ -25,6 +27,47 @@ fn proper_initialization() {
     // it worked, let's query the state
     let config: ConfigResponse = query_config(&deps).unwrap();
     assert_eq!("terraswapfactory", config.terraswap_factory.as_str());
+}
+
+#[test]
+fn update_config() {
+    let mut deps = mock_dependencies(20, &[]);
+
+    let msg = InitMsg {
+        terraswap_factory: HumanAddr("terraswapfactory".to_string()),
+        gov_contract: HumanAddr("gov".to_string()),
+        anchor_token: HumanAddr("tokenANC".to_string()),
+        faucet_contract: HumanAddr::from("faucet"),
+        reward_weight: Decimal::percent(90),
+    };
+
+    let env = mock_env("addr0000", &[]);
+    let _res = init(&mut deps, env, msg).unwrap();
+
+    // update reward_weight
+    let env = mock_env("gov", &[]);
+    let msg = HandleMsg::UpdateConfig {
+        reward_weight: Some(Decimal::percent(80)),
+    };
+
+    let res = handle(&mut deps, env, msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    // it worked, let's query the state
+    let value = query_config(&deps).unwrap();
+    assert_eq!(Decimal::percent(80), value.reward_weight);
+
+    // Unauthorized err
+    let env = mock_env("addr0000", &[]);
+    let msg = HandleMsg::UpdateConfig {
+        reward_weight: None,
+    };
+
+    let res = handle(&mut deps, env, msg);
+    match res {
+        Err(StdError::Unauthorized { .. }) => {}
+        _ => panic!("Must return unauthorized error"),
+    }
 }
 
 #[test]
@@ -49,6 +92,8 @@ fn test_sweep() {
         terraswap_factory: HumanAddr("terraswapfactory".to_string()),
         gov_contract: HumanAddr("gov".to_string()),
         anchor_token: HumanAddr("tokenANC".to_string()),
+        faucet_contract: HumanAddr::from("faucet"),
+        reward_weight: Decimal::percent(90),
     };
 
     let env = mock_env("addr0000", &[]);
@@ -105,6 +150,8 @@ fn test_distribute() {
         terraswap_factory: HumanAddr("terraswapfactory".to_string()),
         gov_contract: HumanAddr("gov".to_string()),
         anchor_token: HumanAddr("tokenANC".to_string()),
+        faucet_contract: HumanAddr::from("faucet"),
+        reward_weight: Decimal::percent(90),
     };
 
     let env = mock_env("addr0000", &[]);
@@ -122,14 +169,25 @@ fn test_distribute() {
     let res = handle(&mut deps, env, msg).unwrap();
     assert_eq!(
         res.messages,
-        vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: HumanAddr::from("tokenANC"),
-            msg: to_binary(&Cw20HandleMsg::Transfer {
-                recipient: HumanAddr::from("gov"),
-                amount: Uint128(100u128),
+        vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: HumanAddr::from("tokenANC"),
+                msg: to_binary(&Cw20HandleMsg::Transfer {
+                    recipient: HumanAddr::from("gov"),
+                    amount: Uint128(90u128),
+                })
+                .unwrap(),
+                send: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: HumanAddr::from("tokenANC"),
+                msg: to_binary(&Cw20HandleMsg::Transfer {
+                    recipient: HumanAddr::from("faucet"),
+                    amount: Uint128(10u128),
+                })
+                .unwrap(),
+                send: vec![],
             })
-            .unwrap(),
-            send: vec![],
-        })]
+        ]
     )
 }

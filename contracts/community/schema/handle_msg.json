@@ -11,16 +11,6 @@
         "update_config": {
           "type": "object",
           "properties": {
-            "owner": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/HumanAddr"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
             "spend_limit": {
               "anyOf": [
                 {
