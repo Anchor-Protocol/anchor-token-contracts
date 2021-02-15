@@ -3,15 +3,18 @@
   "title": "InitMsg",
   "type": "object",
   "required": [
+    "anchor_token",
     "effective_delay",
     "expiration_period",
     "proposal_deposit",
     "quorum",
-    "anchor_token",
     "threshold",
     "voting_period"
   ],
   "properties": {
+    "anchor_token": {
+      "$ref": "#/definitions/HumanAddr"
+    },
     "effective_delay": {
       "type": "integer",
       "format": "uint64",
@@ -28,9 +31,6 @@
     "quorum": {
       "$ref": "#/definitions/Decimal"
     },
-    "anchor_token": {
-      "$ref": "#/definitions/HumanAddr"
-    },
     "threshold": {
       "$ref": "#/definitions/Decimal"
     },
@@ -42,7 +42,7 @@
   },
   "definitions": {
     "Decimal": {
-      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0 The greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
+      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
       "type": "string"
     },
     "HumanAddr": {

@@ -29,14 +29,13 @@
       "minimum": 0.0
     },
     "execute_data": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/ExecuteMsg"
-        },
-        {
-          "type": "null"
-        }
-      ]
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "$ref": "#/definitions/ExecuteMsg"
+      }
     },
     "id": {
       "type": "integer",

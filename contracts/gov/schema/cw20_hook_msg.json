@@ -31,15 +31,14 @@
             "description": {
               "type": "string"
             },
-            "execute_msg": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/ExecuteMsg"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+            "execute_msgs": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "$ref": "#/definitions/ExecuteMsg"
+              }
             },
             "link": {
               "type": [

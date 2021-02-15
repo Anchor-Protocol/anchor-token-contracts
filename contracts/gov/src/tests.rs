@@ -2,18 +2,18 @@ use crate::contract::{handle, init, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::state::{config_read, state_read, Config, State};
 
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{
-    coins, from_binary, log, to_binary, Api, Coin, CosmosMsg, Decimal, Env, Extern, HandleResponse,
-    HumanAddr, StdError, Uint128, WasmMsg,
-};
-use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 use anchor_token::common::OrderBy;
 use anchor_token::gov::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, HandleMsg, InitMsg, PollResponse, PollStatus,
     PollsResponse, QueryMsg, StakerResponse, VoteOption, VoterInfo, VotersResponse,
     VotersResponseItem,
 };
+use cosmwasm_std::testing::{mock_env, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
+use cosmwasm_std::{
+    coins, from_binary, log, to_binary, Api, Coin, CosmosMsg, Decimal, Env, Extern, HandleResponse,
+    HumanAddr, StdError, Uint128, WasmMsg,
+};
+use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 
 const VOTING_TOKEN: &str = "voting_token";
 const TEST_CREATOR: &str = "creator";
@@ -263,7 +263,7 @@ fn fails_create_poll_invalid_deposit() {
                 title: "TESTTEST".to_string(),
                 description: "TESTTEST".to_string(),
                 link: None,
-                execute_msg: None,
+                execute_msgs: None,
             })
             .unwrap(),
         ),
@@ -283,7 +283,7 @@ fn create_poll_msg(
     title: String,
     description: String,
     link: Option<String>,
-    execute_msg: Option<ExecuteMsg>,
+    execute_msg: Option<Vec<ExecuteMsg>>,
 ) -> HandleMsg {
     let msg = HandleMsg::Receive(Cw20ReceiveMsg {
         sender: HumanAddr::from(TEST_CREATOR),
@@ -293,7 +293,7 @@ fn create_poll_msg(
                 title,
                 description,
                 link,
-                execute_msg,
+                execute_msgs: execute_msg,
             })
             .unwrap(),
         ),
@@ -550,14 +550,24 @@ fn happy_days_end_poll() {
         amount: Uint128(123),
     })
     .unwrap();
+
+    //add two messages
+    let mut execute_msgs: Vec<ExecuteMsg> = vec![];
+    execute_msgs.push(ExecuteMsg {
+        contract: HumanAddr::from(VOTING_TOKEN),
+        msg: exec_msg_bz.clone(),
+    });
+
+    execute_msgs.push(ExecuteMsg {
+        contract: HumanAddr::from(VOTING_TOKEN),
+        msg: exec_msg_bz.clone(),
+    });
+
     let msg = create_poll_msg(
         "test".to_string(),
         "test".to_string(),
         None,
-        Some(ExecuteMsg {
-            contract: HumanAddr::from(VOTING_TOKEN),
-            msg: exec_msg_bz.clone(),
-        }),
+        Some(execute_msgs),
     );
 
     let handle_res = handle(&mut deps, creator_env.clone(), msg).unwrap();
@@ -672,11 +682,18 @@ fn happy_days_end_poll() {
     let handle_res = handle(&mut deps, creator_env, msg).unwrap();
     assert_eq!(
         handle_res.messages,
-        vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: HumanAddr::from(VOTING_TOKEN),
-            msg: exec_msg_bz,
-            send: vec![],
-        }),]
+        vec![
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: HumanAddr::from(VOTING_TOKEN),
+                msg: exec_msg_bz.clone(),
+                send: vec![],
+            }),
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: HumanAddr::from(VOTING_TOKEN),
+                msg: exec_msg_bz,
+                send: vec![],
+            })
+        ]
     );
     assert_eq!(
         handle_res.log,
@@ -775,14 +792,16 @@ fn expire_poll() {
         amount: Uint128(123),
     })
     .unwrap();
+    let mut execute_msgs: Vec<ExecuteMsg> = vec![];
+    execute_msgs.push(ExecuteMsg {
+        contract: HumanAddr::from(VOTING_TOKEN),
+        msg: exec_msg_bz.clone(),
+    });
     let msg = create_poll_msg(
         "test".to_string(),
         "test".to_string(),
         None,
-        Some(ExecuteMsg {
-            contract: HumanAddr::from(VOTING_TOKEN),
-            msg: exec_msg_bz.clone(),
-        }),
+        Some(execute_msgs),
     );
 
     let handle_res = handle(&mut deps, creator_env.clone(), msg).unwrap();
@@ -911,17 +930,20 @@ fn end_poll_zero_quorum() {
     mock_init(&mut deps);
     let mut creator_env = mock_env_height(VOTING_TOKEN, &vec![], 1000, 10000);
 
+    let mut execute_msgs: Vec<ExecuteMsg> = vec![];
+    execute_msgs.push(ExecuteMsg {
+        contract: HumanAddr::from(VOTING_TOKEN),
+        msg: to_binary(&Cw20HandleMsg::Burn {
+            amount: Uint128(123),
+        })
+        .unwrap(),
+    });
+
     let msg = create_poll_msg(
         "test".to_string(),
         "test".to_string(),
         None,
-        Some(ExecuteMsg {
-            contract: HumanAddr::from(VOTING_TOKEN),
-            msg: to_binary(&Cw20HandleMsg::Burn {
-                amount: Uint128(123),
-            })
-            .unwrap(),
-        }),
+        Some(execute_msgs),
     );
 
     let handle_res = handle(&mut deps, creator_env.clone(), msg).unwrap();
@@ -1883,4 +1905,52 @@ fn update_config() {
         Err(StdError::Unauthorized { .. }) => {}
         _ => panic!("Must return unauthorized error"),
     }
+}
+
+#[test]
+fn add_several_execute_msgs() {
+    let mut deps = mock_dependencies(20, &[]);
+    mock_init(&mut deps);
+    let env = mock_env_height(VOTING_TOKEN, &vec![], 0, 10000);
+
+    let exec_msg_bz = to_binary(&Cw20HandleMsg::Burn {
+        amount: Uint128(123),
+    })
+    .unwrap();
+
+    // push two execute msgs to the list
+    let mut execute_msgs: Vec<ExecuteMsg> = vec![];
+
+    execute_msgs.push(ExecuteMsg {
+        contract: HumanAddr::from(VOTING_TOKEN),
+        msg: exec_msg_bz.clone(),
+    });
+
+    execute_msgs.push(ExecuteMsg {
+        contract: HumanAddr::from(VOTING_TOKEN),
+        msg: exec_msg_bz.clone(),
+    });
+
+    let msg = create_poll_msg(
+        "test".to_string(),
+        "test".to_string(),
+        None,
+        Some(execute_msgs.clone()),
+    );
+
+    let handle_res = handle(&mut deps, env.clone(), msg.clone()).unwrap();
+    assert_create_poll_result(
+        1,
+        env.block.height + DEFAULT_VOTING_PERIOD,
+        TEST_CREATOR,
+        handle_res,
+        &mut deps,
+    );
+
+    let res = query(&deps, QueryMsg::Poll { poll_id: 1 }).unwrap();
+    let value: PollResponse = from_binary(&res).unwrap();
+
+    let response_execute_data = value.execute_data.unwrap();
+    assert_eq!(response_execute_data.len(), 2);
+    assert_eq!(response_execute_data, execute_msgs);
 }

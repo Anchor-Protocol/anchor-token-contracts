@@ -115,7 +115,7 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
                 title,
                 description,
                 link,
-                execute_msg,
+                execute_msgs,
             } => create_poll(
                 deps,
                 env,
@@ -124,7 +124,7 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
                 title,
                 description,
                 link,
-                execute_msg,
+                execute_msgs,
             ),
         }
     } else {
@@ -351,7 +351,7 @@ pub fn create_poll<S: Storage, A: Api, Q: Querier>(
     title: String,
     description: String,
     link: Option<String>,
-    execute_msg: Option<ExecuteMsg>,
+    execute_msgs: Option<Vec<ExecuteMsg>>,
 ) -> StdResult<HandleResponse> {
     validate_title(&title)?;
     validate_description(&description)?;
@@ -372,11 +372,16 @@ pub fn create_poll<S: Storage, A: Api, Q: Querier>(
     state.poll_count += 1;
     state.total_deposit += deposit_amount;
 
-    let execute_data = if let Some(execute_msg) = execute_msg {
-        Some(ExecuteData {
-            contract: deps.api.canonical_address(&execute_msg.contract)?,
-            msg: execute_msg.msg,
-        })
+    let mut data_list: Vec<ExecuteData> = vec![];
+    let all_execute_data = if let Some(exe_msgs) = execute_msgs {
+        for msgs in exe_msgs {
+            let execute_data = ExecuteData {
+                contract: deps.api.canonical_address(&msgs.contract)?,
+                msg: msgs.msg,
+            };
+            data_list.push(execute_data)
+        }
+        Some(data_list)
     } else {
         None
     };
@@ -392,7 +397,7 @@ pub fn create_poll<S: Storage, A: Api, Q: Querier>(
         title,
         description,
         link,
-        execute_data,
+        execute_data: all_execute_data,
         deposit_amount,
         total_balance_at_end_poll: None,
     };
@@ -550,12 +555,14 @@ pub fn execute_poll<S: Storage, A: Api, Q: Querier>(
     poll_store(&mut deps.storage).save(&poll_id.to_be_bytes(), &a_poll)?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
-    if let Some(execute_data) = a_poll.execute_data {
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.human_address(&execute_data.contract)?,
-            msg: execute_data.msg,
-            send: vec![],
-        }))
+    if let Some(all_msgs) = a_poll.execute_data {
+        for msg in all_msgs {
+            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: deps.api.human_address(&msg.contract)?,
+                msg: msg.msg,
+                send: vec![],
+            }))
+        }
     } else {
         return Err(StdError::generic_err("The poll does not have execute_data"));
     }
@@ -815,6 +822,8 @@ fn query_poll<S: Storage, A: Api, Q: Querier>(
     }
     .unwrap();
 
+    let mut data_list: Vec<ExecuteMsg> = vec![];
+
     Ok(PollResponse {
         id: poll.id,
         creator: deps.api.human_address(&poll.creator).unwrap(),
@@ -824,11 +833,15 @@ fn query_poll<S: Storage, A: Api, Q: Querier>(
         description: poll.description,
         link: poll.link,
         deposit_amount: poll.deposit_amount,
-        execute_data: if let Some(execute_data) = poll.execute_data {
-            Some(ExecuteMsg {
-                contract: deps.api.human_address(&execute_data.contract)?,
-                msg: execute_data.msg,
-            })
+        execute_data: if let Some(exe_msgs) = poll.execute_data.clone() {
+            for msg in exe_msgs {
+                let execute_data = ExecuteMsg {
+                    contract: deps.api.human_address(&msg.contract)?,
+                    msg: msg.msg,
+                };
+                data_list.push(execute_data)
+            }
+            Some(data_list)
         } else {
             None
         },
@@ -846,6 +859,9 @@ fn query_polls<S: Storage, A: Api, Q: Querier>(
     order_by: Option<OrderBy>,
 ) -> StdResult<PollsResponse> {
     let polls = read_polls(&deps.storage, filter, start_after, limit, order_by)?;
+
+    let mut data_list: Vec<ExecuteMsg> = vec![];
+
     let poll_responses: StdResult<Vec<PollResponse>> = polls
         .iter()
         .map(|poll| {
@@ -858,11 +874,15 @@ fn query_polls<S: Storage, A: Api, Q: Querier>(
                 description: poll.description.to_string(),
                 link: poll.link.clone(),
                 deposit_amount: poll.deposit_amount,
-                execute_data: if let Some(execute_data) = poll.execute_data.clone() {
-                    Some(ExecuteMsg {
-                        contract: deps.api.human_address(&execute_data.contract)?,
-                        msg: execute_data.msg,
-                    })
+                execute_data: if let Some(exe_msgs) = poll.execute_data.clone() {
+                    for msg in exe_msgs {
+                        let execute_data = ExecuteMsg {
+                            contract: deps.api.human_address(&msg.contract)?,
+                            msg: msg.msg,
+                        };
+                        data_list.push(execute_data)
+                    }
+                    Some(data_list.clone())
                 } else {
                     None
                 },
