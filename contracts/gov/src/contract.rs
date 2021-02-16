@@ -42,6 +42,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         effective_delay: msg.effective_delay,
         expiration_period: msg.expiration_period,
         proposal_deposit: msg.proposal_deposit,
+        fixing_staked_amount_period: msg.fixing_staked_amount_period,
     };
 
     let state = State {
@@ -72,6 +73,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             effective_delay,
             expiration_period,
             proposal_deposit,
+            fixing_staked_amount_period,
         } => update_config(
             deps,
             env,
@@ -82,6 +84,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             effective_delay,
             expiration_period,
             proposal_deposit,
+            fixing_staked_amount_period,
         ),
         HandleMsg::WithdrawVotingTokens { amount } => withdraw_voting_tokens(deps, env, amount),
         HandleMsg::CastVote {
@@ -92,6 +95,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::EndPoll { poll_id } => end_poll(deps, env, poll_id),
         HandleMsg::ExecutePoll { poll_id } => execute_poll(deps, env, poll_id),
         HandleMsg::ExpirePoll { poll_id } => expire_poll(deps, env, poll_id),
+        HandleMsg::FixStakedAmount { poll_id } => fix_staked_amount(deps, env, poll_id),
     }
 }
 
@@ -191,6 +195,7 @@ pub fn update_config<S: Storage, A: Api, Q: Querier>(
     effective_delay: Option<u64>,
     expiration_period: Option<u64>,
     proposal_deposit: Option<Uint128>,
+    fixing_staked_amount_period: Option<u64>,
 ) -> HandleResult {
     let api = deps.api;
     config_store(&mut deps.storage).update(|mut config| {
@@ -224,6 +229,10 @@ pub fn update_config<S: Storage, A: Api, Q: Querier>(
 
         if let Some(proposal_deposit) = proposal_deposit {
             config.proposal_deposit = proposal_deposit;
+        }
+
+        if let Some(period) = fixing_staked_amount_period {
+            config.fixing_staked_amount_period = period;
         }
 
         Ok(config)
@@ -400,6 +409,7 @@ pub fn create_poll<S: Storage, A: Api, Q: Querier>(
         execute_data: all_execute_data,
         deposit_amount,
         total_balance_at_end_poll: None,
+        staked_amount: None,
     };
 
     poll_store(&mut deps.storage).save(&poll_id.to_be_bytes(), &new_poll)?;
@@ -457,13 +467,25 @@ pub fn end_poll<S: Storage, A: Api, Q: Querier>(
     let yes = a_poll.yes_votes.u128();
 
     let tallied_weight = yes + no;
-    let staked_weight = (load_token_balance(
-        &deps,
-        &deps.api.human_address(&config.anchor_token)?,
-        &state.contract_addr,
-    )? - state.total_deposit)?;
 
-    let quorum = Decimal::from_ratio(tallied_weight, staked_weight);
+    let (quorum, staked_weight) = if let Some(staked_amount) = a_poll.staked_amount {
+        (
+            Decimal::from_ratio(tallied_weight, staked_amount),
+            staked_amount,
+        )
+    } else {
+        let staked_weight = (load_token_balance(
+            &deps,
+            &deps.api.human_address(&config.anchor_token)?,
+            &state.contract_addr,
+        )? - state.total_deposit)?;
+
+        (
+            Decimal::from_ratio(tallied_weight, staked_weight),
+            staked_weight,
+        )
+    };
+
     if tallied_weight == 0 || quorum < config.quorum {
         // Quorum: More than quorum of the total staked tokens at the end of the voting
         // period need to have participated in the vote.
@@ -612,6 +634,46 @@ pub fn expire_poll<S: Storage, A: Api, Q: Querier>(
         log: vec![
             log("action", "expire_poll"),
             log("poll_id", poll_id.to_string()),
+        ],
+        data: None,
+    })
+}
+
+/// FixStakedAmount is used to take a snapshot of the staked amount for quorum calculation
+pub fn fix_staked_amount<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    poll_id: u64,
+) -> HandleResult {
+    let config: Config = config_read(&deps.storage).load()?;
+    let mut a_poll: Poll = poll_store(&mut deps.storage).load(&poll_id.to_be_bytes())?;
+
+    let time_to_end = a_poll.end_height - env.block.height;
+
+    if time_to_end > config.fixing_staked_amount_period {
+        return Err(StdError::generic_err(
+            "Cannot fix the staked amount at this height",
+        ));
+    }
+    // store the current staked amount for quorum calculation
+    let state: State = state_store(&mut deps.storage).load()?;
+
+    let staked_amount = (load_token_balance(
+        &deps,
+        &deps.api.human_address(&config.anchor_token)?,
+        &state.contract_addr,
+    )? - state.total_deposit)?;
+
+    a_poll.staked_amount = Some(staked_amount);
+
+    poll_store(&mut deps.storage).save(&poll_id.to_be_bytes(), &a_poll)?;
+
+    Ok(HandleResponse {
+        messages: vec![],
+        log: vec![
+            log("action", "fix_staked_amount"),
+            log("poll_id", poll_id.to_string()),
+            log("staked_amount", staked_amount),
         ],
         data: None,
     })
@@ -800,6 +862,7 @@ fn query_config<S: Storage, A: Api, Q: Querier>(
         effective_delay: config.effective_delay,
         expiration_period: config.expiration_period,
         proposal_deposit: config.proposal_deposit,
+        fixing_staked_amount_period: config.fixing_staked_amount_period,
     })
 }
 

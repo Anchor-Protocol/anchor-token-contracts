@@ -15,6 +15,7 @@ pub struct InitMsg {
     pub effective_delay: u64,
     pub expiration_period: u64,
     pub proposal_deposit: Uint128,
+    pub fixing_staked_amount_period:u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -29,6 +30,7 @@ pub enum HandleMsg {
         effective_delay: Option<u64>,
         expiration_period: Option<u64>,
         proposal_deposit: Option<Uint128>,
+        fixing_staked_amount_period: Option<u64>,
     },
     CastVote {
         poll_id: u64,
@@ -47,6 +49,9 @@ pub enum HandleMsg {
     ExpirePoll {
         poll_id: u64,
     },
+    FixStakedAmount {
+        poll_id: u64,
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -106,6 +111,7 @@ pub struct ConfigResponse {
     pub effective_delay: u64,
     pub expiration_period: u64,
     pub proposal_deposit: Uint128,
+    pub fixing_staked_amount_period: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]

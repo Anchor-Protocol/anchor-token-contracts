@@ -2,6 +2,7 @@ use crate::contract::{handle, init, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::state::{config_read, state_read, Config, State};
 
+use crate::querier::load_token_balance;
 use anchor_token::common::OrderBy;
 use anchor_token::gov::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, HandleMsg, InitMsg, PollResponse, PollStatus,
@@ -22,6 +23,7 @@ const TEST_VOTER_2: &str = "voter2";
 const DEFAULT_QUORUM: u64 = 30u64;
 const DEFAULT_THRESHOLD: u64 = 50u64;
 const DEFAULT_VOTING_PERIOD: u64 = 10000u64;
+const DEFAULT_FIX_PERIOD: u64 = 10u64;
 const DEFAULT_EFFECTIVE_DELAY: u64 = 10000u64;
 const DEFAULT_EXPIRATION_PERIOD: u64 = 20000u64;
 const DEFAULT_PROPOSAL_DEPOSIT: u128 = 10000000000u128;
@@ -34,6 +36,7 @@ fn mock_init(mut deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
         effective_delay: DEFAULT_EFFECTIVE_DELAY,
         expiration_period: DEFAULT_EXPIRATION_PERIOD,
         proposal_deposit: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+        fixing_staked_amount_period: DEFAULT_FIX_PERIOD,
     };
 
     let env = mock_env(TEST_CREATOR, &[]);
@@ -56,6 +59,7 @@ fn init_msg() -> InitMsg {
         effective_delay: DEFAULT_EFFECTIVE_DELAY,
         expiration_period: DEFAULT_EXPIRATION_PERIOD,
         proposal_deposit: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+        fixing_staked_amount_period: DEFAULT_FIX_PERIOD,
     }
 }
 
@@ -86,6 +90,7 @@ fn proper_initialization() {
             effective_delay: DEFAULT_EFFECTIVE_DELAY,
             expiration_period: DEFAULT_EXPIRATION_PERIOD,
             proposal_deposit: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+            fixing_staked_amount_period: DEFAULT_FIX_PERIOD
         }
     );
 
@@ -130,6 +135,7 @@ fn fails_create_poll_invalid_quorum() {
         effective_delay: DEFAULT_EFFECTIVE_DELAY,
         expiration_period: DEFAULT_EXPIRATION_PERIOD,
         proposal_deposit: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+        fixing_staked_amount_period: DEFAULT_FIX_PERIOD,
     };
 
     let res = init(&mut deps, env, msg);
@@ -153,6 +159,7 @@ fn fails_create_poll_invalid_threshold() {
         effective_delay: DEFAULT_EFFECTIVE_DELAY,
         expiration_period: DEFAULT_EXPIRATION_PERIOD,
         proposal_deposit: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+        fixing_staked_amount_period: DEFAULT_FIX_PERIOD,
     };
 
     let res = init(&mut deps, env, msg);
@@ -1847,6 +1854,7 @@ fn update_config() {
         effective_delay: None,
         expiration_period: None,
         proposal_deposit: None,
+        fixing_staked_amount_period: None,
     };
 
     let res = handle(&mut deps, env, msg).unwrap();
@@ -1872,6 +1880,7 @@ fn update_config() {
         effective_delay: Some(20000u64),
         expiration_period: Some(30000u64),
         proposal_deposit: Some(Uint128(123u128)),
+        fixing_staked_amount_period: Some(11),
     };
 
     let res = handle(&mut deps, env, msg).unwrap();
@@ -1887,6 +1896,7 @@ fn update_config() {
     assert_eq!(20000u64, config.effective_delay);
     assert_eq!(30000u64, config.expiration_period);
     assert_eq!(123u128, config.proposal_deposit.u128());
+    assert_eq!(11u64, config.fixing_staked_amount_period);
 
     // Unauthorzied err
     let env = mock_env(TEST_CREATOR, &[]);
@@ -1898,6 +1908,7 @@ fn update_config() {
         effective_delay: None,
         expiration_period: None,
         proposal_deposit: None,
+        fixing_staked_amount_period: None,
     };
 
     let res = handle(&mut deps, env, msg);
@@ -1953,4 +1964,269 @@ fn add_several_execute_msgs() {
     let response_execute_data = value.execute_data.unwrap();
     assert_eq!(response_execute_data.len(), 2);
     assert_eq!(response_execute_data, execute_msgs);
+}
+
+#[test]
+fn fix_staked_amount() {
+    let stake_amount = 1000;
+
+    let mut deps = mock_dependencies(20, &coins(100, VOTING_TOKEN));
+    mock_init(&mut deps);
+
+    let msg = create_poll_msg("test".to_string(), "test".to_string(), None, None);
+    let mut creator_env = mock_env(VOTING_TOKEN, &vec![]);
+    let handle_res = handle(&mut deps, creator_env.clone(), msg.clone()).unwrap();
+    assert_eq!(
+        handle_res.log,
+        vec![
+            log("action", "create_poll"),
+            log("creator", TEST_CREATOR),
+            log("poll_id", "1"),
+            log("end_height", "22345"),
+        ]
+    );
+
+    //must not be executed
+    let fix_error = handle(
+        &mut deps,
+        creator_env.clone(),
+        HandleMsg::FixStakedAmount { poll_id: 1 },
+    )
+    .unwrap_err();
+    assert_eq!(
+        StdError::generic_err("Cannot fix the staked amount at this height",),
+        fix_error
+    );
+
+    // change time
+    creator_env.block.height = 22345 - 10;
+
+    deps.querier.with_token_balances(&[(
+        &HumanAddr::from(VOTING_TOKEN),
+        &[(
+            &HumanAddr::from(MOCK_CONTRACT_ADDR),
+            &Uint128((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+        )],
+    )]);
+
+    let fix_res = handle(
+        &mut deps,
+        creator_env.clone(),
+        HandleMsg::FixStakedAmount { poll_id: 1 },
+    )
+    .unwrap();
+
+    assert_eq!(
+        fix_res.log,
+        vec![
+            log("action", "fix_staked_amount"),
+            log("poll_id", "1"),
+            log("staked_amount", stake_amount),
+        ]
+    );
+}
+
+#[test]
+fn happy_days_end_poll_with_controlled_quorum() {
+    const POLL_START_HEIGHT: u64 = 1000;
+    const POLL_ID: u64 = 1;
+    let stake_amount = 1000;
+
+    let mut deps = mock_dependencies(20, &coins(1000, VOTING_TOKEN));
+    mock_init(&mut deps);
+
+    let mut creator_env = mock_env_height(
+        VOTING_TOKEN,
+        &coins(2, VOTING_TOKEN),
+        POLL_START_HEIGHT,
+        10000,
+    );
+
+    let exec_msg_bz = to_binary(&Cw20HandleMsg::Burn {
+        amount: Uint128(123),
+    })
+    .unwrap();
+
+    //add two messages
+    let mut execute_msgs: Vec<ExecuteMsg> = vec![];
+    execute_msgs.push(ExecuteMsg {
+        contract: HumanAddr::from(VOTING_TOKEN),
+        msg: exec_msg_bz.clone(),
+    });
+
+    execute_msgs.push(ExecuteMsg {
+        contract: HumanAddr::from(VOTING_TOKEN),
+        msg: exec_msg_bz.clone(),
+    });
+
+    let msg = create_poll_msg(
+        "test".to_string(),
+        "test".to_string(),
+        None,
+        Some(execute_msgs),
+    );
+
+    let handle_res = handle(&mut deps, creator_env.clone(), msg).unwrap();
+
+    assert_create_poll_result(
+        1,
+        creator_env.block.height + DEFAULT_VOTING_PERIOD,
+        TEST_CREATOR,
+        handle_res,
+        &mut deps,
+    );
+
+    deps.querier.with_token_balances(&[(
+        &HumanAddr::from(VOTING_TOKEN),
+        &[(
+            &HumanAddr::from(MOCK_CONTRACT_ADDR),
+            &Uint128((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+        )],
+    )]);
+
+    let msg = HandleMsg::Receive(Cw20ReceiveMsg {
+        sender: HumanAddr::from(TEST_VOTER),
+        amount: Uint128::from(stake_amount as u128),
+        msg: Some(to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap()),
+    });
+
+    let env = mock_env(VOTING_TOKEN, &[]);
+    let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
+    assert_stake_tokens_result(
+        stake_amount,
+        DEFAULT_PROPOSAL_DEPOSIT,
+        stake_amount,
+        1,
+        handle_res,
+        &mut deps,
+    );
+
+    let msg = HandleMsg::CastVote {
+        poll_id: 1,
+        vote: VoteOption::Yes,
+        amount: Uint128::from(stake_amount),
+    };
+    let env = mock_env_height(TEST_VOTER, &[], POLL_START_HEIGHT, 10000);
+    let handle_res = handle(&mut deps, env, msg).unwrap();
+
+    assert_eq!(
+        handle_res.log,
+        vec![
+            log("action", "cast_vote"),
+            log("poll_id", POLL_ID),
+            log("amount", "1000"),
+            log("voter", TEST_VOTER),
+            log("vote_option", "yes"),
+        ]
+    );
+
+    creator_env.block.height = &creator_env.block.height + DEFAULT_VOTING_PERIOD - 10;
+
+    // send FixStakedAmount
+    let fix_res = handle(
+        &mut deps,
+        creator_env.clone(),
+        HandleMsg::FixStakedAmount { poll_id: 1 },
+    )
+    .unwrap();
+
+    assert_eq!(
+        fix_res.log,
+        vec![
+            log("action", "fix_staked_amount"),
+            log("poll_id", "1"),
+            log("staked_amount", stake_amount),
+        ]
+    );
+
+    // staked amount get increased 10 times
+    deps.querier.with_token_balances(&[(
+        &HumanAddr::from(VOTING_TOKEN),
+        &[(
+            &HumanAddr::from(MOCK_CONTRACT_ADDR),
+            &Uint128(((10 * stake_amount) + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+        )],
+    )]);
+
+    //cast another vote
+    let msg = HandleMsg::Receive(Cw20ReceiveMsg {
+        sender: HumanAddr::from(TEST_VOTER_2),
+        amount: Uint128::from(8 * stake_amount as u128),
+        msg: Some(to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap()),
+    });
+
+    let env = mock_env(VOTING_TOKEN, &[]);
+    let _handle_res = handle(&mut deps, env, msg.clone()).unwrap();
+
+    let msg = HandleMsg::CastVote {
+        poll_id: 1,
+        vote: VoteOption::Yes,
+        amount: Uint128::from(8 * stake_amount),
+    };
+    let env = mock_env_height(TEST_VOTER_2, &[], creator_env.block.height, 10000);
+    let handle_res = handle(&mut deps, env, msg).unwrap();
+
+    assert_eq!(
+        handle_res.log,
+        vec![
+            log("action", "cast_vote"),
+            log("poll_id", POLL_ID),
+            log("amount", "8000"),
+            log("voter", TEST_VOTER_2),
+            log("vote_option", "yes"),
+        ]
+    );
+
+    creator_env.message.sender = HumanAddr::from(TEST_CREATOR);
+    creator_env.block.height += 10;
+
+    // quorum must reach
+    let msg = HandleMsg::EndPoll { poll_id: 1 };
+    let handle_res = handle(&mut deps, creator_env.clone(), msg).unwrap();
+
+    assert_eq!(
+        handle_res.log,
+        vec![
+            log("action", "end_poll"),
+            log("poll_id", "1"),
+            log("rejected_reason", ""),
+            log("passed", "true"),
+        ]
+    );
+    assert_eq!(
+        handle_res.messages,
+        vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: HumanAddr::from(VOTING_TOKEN),
+            msg: to_binary(&Cw20HandleMsg::Transfer {
+                recipient: HumanAddr::from(TEST_CREATOR),
+                amount: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+            })
+            .unwrap(),
+            send: vec![],
+        })]
+    );
+
+    let res = query(&deps, QueryMsg::Poll { poll_id: 1 }).unwrap();
+    let value: PollResponse = from_binary(&res).unwrap();
+    assert_eq!(
+        stake_amount,
+        value.total_balance_at_end_poll.unwrap().u128()
+    );
+
+    assert_eq!(value.yes_votes.u128(), 9 * stake_amount);
+
+    // actual staked amount is 10 times bigger than staked amount
+    let actual_staked_weight = (load_token_balance(
+        &deps,
+        &HumanAddr::from(VOTING_TOKEN),
+        &deps
+            .api
+            .canonical_address(&HumanAddr::from(MOCK_CONTRACT_ADDR))
+            .unwrap(),
+    )
+    .unwrap()
+        - Uint128(DEFAULT_PROPOSAL_DEPOSIT))
+    .unwrap();
+
+    assert_eq!(actual_staked_weight.u128(), (10 * stake_amount))
 }

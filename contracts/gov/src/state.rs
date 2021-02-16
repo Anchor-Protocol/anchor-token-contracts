@@ -28,6 +28,7 @@ pub struct Config {
     pub effective_delay: u64,
     pub expiration_period: u64,
     pub proposal_deposit: Uint128,
+    pub fixing_staked_amount_period: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -60,6 +61,7 @@ pub struct Poll {
     pub deposit_amount: Uint128,
     /// Total balance at the end poll
     pub total_balance_at_end_poll: Option<Uint128>,
+    pub staked_amount: Option<Uint128>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
