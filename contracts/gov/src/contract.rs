@@ -6,16 +6,16 @@ use crate::state::{
 };
 use cosmwasm_std::{
     from_binary, log, to_binary, Api, Binary, CanonicalAddr, CosmosMsg, Decimal, Env, Extern,
-    HandleResponse, HandleResult, HumanAddr, InitResponse, InitResult, MigrateResponse,
-    MigrateResult, Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
+    HandleResponse, HandleResult, HumanAddr, InitResponse, InitResult, Querier, StdError,
+    StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 
 use anchor_token::common::OrderBy;
 use anchor_token::gov::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, HandleMsg, InitMsg, MigrateMsg, PollResponse,
-    PollStatus, PollsResponse, QueryMsg, StakerResponse, StateResponse, VoteOption, VoterInfo,
-    VotersResponse, VotersResponseItem,
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, HandleMsg, InitMsg, PollResponse, PollStatus,
+    PollsResponse, QueryMsg, StakerResponse, StateResponse, VoteOption, VoterInfo, VotersResponse,
+    VotersResponseItem,
 };
 
 const MIN_TITLE_LENGTH: usize = 4;
@@ -961,12 +961,4 @@ fn query_staker<S: Storage, A: Api, Q: Querier>(
         share: token_manager.share,
         locked_balance: token_manager.locked_balance,
     })
-}
-
-pub fn migrate<S: Storage, A: Api, Q: Querier>(
-    _deps: &mut Extern<S, A, Q>,
-    _env: Env,
-    _msg: MigrateMsg,
-) -> MigrateResult {
-    Ok(MigrateResponse::default())
 }
