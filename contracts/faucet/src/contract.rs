@@ -40,30 +40,21 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
     match msg {
-        HandleMsg::UpdateConfig {
-            whitelist,
-            spend_limit,
-        } => update_config(deps, env, whitelist, spend_limit),
+        HandleMsg::UpdateConfig { spend_limit } => update_config(deps, env, spend_limit),
         HandleMsg::Spend { recipient, amount } => spend(deps, env, recipient, amount),
+        HandleMsg::AddDistributor { distributor } => add_distributor(deps, env, distributor),
+        HandleMsg::RemoveDistributor { distributor } => remove_distributor(deps, env, distributor),
     }
 }
 
 pub fn update_config<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    whitelist: Option<Vec<HumanAddr>>,
     spend_limit: Option<Uint128>,
 ) -> HandleResult {
     let mut config: Config = read_config(&deps.storage)?;
     if config.gov_contract != deps.api.canonical_address(&env.message.sender)? {
         return Err(StdError::unauthorized());
-    }
-
-    if let Some(whitelist) = whitelist {
-        config.whitelist = whitelist
-            .into_iter()
-            .map(|w| deps.api.canonical_address(&w))
-            .collect::<StdResult<Vec<CanonicalAddr>>>()?;
     }
 
     if let Some(spend_limit) = spend_limit {
@@ -75,6 +66,75 @@ pub fn update_config<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages: vec![],
         log: vec![log("action", "update_config")],
+        data: None,
+    })
+}
+
+pub fn add_distributor<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    distributor: HumanAddr,
+) -> HandleResult {
+    let mut config: Config = read_config(&deps.storage)?;
+    if config.gov_contract != deps.api.canonical_address(&env.message.sender)? {
+        return Err(StdError::unauthorized());
+    }
+
+    let distributor_raw = deps.api.canonical_address(&distributor)?;
+    if config
+        .whitelist
+        .clone()
+        .into_iter()
+        .find(|w| *w == distributor_raw)
+        .is_some()
+    {
+        return Err(StdError::generic_err("Distributor already registered"));
+    }
+
+    config.whitelist.push(distributor_raw);
+    store_config(&mut deps.storage, &config)?;
+
+    Ok(HandleResponse {
+        messages: vec![],
+        log: vec![
+            log("action", "add_distributor"),
+            log("distributor", distributor),
+        ],
+        data: None,
+    })
+}
+
+pub fn remove_distributor<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    distributor: HumanAddr,
+) -> HandleResult {
+    let mut config: Config = read_config(&deps.storage)?;
+    if config.gov_contract != deps.api.canonical_address(&env.message.sender)? {
+        return Err(StdError::unauthorized());
+    }
+
+    let distributor = deps.api.canonical_address(&distributor)?;
+    let whitelist: Vec<CanonicalAddr> = config
+        .whitelist
+        .clone()
+        .into_iter()
+        .filter(|w| *w != distributor)
+        .collect();
+
+    if config.whitelist.len() == whitelist.len() {
+        return Err(StdError::generic_err("Distributor not found"));
+    }
+
+    config.whitelist = whitelist;
+    store_config(&mut deps.storage, &config)?;
+
+    Ok(HandleResponse {
+        messages: vec![],
+        log: vec![
+            log("action", "remove_distributor"),
+            log("distributor", distributor),
+        ],
         data: None,
     })
 }

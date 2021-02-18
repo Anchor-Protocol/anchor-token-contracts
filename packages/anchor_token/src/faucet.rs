@@ -16,11 +16,16 @@ pub struct InitMsg {
 pub enum HandleMsg {
     UpdateConfig {
         spend_limit: Option<Uint128>,
-        whitelist: Option<Vec<HumanAddr>>,
     },
     Spend {
         recipient: HumanAddr,
         amount: Uint128,
+    },
+    AddDistributor {
+        distributor: HumanAddr,
+    },
+    RemoveDistributor {
+        distributor: HumanAddr,
     },
 }
 
