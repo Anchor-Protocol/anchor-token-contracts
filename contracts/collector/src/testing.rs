@@ -16,7 +16,7 @@ fn proper_initialization() {
         gov_contract: HumanAddr("gov".to_string()),
         anchor_token: HumanAddr("tokenANC".to_string()),
         faucet_contract: HumanAddr::from("faucet"),
-        reward_weight: Decimal::percent(90),
+        reward_factor: Decimal::percent(90),
     };
 
     let env = mock_env("addr0000", &[]);
@@ -38,16 +38,16 @@ fn update_config() {
         gov_contract: HumanAddr("gov".to_string()),
         anchor_token: HumanAddr("tokenANC".to_string()),
         faucet_contract: HumanAddr::from("faucet"),
-        reward_weight: Decimal::percent(90),
+        reward_factor: Decimal::percent(90),
     };
 
     let env = mock_env("addr0000", &[]);
     let _res = init(&mut deps, env, msg).unwrap();
 
-    // update reward_weight
+    // update reward_factor
     let env = mock_env("gov", &[]);
     let msg = HandleMsg::UpdateConfig {
-        reward_weight: Some(Decimal::percent(80)),
+        reward_factor: Some(Decimal::percent(80)),
     };
 
     let res = handle(&mut deps, env, msg).unwrap();
@@ -55,12 +55,12 @@ fn update_config() {
 
     // it worked, let's query the state
     let value = query_config(&deps).unwrap();
-    assert_eq!(Decimal::percent(80), value.reward_weight);
+    assert_eq!(Decimal::percent(80), value.reward_factor);
 
     // Unauthorized err
     let env = mock_env("addr0000", &[]);
     let msg = HandleMsg::UpdateConfig {
-        reward_weight: None,
+        reward_factor: None,
     };
 
     let res = handle(&mut deps, env, msg);
@@ -93,7 +93,7 @@ fn test_sweep() {
         gov_contract: HumanAddr("gov".to_string()),
         anchor_token: HumanAddr("tokenANC".to_string()),
         faucet_contract: HumanAddr::from("faucet"),
-        reward_weight: Decimal::percent(90),
+        reward_factor: Decimal::percent(90),
     };
 
     let env = mock_env("addr0000", &[]);
@@ -151,7 +151,7 @@ fn test_distribute() {
         gov_contract: HumanAddr("gov".to_string()),
         anchor_token: HumanAddr("tokenANC".to_string()),
         faucet_contract: HumanAddr::from("faucet"),
-        reward_weight: Decimal::percent(90),
+        reward_factor: Decimal::percent(90),
     };
 
     let env = mock_env("addr0000", &[]);

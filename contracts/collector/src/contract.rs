@@ -24,7 +24,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
             terraswap_factory: deps.api.canonical_address(&msg.terraswap_factory)?,
             anchor_token: deps.api.canonical_address(&msg.anchor_token)?,
             faucet_contract: deps.api.canonical_address(&msg.faucet_contract)?,
-            reward_weight: msg.reward_weight,
+            reward_factor: msg.reward_factor,
         },
     )?;
 
@@ -37,7 +37,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
     match msg {
-        HandleMsg::UpdateConfig { reward_weight } => update_config(deps, env, reward_weight),
+        HandleMsg::UpdateConfig { reward_factor } => update_config(deps, env, reward_factor),
         HandleMsg::Sweep { denom } => sweep(deps, env, denom),
         HandleMsg::Distribute {} => distribute(deps, env),
     }
@@ -45,15 +45,15 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 pub fn update_config<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    reward_weight: Option<Decimal>,
+    reward_factor: Option<Decimal>,
 ) -> HandleResult {
     let mut config: Config = read_config(&deps.storage)?;
     if deps.api.canonical_address(&env.message.sender)? != config.gov_contract {
         return Err(StdError::unauthorized());
     }
 
-    if let Some(reward_weight) = reward_weight {
-        config.reward_weight = reward_weight;
+    if let Some(reward_factor) = reward_factor {
+        config.reward_factor = reward_factor;
     }
 
     store_config(&mut deps.storage, &config)?;
@@ -146,7 +146,7 @@ pub fn distribute<S: Storage, A: Api, Q: Querier>(
         &env.contract.address,
     )?;
 
-    let distribute_amount = amount * config.reward_weight;
+    let distribute_amount = amount * config.reward_factor;
     let left_amount = (amount - distribute_amount)?;
 
     Ok(HandleResponse {
@@ -195,7 +195,7 @@ pub fn query_config<S: Storage, A: Api, Q: Querier>(
         terraswap_factory: deps.api.human_address(&state.terraswap_factory)?,
         anchor_token: deps.api.human_address(&state.anchor_token)?,
         faucet_contract: deps.api.human_address(&state.faucet_contract)?,
-        reward_weight: state.reward_weight,
+        reward_factor: state.reward_factor,
     };
 
     Ok(resp)

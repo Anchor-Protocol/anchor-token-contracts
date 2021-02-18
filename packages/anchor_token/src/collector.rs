@@ -9,16 +9,16 @@ pub struct InitMsg {
     pub terraswap_factory: HumanAddr,
     pub anchor_token: HumanAddr,
     pub faucet_contract: HumanAddr,
-    pub reward_weight: Decimal,
+    pub reward_factor: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
     /// Update config interface
-    /// to enable reward_weight update
+    /// to enable reward_factor update
     UpdateConfig {
-        reward_weight: Option<Decimal>,
+        reward_factor: Option<Decimal>,
     },
     /// Public Message
     /// Sweep all given denom balance to ANC token
@@ -43,7 +43,7 @@ pub struct ConfigResponse {
     pub terraswap_factory: HumanAddr,
     pub anchor_token: HumanAddr,
     pub faucet_contract: HumanAddr,
-    pub reward_weight: Decimal,
+    pub reward_factor: Decimal,
 }
 
 /// We currently take no arguments for migrations

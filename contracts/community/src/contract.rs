@@ -33,12 +33,12 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
     match msg {
-        HandleMsg::UpdateConfig { spend_limit } => udpate_config(deps, env, spend_limit),
+        HandleMsg::UpdateConfig { spend_limit } => update_config(deps, env, spend_limit),
         HandleMsg::Spend { recipient, amount } => spend(deps, env, recipient, amount),
     }
 }
 
-pub fn udpate_config<S: Storage, A: Api, Q: Querier>(
+pub fn update_config<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     spend_limit: Option<Uint128>,

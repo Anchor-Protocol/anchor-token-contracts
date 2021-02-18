@@ -43,12 +43,12 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::UpdateConfig {
             whitelist,
             spend_limit,
-        } => udpate_config(deps, env, whitelist, spend_limit),
+        } => update_config(deps, env, whitelist, spend_limit),
         HandleMsg::Spend { recipient, amount } => spend(deps, env, recipient, amount),
     }
 }
 
-pub fn udpate_config<S: Storage, A: Api, Q: Querier>(
+pub fn update_config<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     whitelist: Option<Vec<HumanAddr>>,

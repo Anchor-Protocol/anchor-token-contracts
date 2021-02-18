@@ -6,7 +6,7 @@
     "anchor_token",
     "faucet_contract",
     "gov_contract",
-    "reward_weight",
+    "reward_factor",
     "terraswap_factory"
   ],
   "properties": {
@@ -19,7 +19,7 @@
     "gov_contract": {
       "$ref": "#/definitions/HumanAddr"
     },
-    "reward_weight": {
+    "reward_factor": {
       "$ref": "#/definitions/Decimal"
     },
     "terraswap_factory": {
