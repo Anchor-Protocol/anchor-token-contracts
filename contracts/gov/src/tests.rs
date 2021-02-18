@@ -2027,6 +2027,168 @@ fn fix_staked_amount() {
 }
 
 #[test]
+fn fails_end_poll_quorum_inflation_without_fixed_staked_amount() {
+    const POLL_START_HEIGHT: u64 = 1000;
+    const POLL_ID: u64 = 1;
+    let stake_amount = 1000;
+
+    let mut deps = mock_dependencies(20, &coins(1000, VOTING_TOKEN));
+    mock_init(&mut deps);
+
+    let mut creator_env = mock_env_height(
+        VOTING_TOKEN,
+        &coins(2, VOTING_TOKEN),
+        POLL_START_HEIGHT,
+        10000,
+    );
+
+    let exec_msg_bz = to_binary(&Cw20HandleMsg::Burn {
+        amount: Uint128(123),
+    })
+    .unwrap();
+
+    //add two messages
+    let mut execute_msgs: Vec<ExecuteMsg> = vec![];
+    execute_msgs.push(ExecuteMsg {
+        contract: HumanAddr::from(VOTING_TOKEN),
+        msg: exec_msg_bz.clone(),
+    });
+
+    execute_msgs.push(ExecuteMsg {
+        contract: HumanAddr::from(VOTING_TOKEN),
+        msg: exec_msg_bz.clone(),
+    });
+
+    let msg = create_poll_msg(
+        "test".to_string(),
+        "test".to_string(),
+        None,
+        Some(execute_msgs),
+    );
+
+    let handle_res = handle(&mut deps, creator_env.clone(), msg).unwrap();
+
+    assert_create_poll_result(
+        1,
+        creator_env.block.height + DEFAULT_VOTING_PERIOD,
+        TEST_CREATOR,
+        handle_res,
+        &mut deps,
+    );
+
+    deps.querier.with_token_balances(&[(
+        &HumanAddr::from(VOTING_TOKEN),
+        &[(
+            &HumanAddr::from(MOCK_CONTRACT_ADDR),
+            &Uint128((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+        )],
+    )]);
+
+    let msg = HandleMsg::Receive(Cw20ReceiveMsg {
+        sender: HumanAddr::from(TEST_VOTER),
+        amount: Uint128::from(stake_amount as u128),
+        msg: Some(to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap()),
+    });
+
+    let env = mock_env(VOTING_TOKEN, &[]);
+    let handle_res = handle(&mut deps, env, msg.clone()).unwrap();
+    assert_stake_tokens_result(
+        stake_amount,
+        DEFAULT_PROPOSAL_DEPOSIT,
+        stake_amount,
+        1,
+        handle_res,
+        &mut deps,
+    );
+
+    let msg = HandleMsg::CastVote {
+        poll_id: 1,
+        vote: VoteOption::Yes,
+        amount: Uint128::from(stake_amount),
+    };
+    let env = mock_env_height(TEST_VOTER, &[], POLL_START_HEIGHT, 10000);
+    let handle_res = handle(&mut deps, env, msg).unwrap();
+
+    assert_eq!(
+        handle_res.log,
+        vec![
+            log("action", "cast_vote"),
+            log("poll_id", POLL_ID),
+            log("amount", "1000"),
+            log("voter", TEST_VOTER),
+            log("vote_option", "yes"),
+        ]
+    );
+
+    creator_env.block.height = &creator_env.block.height + DEFAULT_VOTING_PERIOD - 10;
+
+    // did not FixStakedAmount
+
+    // staked amount get increased 10 times
+    deps.querier.with_token_balances(&[(
+        &HumanAddr::from(VOTING_TOKEN),
+        &[(
+            &HumanAddr::from(MOCK_CONTRACT_ADDR),
+            &Uint128(((10 * stake_amount) + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+        )],
+    )]);
+
+    //cast another vote
+    let msg = HandleMsg::Receive(Cw20ReceiveMsg {
+        sender: HumanAddr::from(TEST_VOTER_2),
+        amount: Uint128::from(8 * stake_amount as u128),
+        msg: Some(to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap()),
+    });
+
+    let env = mock_env(VOTING_TOKEN, &[]);
+    let _handle_res = handle(&mut deps, env, msg.clone()).unwrap();
+
+    // another voter cast a vote
+    let msg = HandleMsg::CastVote {
+        poll_id: 1,
+        vote: VoteOption::Yes,
+        amount: Uint128::from(stake_amount),
+    };
+    let env = mock_env_height(TEST_VOTER_2, &[], creator_env.block.height, 10000);
+    let handle_res = handle(&mut deps, env, msg).unwrap();
+
+    assert_eq!(
+        handle_res.log,
+        vec![
+            log("action", "cast_vote"),
+            log("poll_id", POLL_ID),
+            log("amount", "1000"),
+            log("voter", TEST_VOTER_2),
+            log("vote_option", "yes"),
+        ]
+    );
+
+    creator_env.message.sender = HumanAddr::from(TEST_CREATOR);
+    creator_env.block.height += 10;
+
+    // quorum must reach
+    let msg = HandleMsg::EndPoll { poll_id: 1 };
+    let handle_res = handle(&mut deps, creator_env.clone(), msg).unwrap();
+
+    assert_eq!(
+        handle_res.log,
+        vec![
+            log("action", "end_poll"),
+            log("poll_id", "1"),
+            log("rejected_reason", "Quorum not reached"),
+            log("passed", "false"),
+        ]
+    );
+
+    let res = query(&deps, QueryMsg::Poll { poll_id: 1 }).unwrap();
+    let value: PollResponse = from_binary(&res).unwrap();
+    assert_eq!(
+        10 * stake_amount,
+        value.total_balance_at_end_poll.unwrap().u128()
+    );
+}
+
+#[test]
 fn happy_days_end_poll_with_controlled_quorum() {
     const POLL_START_HEIGHT: u64 = 1000;
     const POLL_ID: u64 = 1;
