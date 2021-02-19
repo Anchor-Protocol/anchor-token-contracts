@@ -8,6 +8,7 @@ use cw20::Cw20ReceiveMsg;
 pub struct InitMsg {
     pub anchor_token: HumanAddr,
     pub staking_token: HumanAddr, // lp token of ANC-UST pair contract
+    pub distribution_schedule: Vec<(u64, u64, Uint128)>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -25,7 +26,6 @@ pub enum HandleMsg {
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
     Bond {},
-    DepositReward {},
 }
 
 /// We currently take no arguments for migrations
@@ -36,8 +36,13 @@ pub struct MigrateMsg {}
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     Config {},
-    PoolInfo {},
-    RewardInfo { staker: HumanAddr },
+    State {
+        block_height: Option<u64>,
+    },
+    StakerInfo {
+        staker: HumanAddr,
+        block_height: Option<u64>,
+    },
 }
 
 // We define a custom struct for each query response
@@ -45,21 +50,22 @@ pub enum QueryMsg {
 pub struct ConfigResponse {
     pub anchor_token: HumanAddr,
     pub staking_token: HumanAddr,
+    pub distribution_schedule: Vec<(u64, u64, Uint128)>,
 }
 
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct PoolInfoResponse {
+pub struct StateResponse {
+    pub last_distributed: u64,
     pub total_bond_amount: Uint128,
-    pub reward_index: Decimal,
-    pub pending_reward: Uint128,
+    pub global_reward_index: Decimal,
 }
 
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct RewardInfoResponse {
+pub struct StakerInfoResponse {
     pub staker: HumanAddr,
-    pub index: Decimal,
+    pub reward_index: Decimal,
     pub bond_amount: Uint128,
     pub pending_reward: Uint128,
 }

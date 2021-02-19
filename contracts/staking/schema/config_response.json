@@ -4,11 +4,35 @@
   "type": "object",
   "required": [
     "anchor_token",
+    "distribution_schedule",
     "staking_token"
   ],
   "properties": {
     "anchor_token": {
       "$ref": "#/definitions/HumanAddr"
+    },
+    "distribution_schedule": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": [
+          {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          {
+            "$ref": "#/definitions/Uint128"
+          }
+        ],
+        "maxItems": 3,
+        "minItems": 3
+      }
     },
     "staking_token": {
       "$ref": "#/definitions/HumanAddr"
@@ -16,6 +40,9 @@
   },
   "definitions": {
     "HumanAddr": {
+      "type": "string"
+    },
+    "Uint128": {
       "type": "string"
     }
   }

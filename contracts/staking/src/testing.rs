@@ -1,6 +1,6 @@
 use crate::contract::{handle, init, query};
 use anchor_token::staking::{
-    ConfigResponse, Cw20HookMsg, HandleMsg, InitMsg, PoolInfoResponse, QueryMsg, RewardInfoResponse,
+    ConfigResponse, Cw20HookMsg, HandleMsg, InitMsg, QueryMsg, StakerInfoResponse, StateResponse,
 };
 use cosmwasm_std::testing::{mock_dependencies, mock_env};
 use cosmwasm_std::{
@@ -15,6 +15,7 @@ fn proper_initialization() {
     let msg = InitMsg {
         anchor_token: HumanAddr("reward0000".to_string()),
         staking_token: HumanAddr("staking0000".to_string()),
+        distribution_schedule: vec![(100, 200, Uint128::from(1000000u128))],
     };
 
     let env = mock_env("addr0000", &[]);
@@ -25,8 +26,25 @@ fn proper_initialization() {
     // it worked, let's query the state
     let res = query(&deps, QueryMsg::Config {}).unwrap();
     let config: ConfigResponse = from_binary(&res).unwrap();
-    assert_eq!("reward0000", config.anchor_token.as_str());
-    assert_eq!("staking0000", config.staking_token.as_str());
+    assert_eq!(
+        config,
+        ConfigResponse {
+            anchor_token: HumanAddr::from("reward0000"),
+            staking_token: HumanAddr::from("staking0000"),
+            distribution_schedule: vec![(100, 200, Uint128::from(1000000u128))],
+        }
+    );
+
+    let res = query(&deps, QueryMsg::State { block_height: None }).unwrap();
+    let state: StateResponse = from_binary(&res).unwrap();
+    assert_eq!(
+        state,
+        StateResponse {
+            last_distributed: 12345,
+            total_bond_amount: Uint128::zero(),
+            global_reward_index: Decimal::zero(),
+        }
+    );
 }
 
 #[test]
@@ -36,6 +54,10 @@ fn test_bond_tokens() {
     let msg = InitMsg {
         anchor_token: HumanAddr("reward0000".to_string()),
         staking_token: HumanAddr("staking0000".to_string()),
+        distribution_schedule: vec![
+            (12345, 12345 + 100, Uint128::from(1000000u128)),
+            (12345 + 100, 12345 + 200, Uint128::from(10000000u128)),
+        ],
     };
 
     let env = mock_env("addr0000", &[]);
@@ -47,55 +69,80 @@ fn test_bond_tokens() {
         msg: Some(to_binary(&Cw20HookMsg::Bond {}).unwrap()),
     });
 
-    let env = mock_env("staking0000", &[]);
-    let _res = handle(&mut deps, env, msg).unwrap();
-    let data = query(
-        &deps,
-        QueryMsg::RewardInfo {
-            staker: HumanAddr::from("addr0000"),
-        },
-    )
-    .unwrap();
-    let res: RewardInfoResponse = from_binary(&data).unwrap();
+    let mut env = mock_env("staking0000", &[]);
+    let _res = handle(&mut deps, env.clone(), msg).unwrap();
+
     assert_eq!(
-        res,
-        RewardInfoResponse {
+        from_binary::<StakerInfoResponse>(
+            &query(
+                &deps,
+                QueryMsg::StakerInfo {
+                    staker: HumanAddr::from("addr0000"),
+                    block_height: None,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap(),
+        StakerInfoResponse {
             staker: HumanAddr::from("addr0000"),
-            index: Decimal::zero(),
+            reward_index: Decimal::zero(),
             pending_reward: Uint128::zero(),
             bond_amount: Uint128(100u128),
         }
     );
 
-    let data = query(&deps, QueryMsg::PoolInfo {}).unwrap();
-
-    let pool_info: PoolInfoResponse = from_binary(&data).unwrap();
     assert_eq!(
-        pool_info,
-        PoolInfoResponse {
+        from_binary::<StateResponse>(
+            &query(&deps, QueryMsg::State { block_height: None }).unwrap()
+        )
+        .unwrap(),
+        StateResponse {
             total_bond_amount: Uint128(100u128),
-            reward_index: Decimal::zero(),
-            pending_reward: Uint128::zero(),
+            global_reward_index: Decimal::zero(),
+            last_distributed: 12345,
         }
     );
 
-    // bond 100 more tokens from other account
+    // bond 100 more tokens
     let msg = HandleMsg::Receive(Cw20ReceiveMsg {
-        sender: HumanAddr::from("addr0001"),
+        sender: HumanAddr::from("addr0000"),
         amount: Uint128(100u128),
         msg: Some(to_binary(&Cw20HookMsg::Bond {}).unwrap()),
     });
-    let env = mock_env("staking0000", &[]);
+    env.block.height += 10;
+
     let _res = handle(&mut deps, env, msg).unwrap();
 
-    let data = query(&deps, QueryMsg::PoolInfo {}).unwrap();
-    let pool_info: PoolInfoResponse = from_binary(&data).unwrap();
     assert_eq!(
-        pool_info,
-        PoolInfoResponse {
+        from_binary::<StakerInfoResponse>(
+            &query(
+                &deps,
+                QueryMsg::StakerInfo {
+                    staker: HumanAddr::from("addr0000"),
+                    block_height: None,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap(),
+        StakerInfoResponse {
+            staker: HumanAddr::from("addr0000"),
+            reward_index: Decimal::from_ratio(1000u128, 1u128),
+            pending_reward: Uint128::from(100000u128),
+            bond_amount: Uint128(200u128),
+        }
+    );
+
+    assert_eq!(
+        from_binary::<StateResponse>(
+            &query(&deps, QueryMsg::State { block_height: None }).unwrap()
+        )
+        .unwrap(),
+        StateResponse {
             total_bond_amount: Uint128(200u128),
-            reward_index: Decimal::zero(),
-            pending_reward: Uint128::zero(),
+            global_reward_index: Decimal::from_ratio(1000u128, 1u128),
+            last_distributed: 12345 + 10,
         }
     );
 
@@ -115,77 +162,16 @@ fn test_bond_tokens() {
 }
 
 #[test]
-fn test_deposit_reward() {
-    let mut deps = mock_dependencies(20, &[]);
-
-    let msg = InitMsg {
-        anchor_token: HumanAddr("reward0000".to_string()),
-        staking_token: HumanAddr("staking0000".to_string()),
-    };
-
-    let env = mock_env("addr0000", &[]);
-    let _res = init(&mut deps, env, msg).unwrap();
-
-    let deposit_msg = HandleMsg::Receive(Cw20ReceiveMsg {
-        sender: HumanAddr::from("owner0000"),
-        amount: Uint128(100u128),
-        msg: Some(to_binary(&Cw20HookMsg::DepositReward {}).unwrap()),
-    });
-
-    let env = mock_env("reward0000", &[]);
-    let _res = handle(&mut deps, env, deposit_msg.clone()).unwrap();
-
-    let data = query(&deps, QueryMsg::PoolInfo {}).unwrap();
-    let pool_info: PoolInfoResponse = from_binary(&data).unwrap();
-    assert_eq!(
-        pool_info,
-        PoolInfoResponse {
-            total_bond_amount: Uint128::zero(),
-            reward_index: Decimal::zero(),
-            pending_reward: Uint128::from(100u128),
-        }
-    );
-
-    // bond 100 tokens
-    let msg = HandleMsg::Receive(Cw20ReceiveMsg {
-        sender: HumanAddr::from("addr0000"),
-        amount: Uint128(100u128),
-        msg: Some(to_binary(&Cw20HookMsg::Bond {}).unwrap()),
-    });
-    let env = mock_env("staking0000", &[]);
-    let _res = handle(&mut deps, env, msg).unwrap();
-
-    // unauthoirzed
-    let env = mock_env("wrongtoken", &[]);
-    let res = handle(&mut deps, env, deposit_msg.clone());
-    match res {
-        Err(StdError::Unauthorized { .. }) => {}
-        _ => panic!("Must return unauthorized error"),
-    }
-
-    // factory deposit 100 reward tokens
-    let env = mock_env("reward0000", &[]);
-    let _res = handle(&mut deps, env, deposit_msg).unwrap();
-
-    let data = query(&deps, QueryMsg::PoolInfo {}).unwrap();
-    let pool_info: PoolInfoResponse = from_binary(&data).unwrap();
-    assert_eq!(
-        pool_info,
-        PoolInfoResponse {
-            total_bond_amount: Uint128(100u128),
-            reward_index: Decimal::from_ratio(2u128, 1u128),
-            pending_reward: Uint128::zero(),
-        }
-    );
-}
-
-#[test]
 fn test_unbond() {
     let mut deps = mock_dependencies(20, &[]);
 
     let msg = InitMsg {
         anchor_token: HumanAddr("reward0000".to_string()),
         staking_token: HumanAddr("staking0000".to_string()),
+        distribution_schedule: vec![
+            (12345, 12345 + 100, Uint128::from(1000000u128)),
+            (12345 + 100, 12345 + 200, Uint128::from(10000000u128)),
+        ],
     };
 
     let env = mock_env("addr0000", &[]);
@@ -236,12 +222,16 @@ fn test_unbond() {
 }
 
 #[test]
-fn test_before_share_changes() {
+fn test_compute_reward() {
     let mut deps = mock_dependencies(20, &[]);
 
     let msg = InitMsg {
         anchor_token: HumanAddr("reward0000".to_string()),
         staking_token: HumanAddr("staking0000".to_string()),
+        distribution_schedule: vec![
+            (12345, 12345 + 100, Uint128::from(1000000u128)),
+            (12345 + 100, 12345 + 200, Uint128::from(10000000u128)),
+        ],
     };
 
     let env = mock_env("addr0000", &[]);
@@ -253,17 +243,12 @@ fn test_before_share_changes() {
         amount: Uint128(100u128),
         msg: Some(to_binary(&Cw20HookMsg::Bond {}).unwrap()),
     });
-    let env = mock_env("staking0000", &[]);
-    let _res = handle(&mut deps, env, msg).unwrap();
+    let mut env = mock_env("staking0000", &[]);
+    let _res = handle(&mut deps, env.clone(), msg).unwrap();
 
-    // factory deposit 100 reward tokens
-    let msg = HandleMsg::Receive(Cw20ReceiveMsg {
-        sender: HumanAddr::from("factory0000"),
-        amount: Uint128(100u128),
-        msg: Some(to_binary(&Cw20HookMsg::DepositReward {}).unwrap()),
-    });
-    let env = mock_env("reward0000", &[]);
-    let _res = handle(&mut deps, env, msg).unwrap();
+    // 100 blocks passed
+    // 1,000,000 rewards distributed
+    env.block.height += 100;
 
     // bond 100 more tokens
     let msg = HandleMsg::Receive(Cw20ReceiveMsg {
@@ -271,56 +256,75 @@ fn test_before_share_changes() {
         amount: Uint128(100u128),
         msg: Some(to_binary(&Cw20HookMsg::Bond {}).unwrap()),
     });
-    let env = mock_env("staking0000", &[]);
-    let _res = handle(&mut deps, env, msg).unwrap();
+    let _res = handle(&mut deps, env.clone(), msg).unwrap();
 
-    let data = query(
-        &deps,
-        QueryMsg::RewardInfo {
-            staker: HumanAddr::from("addr0000"),
-        },
-    )
-    .unwrap();
-    let res: RewardInfoResponse = from_binary(&data).unwrap();
     assert_eq!(
-        res,
-        RewardInfoResponse {
+        from_binary::<StakerInfoResponse>(
+            &query(
+                &deps,
+                QueryMsg::StakerInfo {
+                    staker: HumanAddr::from("addr0000"),
+                    block_height: None,
+                },
+            )
+            .unwrap()
+        )
+        .unwrap(),
+        StakerInfoResponse {
             staker: HumanAddr::from("addr0000"),
-            index: Decimal::one(),
-            pending_reward: Uint128(100u128),
+            reward_index: Decimal::from_ratio(10000u128, 1u128),
+            pending_reward: Uint128(1000000u128),
             bond_amount: Uint128(200u128),
         }
     );
 
-    // factory deposit 100 reward tokens; 1 + 0.5 = 1.5 is reward_index
-    let msg = HandleMsg::Receive(Cw20ReceiveMsg {
-        sender: HumanAddr::from("factory0000"),
-        amount: Uint128(100u128),
-        msg: Some(to_binary(&Cw20HookMsg::DepositReward {}).unwrap()),
-    });
-    let env = mock_env("reward0000", &[]);
-    let _res = handle(&mut deps, env, msg).unwrap();
+    // 100 blocks passed
+    // 1,000,000 rewards distributed
+    env.block.height += 10;
+    env.message.sender = HumanAddr::from("addr0000");
 
     // unbond
     let msg = HandleMsg::Unbond {
         amount: Uint128(100u128),
     };
-    let env = mock_env("addr0000", &[]);
     let _res = handle(&mut deps, env, msg).unwrap();
-    let data = query(
-        &deps,
-        QueryMsg::RewardInfo {
-            staker: HumanAddr::from("addr0000"),
-        },
-    )
-    .unwrap();
-    let res: RewardInfoResponse = from_binary(&data).unwrap();
     assert_eq!(
-        res,
-        RewardInfoResponse {
+        from_binary::<StakerInfoResponse>(
+            &query(
+                &deps,
+                QueryMsg::StakerInfo {
+                    staker: HumanAddr::from("addr0000"),
+                    block_height: None,
+                },
+            )
+            .unwrap()
+        )
+        .unwrap(),
+        StakerInfoResponse {
             staker: HumanAddr::from("addr0000"),
-            index: Decimal::from_ratio(3u64, 2u64),
-            pending_reward: Uint128(200u128),
+            reward_index: Decimal::from_ratio(15000u64, 1u64),
+            pending_reward: Uint128(2000000u128),
+            bond_amount: Uint128(100u128),
+        }
+    );
+
+    // query future block
+    assert_eq!(
+        from_binary::<StakerInfoResponse>(
+            &query(
+                &deps,
+                QueryMsg::StakerInfo {
+                    staker: HumanAddr::from("addr0000"),
+                    block_height: Some(12345 + 120),
+                },
+            )
+            .unwrap()
+        )
+        .unwrap(),
+        StakerInfoResponse {
+            staker: HumanAddr::from("addr0000"),
+            reward_index: Decimal::from_ratio(25000u64, 1u64),
+            pending_reward: Uint128(3000000u128),
             bond_amount: Uint128(100u128),
         }
     );
@@ -333,6 +337,10 @@ fn test_withdraw() {
     let msg = InitMsg {
         anchor_token: HumanAddr("reward0000".to_string()),
         staking_token: HumanAddr("staking0000".to_string()),
+        distribution_schedule: vec![
+            (12345, 12345 + 100, Uint128::from(1000000u128)),
+            (12345 + 100, 12345 + 200, Uint128::from(10000000u128)),
+        ],
     };
 
     let env = mock_env("addr0000", &[]);
@@ -344,20 +352,15 @@ fn test_withdraw() {
         amount: Uint128(100u128),
         msg: Some(to_binary(&Cw20HookMsg::Bond {}).unwrap()),
     });
-    let env = mock_env("staking0000", &[]);
-    let _res = handle(&mut deps, env, msg).unwrap();
+    let mut env = mock_env("staking0000", &[]);
+    let _res = handle(&mut deps, env.clone(), msg).unwrap();
 
-    // factory deposit 100 reward tokens
-    let msg = HandleMsg::Receive(Cw20ReceiveMsg {
-        sender: HumanAddr::from("factory0000"),
-        amount: Uint128(100u128),
-        msg: Some(to_binary(&Cw20HookMsg::DepositReward {}).unwrap()),
-    });
-    let env = mock_env("reward0000", &[]);
-    let _res = handle(&mut deps, env, msg).unwrap();
+    // 100 blocks passed
+    // 1,000,000 rewards distributed
+    env.block.height += 100;
+    env.message.sender = HumanAddr::from("addr0000");
 
     let msg = HandleMsg::Withdraw {};
-    let env = mock_env("addr0000", &[]);
     let res = handle(&mut deps, env, msg).unwrap();
 
     assert_eq!(
@@ -366,7 +369,7 @@ fn test_withdraw() {
             contract_addr: HumanAddr::from("reward0000"),
             msg: to_binary(&Cw20HandleMsg::Transfer {
                 recipient: HumanAddr::from("addr0000"),
-                amount: Uint128(100u128),
+                amount: Uint128(1000000u128),
             })
             .unwrap(),
             send: vec![],

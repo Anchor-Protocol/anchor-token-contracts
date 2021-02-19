@@ -16,26 +16,44 @@
     {
       "type": "object",
       "required": [
-        "pool_info"
+        "state"
       ],
       "properties": {
-        "pool_info": {
-          "type": "object"
+        "state": {
+          "type": "object",
+          "properties": {
+            "block_height": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
         }
       }
     },
     {
       "type": "object",
       "required": [
-        "reward_info"
+        "staker_info"
       ],
       "properties": {
-        "reward_info": {
+        "staker_info": {
           "type": "object",
           "required": [
             "staker"
           ],
           "properties": {
+            "block_height": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "staker": {
               "$ref": "#/definitions/HumanAddr"
             }

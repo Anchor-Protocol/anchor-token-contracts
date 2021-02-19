@@ -5,20 +5,20 @@ use cosmwasm_std::{
 };
 
 use anchor_token::staking::{
-    ConfigResponse, Cw20HookMsg, HandleMsg, InitMsg, MigrateMsg, PoolInfoResponse, QueryMsg,
-    RewardInfoResponse,
+    ConfigResponse, Cw20HookMsg, HandleMsg, InitMsg, MigrateMsg, QueryMsg, StakerInfoResponse,
+    StateResponse,
 };
 
 use crate::state::{
-    read_config, read_pool_info, read_reward_info, remove_reward_info, store_config,
-    store_pool_info, store_reward_info, Config, PoolInfo, RewardInfo,
+    read_config, read_staker_info, read_state, remove_staker_info, store_config, store_staker_info,
+    store_state, Config, StakerInfo, State,
 };
 
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
-    _env: Env,
+    env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
     store_config(
@@ -26,15 +26,16 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         &Config {
             anchor_token: deps.api.canonical_address(&msg.anchor_token)?,
             staking_token: deps.api.canonical_address(&msg.staking_token)?,
+            distribution_schedule: msg.distribution_schedule,
         },
     )?;
 
-    store_pool_info(
+    store_state(
         &mut deps.storage,
-        &PoolInfo {
-            pending_reward: Uint128::zero(),
+        &State {
+            last_distributed: env.block.height,
             total_bond_amount: Uint128::zero(),
-            reward_index: Decimal::zero(),
+            global_reward_index: Decimal::zero(),
         },
     )?;
 
@@ -70,14 +71,6 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
 
                 bond(deps, env, cw20_msg.sender, cw20_msg.amount)
             }
-            Cw20HookMsg::DepositReward {} => {
-                // only reward token contract can execute this message
-                if config.anchor_token != deps.api.canonical_address(&env.message.sender)? {
-                    return Err(StdError::unauthorized());
-                }
-
-                deposit_reward(deps, env, cw20_msg.amount)
-            }
         }
     } else {
         Err(StdError::generic_err("data should be given"))
@@ -86,22 +79,26 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
 
 pub fn bond<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
-    _env: Env,
+    env: Env,
     sender_addr: HumanAddr,
     amount: Uint128,
 ) -> HandleResult {
     let sender_addr_raw: CanonicalAddr = deps.api.canonical_address(&sender_addr)?;
-    let mut pool_info: PoolInfo = read_pool_info(&deps.storage)?;
-    let mut reward_info: RewardInfo = read_reward_info(&deps.storage, &sender_addr_raw)?;
 
-    // Withdraw reward to pending reward; before changing share
-    before_share_change(&pool_info, &mut reward_info)?;
+    let config: Config = read_config(&deps.storage)?;
+    let mut state: State = read_state(&deps.storage)?;
+    let mut staker_info: StakerInfo = read_staker_info(&deps.storage, &sender_addr_raw)?;
+
+    // Compute global reward & staker reward
+    compute_reward(&config, &mut state, env.block.height);
+    compute_staker_reward(&state, &mut staker_info)?;
 
     // Increase bond_amount
-    increase_bond_amount(&mut pool_info, &mut reward_info, amount);
+    increase_bond_amount(&mut state, &mut staker_info, amount);
 
-    store_reward_info(&mut deps.storage, &sender_addr_raw, &reward_info)?;
-    store_pool_info(&mut deps.storage, &pool_info)?;
+    // Store updated state with staker's staker_info
+    store_staker_info(&mut deps.storage, &sender_addr_raw, &staker_info)?;
+    store_state(&mut deps.storage, &state)?;
 
     Ok(HandleResponse {
         messages: vec![],
@@ -122,28 +119,30 @@ pub fn unbond<S: Storage, A: Api, Q: Querier>(
     let config: Config = read_config(&deps.storage)?;
     let sender_addr_raw: CanonicalAddr = deps.api.canonical_address(&env.message.sender)?;
 
-    let mut pool_info: PoolInfo = read_pool_info(&deps.storage)?;
-    let mut reward_info: RewardInfo = read_reward_info(&deps.storage, &sender_addr_raw)?;
+    let mut state: State = read_state(&deps.storage)?;
+    let mut staker_info: StakerInfo = read_staker_info(&deps.storage, &sender_addr_raw)?;
 
-    if reward_info.bond_amount < amount {
+    if staker_info.bond_amount < amount {
         return Err(StdError::generic_err("Cannot unbond more than bond amount"));
     }
 
-    // Distribute reward to pending reward; before changing share
-    before_share_change(&pool_info, &mut reward_info)?;
+    // Compute global reward & staker reward
+    compute_reward(&config, &mut state, env.block.height);
+    compute_staker_reward(&state, &mut staker_info)?;
 
     // Decrease bond_amount
-    decrease_bond_amount(&mut pool_info, &mut reward_info, amount)?;
+    decrease_bond_amount(&mut state, &mut staker_info, amount)?;
 
-    // Update rewards info
-    if reward_info.pending_reward.is_zero() && reward_info.bond_amount.is_zero() {
-        remove_reward_info(&mut deps.storage, &sender_addr_raw);
+    // Store or remove updated rewards info
+    // depends on the left pending reward and bond amount
+    if staker_info.pending_reward.is_zero() && staker_info.bond_amount.is_zero() {
+        remove_staker_info(&mut deps.storage, &sender_addr_raw);
     } else {
-        store_reward_info(&mut deps.storage, &sender_addr_raw, &reward_info)?;
+        store_staker_info(&mut deps.storage, &sender_addr_raw, &staker_info)?;
     }
 
-    // Update pool info
-    store_pool_info(&mut deps.storage, &pool_info)?;
+    // Store updated state
+    store_state(&mut deps.storage, &state)?;
 
     Ok(HandleResponse {
         messages: vec![CosmosMsg::Wasm(WasmMsg::Execute {
@@ -163,36 +162,6 @@ pub fn unbond<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-// deposit reward must be from reward token contract
-pub fn deposit_reward<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    _env: Env,
-    amount: Uint128,
-) -> HandleResult {
-    let mut pool_info: PoolInfo = read_pool_info(&deps.storage)?;
-    if pool_info.total_bond_amount.is_zero() {
-        pool_info.pending_reward += amount;
-    } else {
-        let reward_per_bond = Decimal::from_ratio(
-            amount + pool_info.pending_reward,
-            pool_info.total_bond_amount,
-        );
-        pool_info.reward_index = pool_info.reward_index + reward_per_bond;
-        pool_info.pending_reward = Uint128::zero();
-    }
-
-    store_pool_info(&mut deps.storage, &pool_info)?;
-
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![
-            log("action", "deposit_reward"),
-            log("amount", amount.to_string()),
-        ],
-        data: None,
-    })
-}
-
 // withdraw rewards to executor
 pub fn withdraw<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -201,24 +170,26 @@ pub fn withdraw<S: Storage, A: Api, Q: Querier>(
     let sender_addr_raw = deps.api.canonical_address(&env.message.sender)?;
 
     let config: Config = read_config(&deps.storage)?;
-    let mut reward_info = read_reward_info(&deps.storage, &sender_addr_raw)?;
+    let mut state: State = read_state(&deps.storage)?;
+    let mut staker_info = read_staker_info(&deps.storage, &sender_addr_raw)?;
 
-    // single reward withdraw
-    let pool_info: PoolInfo = read_pool_info(&deps.storage)?;
+    // Compute global reward & staker reward
+    compute_reward(&config, &mut state, env.block.height);
+    compute_staker_reward(&state, &mut staker_info)?;
 
-    // Withdraw reward to pending reward
-    before_share_change(&pool_info, &mut reward_info)?;
+    let amount = staker_info.pending_reward;
+    staker_info.pending_reward = Uint128::zero();
 
-    let amount = reward_info.pending_reward;
-    reward_info.pending_reward = Uint128::zero();
-
-    // Update rewards info
-    if reward_info.bond_amount.is_zero() {
-        remove_reward_info(&mut deps.storage, &sender_addr_raw);
+    // Store or remove updated rewards info
+    // depends on the left pending reward and bond amount
+    if staker_info.bond_amount.is_zero() {
+        remove_staker_info(&mut deps.storage, &sender_addr_raw);
     } else {
-        store_reward_info(&mut deps.storage, &sender_addr_raw, &reward_info)?;
+        store_staker_info(&mut deps.storage, &sender_addr_raw, &staker_info)?;
     }
 
+    // Store updated state
+    store_state(&mut deps.storage, &state)?;
     Ok(HandleResponse {
         messages: vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.human_address(&config.anchor_token)?,
@@ -237,28 +208,55 @@ pub fn withdraw<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-fn increase_bond_amount(pool_info: &mut PoolInfo, reward_info: &mut RewardInfo, amount: Uint128) {
-    pool_info.total_bond_amount += amount;
-    reward_info.bond_amount += amount;
+fn increase_bond_amount(state: &mut State, staker_info: &mut StakerInfo, amount: Uint128) {
+    state.total_bond_amount += amount;
+    staker_info.bond_amount += amount;
 }
 
 fn decrease_bond_amount(
-    pool_info: &mut PoolInfo,
-    reward_info: &mut RewardInfo,
+    state: &mut State,
+    staker_info: &mut StakerInfo,
     amount: Uint128,
 ) -> StdResult<()> {
-    pool_info.total_bond_amount = (pool_info.total_bond_amount - amount)?;
-    reward_info.bond_amount = (reward_info.bond_amount - amount)?;
+    state.total_bond_amount = (state.total_bond_amount - amount)?;
+    staker_info.bond_amount = (staker_info.bond_amount - amount)?;
     Ok(())
 }
 
-// withdraw reward to pending reward
-fn before_share_change(pool_info: &PoolInfo, reward_info: &mut RewardInfo) -> StdResult<()> {
-    let pending_reward = (reward_info.bond_amount * pool_info.reward_index
-        - reward_info.bond_amount * reward_info.index)?;
+// compute distributed rewards and update global reward index
+fn compute_reward(config: &Config, state: &mut State, block_height: u64) {
+    if state.total_bond_amount.is_zero() {
+        state.last_distributed = block_height;
+        return;
+    }
 
-    reward_info.index = pool_info.reward_index;
-    reward_info.pending_reward += pending_reward;
+    let mut distributed_amount: Uint128 = Uint128::zero();
+    for s in config.distribution_schedule.iter() {
+        if s.0 > block_height || s.1 < state.last_distributed {
+            continue;
+        }
+
+        // min(s.1, block_height) - max(s.0, last_distributed)
+        let passed_blocks =
+            std::cmp::min(s.1, block_height) - std::cmp::max(s.0, state.last_distributed);
+
+        let num_blocks = s.1 - s.0;
+        let distribution_amount_per_block: Decimal = Decimal::from_ratio(s.2, num_blocks);
+        distributed_amount += distribution_amount_per_block * Uint128(passed_blocks as u128);
+    }
+
+    state.last_distributed = block_height;
+    state.global_reward_index = state.global_reward_index
+        + Decimal::from_ratio(distributed_amount, state.total_bond_amount);
+}
+
+// withdraw reward to pending reward
+fn compute_staker_reward(state: &State, staker_info: &mut StakerInfo) -> StdResult<()> {
+    let pending_reward = (staker_info.bond_amount * state.global_reward_index
+        - staker_info.bond_amount * staker_info.reward_index)?;
+
+    staker_info.reward_index = state.global_reward_index;
+    staker_info.pending_reward += pending_reward;
     Ok(())
 }
 
@@ -268,8 +266,11 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
-        QueryMsg::PoolInfo {} => to_binary(&query_pool_info(deps)?),
-        QueryMsg::RewardInfo { staker } => to_binary(&query_reward_info(deps, staker)?),
+        QueryMsg::State { block_height } => to_binary(&query_state(deps, block_height)?),
+        QueryMsg::StakerInfo {
+            staker,
+            block_height,
+        } => to_binary(&query_staker_info(deps, staker, block_height)?),
     }
 }
 
@@ -280,35 +281,50 @@ pub fn query_config<S: Storage, A: Api, Q: Querier>(
     let resp = ConfigResponse {
         anchor_token: deps.api.human_address(&state.anchor_token)?,
         staking_token: deps.api.human_address(&state.staking_token)?,
+        distribution_schedule: state.distribution_schedule,
     };
 
     Ok(resp)
 }
 
-pub fn query_pool_info<S: Storage, A: Api, Q: Querier>(
+pub fn query_state<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-) -> StdResult<PoolInfoResponse> {
-    let pool_info: PoolInfo = read_pool_info(&deps.storage)?;
-    Ok(PoolInfoResponse {
-        total_bond_amount: pool_info.total_bond_amount,
-        reward_index: pool_info.reward_index,
-        pending_reward: pool_info.pending_reward,
+    block_height: Option<u64>,
+) -> StdResult<StateResponse> {
+    let mut state: State = read_state(&deps.storage)?;
+    if let Some(block_height) = block_height {
+        let config = read_config(&deps.storage)?;
+        compute_reward(&config, &mut state, block_height);
+    }
+
+    Ok(StateResponse {
+        last_distributed: state.last_distributed,
+        total_bond_amount: state.total_bond_amount,
+        global_reward_index: state.global_reward_index,
     })
 }
 
-pub fn query_reward_info<S: Storage, A: Api, Q: Querier>(
+pub fn query_staker_info<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     staker: HumanAddr,
-) -> StdResult<RewardInfoResponse> {
+    block_height: Option<u64>,
+) -> StdResult<StakerInfoResponse> {
     let staker_raw = deps.api.canonical_address(&staker)?;
 
-    let reward_info: RewardInfo = read_reward_info(&deps.storage, &staker_raw)?;
+    let mut staker_info: StakerInfo = read_staker_info(&deps.storage, &staker_raw)?;
+    if let Some(block_height) = block_height {
+        let config = read_config(&deps.storage)?;
+        let mut state = read_state(&deps.storage)?;
 
-    Ok(RewardInfoResponse {
+        compute_reward(&config, &mut state, block_height);
+        compute_staker_reward(&state, &mut staker_info)?;
+    }
+
+    Ok(StakerInfoResponse {
         staker,
-        index: reward_info.index,
-        bond_amount: reward_info.bond_amount,
-        pending_reward: reward_info.pending_reward,
+        reward_index: staker_info.reward_index,
+        bond_amount: staker_info.bond_amount,
+        pending_reward: staker_info.pending_reward,
     })
 }
 

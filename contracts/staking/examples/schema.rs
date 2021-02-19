@@ -2,7 +2,7 @@ use std::env::current_dir;
 use std::fs::create_dir_all;
 
 use anchor_token::staking::{
-    ConfigResponse, Cw20HookMsg, HandleMsg, InitMsg, PoolInfoResponse, QueryMsg, RewardInfoResponse,
+    ConfigResponse, Cw20HookMsg, HandleMsg, InitMsg, QueryMsg, StakerInfoResponse, StateResponse,
 };
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
@@ -17,6 +17,6 @@ fn main() {
     export_schema(&schema_for!(Cw20HookMsg), &out_dir);
     export_schema(&schema_for!(QueryMsg), &out_dir);
     export_schema(&schema_for!(ConfigResponse), &out_dir);
-    export_schema(&schema_for!(RewardInfoResponse), &out_dir);
-    export_schema(&schema_for!(PoolInfoResponse), &out_dir);
+    export_schema(&schema_for!(StakerInfoResponse), &out_dir);
+    export_schema(&schema_for!(StateResponse), &out_dir);
 }

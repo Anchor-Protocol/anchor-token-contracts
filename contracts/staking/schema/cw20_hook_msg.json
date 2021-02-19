@@ -12,17 +12,6 @@
           "type": "object"
         }
       }
-    },
-    {
-      "type": "object",
-      "required": [
-        "deposit_reward"
-      ],
-      "properties": {
-        "deposit_reward": {
-          "type": "object"
-        }
-      }
     }
   ]
 }
