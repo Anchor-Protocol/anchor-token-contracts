@@ -792,15 +792,7 @@ pub fn cast_vote<S: Storage, A: Api, Q: Querier>(
     let time_to_end = a_poll.end_height - env.block.height;
 
     if time_to_end < config.snapshot_period && a_poll.staked_amount.is_none() {
-        let state: State = state_store(&mut deps.storage).load()?;
-
-        let staked_amount = (load_token_balance(
-            &deps,
-            &deps.api.human_address(&config.anchor_token)?,
-            &state.contract_addr,
-        )? - state.total_deposit)?;
-
-        a_poll.staked_amount = Some(staked_amount);
+        a_poll.staked_amount = Some(total_balance);
     }
 
     poll_store(&mut deps.storage).save(&poll_id.to_be_bytes(), &a_poll)?;
