@@ -21,7 +21,7 @@ use anchor_token::gov::{
 const MIN_TITLE_LENGTH: usize = 4;
 const MAX_TITLE_LENGTH: usize = 64;
 const MIN_DESC_LENGTH: usize = 4;
-const MAX_DESC_LENGTH: usize = 256;
+const MAX_DESC_LENGTH: usize = 1024;
 const MIN_LINK_LENGTH: usize = 12;
 const MAX_LINK_LENGTH: usize = 128;
 
@@ -39,10 +39,10 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         quorum: msg.quorum,
         threshold: msg.threshold,
         voting_period: msg.voting_period,
-        effective_delay: msg.effective_delay,
+        timelock_period: msg.timelock_period,
         expiration_period: msg.expiration_period,
         proposal_deposit: msg.proposal_deposit,
-        fixing_staked_amount_period: msg.fixing_staked_amount_period,
+        snapshot_period: msg.snapshot_period,
     };
 
     let state = State {
@@ -70,10 +70,10 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             quorum,
             threshold,
             voting_period,
-            effective_delay,
+            timelock_period,
             expiration_period,
             proposal_deposit,
-            fixing_staked_amount_period,
+            snapshot_period,
         } => update_config(
             deps,
             env,
@@ -81,10 +81,10 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             quorum,
             threshold,
             voting_period,
-            effective_delay,
+            timelock_period,
             expiration_period,
             proposal_deposit,
-            fixing_staked_amount_period,
+            snapshot_period,
         ),
         HandleMsg::WithdrawVotingTokens { amount } => withdraw_voting_tokens(deps, env, amount),
         HandleMsg::CastVote {
@@ -95,7 +95,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::EndPoll { poll_id } => end_poll(deps, env, poll_id),
         HandleMsg::ExecutePoll { poll_id } => execute_poll(deps, env, poll_id),
         HandleMsg::ExpirePoll { poll_id } => expire_poll(deps, env, poll_id),
-        HandleMsg::FixStakedAmount { poll_id } => fix_staked_amount(deps, env, poll_id),
+        HandleMsg::SnapshotPoll { poll_id } => snapshot_poll(deps, env, poll_id),
     }
 }
 
@@ -192,10 +192,10 @@ pub fn update_config<S: Storage, A: Api, Q: Querier>(
     quorum: Option<Decimal>,
     threshold: Option<Decimal>,
     voting_period: Option<u64>,
-    effective_delay: Option<u64>,
+    timelock_period: Option<u64>,
     expiration_period: Option<u64>,
     proposal_deposit: Option<Uint128>,
-    fixing_staked_amount_period: Option<u64>,
+    snapshot_period: Option<u64>,
 ) -> HandleResult {
     let api = deps.api;
     config_store(&mut deps.storage).update(|mut config| {
@@ -219,8 +219,8 @@ pub fn update_config<S: Storage, A: Api, Q: Querier>(
             config.voting_period = voting_period;
         }
 
-        if let Some(effective_delay) = effective_delay {
-            config.effective_delay = effective_delay;
+        if let Some(timelock_period) = timelock_period {
+            config.timelock_period = timelock_period;
         }
 
         if let Some(expiration_period) = expiration_period {
@@ -231,8 +231,8 @@ pub fn update_config<S: Storage, A: Api, Q: Querier>(
             config.proposal_deposit = proposal_deposit;
         }
 
-        if let Some(period) = fixing_staked_amount_period {
-            config.fixing_staked_amount_period = period;
+        if let Some(period) = snapshot_period {
+            config.snapshot_period = period;
         }
 
         Ok(config)
@@ -385,6 +385,7 @@ pub fn create_poll<S: Storage, A: Api, Q: Querier>(
     let all_execute_data = if let Some(exe_msgs) = execute_msgs {
         for msgs in exe_msgs {
             let execute_data = ExecuteData {
+                order: msgs.order,
                 contract: deps.api.canonical_address(&msgs.contract)?,
                 msg: msgs.msg,
             };
@@ -565,8 +566,8 @@ pub fn execute_poll<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::generic_err("Poll is not in passed status"));
     }
 
-    if a_poll.end_height + config.effective_delay > env.block.height {
-        return Err(StdError::generic_err("Effective delay has not expired"));
+    if a_poll.end_height + config.timelock_period > env.block.height {
+        return Err(StdError::generic_err("Timelock period has not expired"));
     }
 
     poll_indexer_store(&mut deps.storage, &PollStatus::Passed).remove(&poll_id.to_be_bytes());
@@ -578,7 +579,9 @@ pub fn execute_poll<S: Storage, A: Api, Q: Querier>(
 
     let mut messages: Vec<CosmosMsg> = vec![];
     if let Some(all_msgs) = a_poll.execute_data {
-        for msg in all_msgs {
+        let mut msgs = all_msgs;
+        msgs.sort();
+        for msg in msgs {
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: deps.api.human_address(&msg.contract)?,
                 msg: msg.msg,
@@ -639,8 +642,8 @@ pub fn expire_poll<S: Storage, A: Api, Q: Querier>(
     })
 }
 
-/// FixStakedAmount is used to take a snapshot of the staked amount for quorum calculation
-pub fn fix_staked_amount<S: Storage, A: Api, Q: Querier>(
+/// SnapshotPoll is used to take a snapshot of the staked amount for quorum calculation
+pub fn snapshot_poll<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     poll_id: u64,
@@ -648,13 +651,20 @@ pub fn fix_staked_amount<S: Storage, A: Api, Q: Querier>(
     let config: Config = config_read(&deps.storage).load()?;
     let mut a_poll: Poll = poll_store(&mut deps.storage).load(&poll_id.to_be_bytes())?;
 
+    if a_poll.status != PollStatus::InProgress {
+        return Err(StdError::generic_err("Poll is not in progress"));
+    }
+
     let time_to_end = a_poll.end_height - env.block.height;
 
-    if time_to_end > config.fixing_staked_amount_period {
-        return Err(StdError::generic_err(
-            "Cannot fix the staked amount at this height",
-        ));
+    if time_to_end > config.snapshot_period {
+        return Err(StdError::generic_err("Cannot snapshot at this height"));
     }
+
+    if a_poll.staked_amount.is_some() {
+        return Err(StdError::generic_err("Snapshot has already occurred"));
+    }
+
     // store the current staked amount for quorum calculation
     let state: State = state_store(&mut deps.storage).load()?;
 
@@ -671,7 +681,7 @@ pub fn fix_staked_amount<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse {
         messages: vec![],
         log: vec![
-            log("action", "fix_staked_amount"),
+            log("action", "snapshot_poll"),
             log("poll_id", poll_id.to_string()),
             log("staked_amount", staked_amount),
         ],
@@ -777,6 +787,22 @@ pub fn cast_vote<S: Storage, A: Api, Q: Querier>(
     // store poll voter && and update poll data
     poll_voter_store(&mut deps.storage, poll_id)
         .save(&sender_address_raw.as_slice(), &vote_info)?;
+
+    // processing snapshot
+    let time_to_end = a_poll.end_height - env.block.height;
+
+    if time_to_end < config.snapshot_period && a_poll.staked_amount.is_none() {
+        let state: State = state_store(&mut deps.storage).load()?;
+
+        let staked_amount = (load_token_balance(
+            &deps,
+            &deps.api.human_address(&config.anchor_token)?,
+            &state.contract_addr,
+        )? - state.total_deposit)?;
+
+        a_poll.staked_amount = Some(staked_amount);
+    }
+
     poll_store(&mut deps.storage).save(&poll_id.to_be_bytes(), &a_poll)?;
 
     let log = vec![
@@ -859,10 +885,10 @@ fn query_config<S: Storage, A: Api, Q: Querier>(
         quorum: config.quorum,
         threshold: config.threshold,
         voting_period: config.voting_period,
-        effective_delay: config.effective_delay,
+        timelock_period: config.timelock_period,
         expiration_period: config.expiration_period,
         proposal_deposit: config.proposal_deposit,
-        fixing_staked_amount_period: config.fixing_staked_amount_period,
+        snapshot_period: config.snapshot_period,
     })
 }
 
@@ -899,6 +925,7 @@ fn query_poll<S: Storage, A: Api, Q: Querier>(
         execute_data: if let Some(exe_msgs) = poll.execute_data.clone() {
             for msg in exe_msgs {
                 let execute_data = ExecuteMsg {
+                    order: msg.order,
                     contract: deps.api.human_address(&msg.contract)?,
                     msg: msg.msg,
                 };
@@ -910,6 +937,7 @@ fn query_poll<S: Storage, A: Api, Q: Querier>(
         },
         yes_votes: poll.yes_votes,
         no_votes: poll.no_votes,
+        staked_amount: poll.staked_amount,
         total_balance_at_end_poll: poll.total_balance_at_end_poll,
     })
 }
@@ -940,6 +968,7 @@ fn query_polls<S: Storage, A: Api, Q: Querier>(
                 execute_data: if let Some(exe_msgs) = poll.execute_data.clone() {
                     for msg in exe_msgs {
                         let execute_data = ExecuteMsg {
+                            order: msg.order,
                             contract: deps.api.human_address(&msg.contract)?,
                             msg: msg.msg,
                         };
@@ -951,6 +980,7 @@ fn query_polls<S: Storage, A: Api, Q: Querier>(
                 },
                 yes_votes: poll.yes_votes,
                 no_votes: poll.no_votes,
+                staked_amount: poll.staked_amount,
                 total_balance_at_end_poll: poll.total_balance_at_end_poll,
             })
         })

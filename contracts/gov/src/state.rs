@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use anchor_token::common::OrderBy;
 use anchor_token::gov::{PollStatus, VoterInfo};
+use std::cmp::Ordering;
 
 static KEY_CONFIG: &[u8] = b"config";
 static KEY_STATE: &[u8] = b"state";
@@ -25,10 +26,10 @@ pub struct Config {
     pub quorum: Decimal,
     pub threshold: Decimal,
     pub voting_period: u64,
-    pub effective_delay: u64,
+    pub timelock_period: u64,
     pub expiration_period: u64,
     pub proposal_deposit: Uint128,
-    pub fixing_staked_amount_period: u64,
+    pub snapshot_period: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -64,10 +65,30 @@ pub struct Poll {
     pub staked_amount: Option<Uint128>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 pub struct ExecuteData {
+    pub order: u64,
     pub contract: CanonicalAddr,
     pub msg: Binary,
+}
+impl Eq for ExecuteData {}
+
+impl Ord for ExecuteData {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.order.cmp(&other.order)
+    }
+}
+
+impl PartialOrd for ExecuteData {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for ExecuteData {
+    fn eq(&self, other: &Self) -> bool {
+        self.order == other.order
+    }
 }
 
 pub fn config_store<S: Storage>(storage: &mut S) -> Singleton<S, Config> {

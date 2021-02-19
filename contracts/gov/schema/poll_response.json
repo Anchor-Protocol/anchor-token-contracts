@@ -51,6 +51,16 @@
     "no_votes": {
       "$ref": "#/definitions/Uint128"
     },
+    "staked_amount": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Uint128"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "status": {
       "$ref": "#/definitions/PollStatus"
     },
@@ -80,7 +90,8 @@
       "type": "object",
       "required": [
         "contract",
-        "msg"
+        "msg",
+        "order"
       ],
       "properties": {
         "contract": {
@@ -88,6 +99,11 @@
         },
         "msg": {
           "$ref": "#/definitions/Binary"
+        },
+        "order": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
         }
       }
     },
