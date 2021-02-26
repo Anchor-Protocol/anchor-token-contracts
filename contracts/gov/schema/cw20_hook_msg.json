@@ -31,15 +31,14 @@
             "description": {
               "type": "string"
             },
-            "execute_msg": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/ExecuteMsg"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+            "execute_msgs": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "$ref": "#/definitions/ExecuteMsg"
+              }
             },
             "link": {
               "type": [
@@ -64,7 +63,8 @@
       "type": "object",
       "required": [
         "contract",
-        "msg"
+        "msg",
+        "order"
       ],
       "properties": {
         "contract": {
@@ -72,6 +72,11 @@
         },
         "msg": {
           "$ref": "#/definitions/Binary"
+        },
+        "order": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
         }
       }
     },

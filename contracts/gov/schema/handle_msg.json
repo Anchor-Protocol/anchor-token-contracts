@@ -22,14 +22,6 @@
         "update_config": {
           "type": "object",
           "properties": {
-            "effective_delay": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
-            },
             "expiration_period": {
               "type": [
                 "integer",
@@ -68,6 +60,14 @@
                 }
               ]
             },
+            "snapshot_period": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "threshold": {
               "anyOf": [
                 {
@@ -77,6 +77,14 @@
                   "type": "null"
                 }
               ]
+            },
+            "timelock_period": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
             },
             "voting_period": {
               "type": [
@@ -204,6 +212,27 @@
           }
         }
       }
+    },
+    {
+      "type": "object",
+      "required": [
+        "snapshot_poll"
+      ],
+      "properties": {
+        "snapshot_poll": {
+          "type": "object",
+          "required": [
+            "poll_id"
+          ],
+          "properties": {
+            "poll_id": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      }
     }
   ],
   "definitions": {
@@ -238,7 +267,7 @@
       }
     },
     "Decimal": {
-      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0 The greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
+      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
       "type": "string"
     },
     "HumanAddr": {

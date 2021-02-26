@@ -6,22 +6,22 @@ use crate::state::{
 };
 use cosmwasm_std::{
     from_binary, log, to_binary, Api, Binary, CanonicalAddr, CosmosMsg, Decimal, Env, Extern,
-    HandleResponse, HandleResult, HumanAddr, InitResponse, InitResult, MigrateResponse,
-    MigrateResult, Querier, StdError, StdResult, Storage, Uint128, WasmMsg,
+    HandleResponse, HandleResult, HumanAddr, InitResponse, InitResult, Querier, StdError,
+    StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 
 use anchor_token::common::OrderBy;
 use anchor_token::gov::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, HandleMsg, InitMsg, MigrateMsg, PollResponse,
-    PollStatus, PollsResponse, QueryMsg, StakerResponse, StateResponse, VoteOption, VoterInfo,
-    VotersResponse, VotersResponseItem,
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, HandleMsg, InitMsg, PollResponse, PollStatus,
+    PollsResponse, QueryMsg, StakerResponse, StateResponse, VoteOption, VoterInfo, VotersResponse,
+    VotersResponseItem,
 };
 
 const MIN_TITLE_LENGTH: usize = 4;
 const MAX_TITLE_LENGTH: usize = 64;
 const MIN_DESC_LENGTH: usize = 4;
-const MAX_DESC_LENGTH: usize = 256;
+const MAX_DESC_LENGTH: usize = 1024;
 const MIN_LINK_LENGTH: usize = 12;
 const MAX_LINK_LENGTH: usize = 128;
 
@@ -39,9 +39,10 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         quorum: msg.quorum,
         threshold: msg.threshold,
         voting_period: msg.voting_period,
-        effective_delay: msg.effective_delay,
+        timelock_period: msg.timelock_period,
         expiration_period: msg.expiration_period,
         proposal_deposit: msg.proposal_deposit,
+        snapshot_period: msg.snapshot_period,
     };
 
     let state = State {
@@ -69,9 +70,10 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             quorum,
             threshold,
             voting_period,
-            effective_delay,
+            timelock_period,
             expiration_period,
             proposal_deposit,
+            snapshot_period,
         } => update_config(
             deps,
             env,
@@ -79,9 +81,10 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             quorum,
             threshold,
             voting_period,
-            effective_delay,
+            timelock_period,
             expiration_period,
             proposal_deposit,
+            snapshot_period,
         ),
         HandleMsg::WithdrawVotingTokens { amount } => withdraw_voting_tokens(deps, env, amount),
         HandleMsg::CastVote {
@@ -92,6 +95,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::EndPoll { poll_id } => end_poll(deps, env, poll_id),
         HandleMsg::ExecutePoll { poll_id } => execute_poll(deps, env, poll_id),
         HandleMsg::ExpirePoll { poll_id } => expire_poll(deps, env, poll_id),
+        HandleMsg::SnapshotPoll { poll_id } => snapshot_poll(deps, env, poll_id),
     }
 }
 
@@ -115,7 +119,7 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
                 title,
                 description,
                 link,
-                execute_msg,
+                execute_msgs,
             } => create_poll(
                 deps,
                 env,
@@ -124,7 +128,7 @@ pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
                 title,
                 description,
                 link,
-                execute_msg,
+                execute_msgs,
             ),
         }
     } else {
@@ -188,9 +192,10 @@ pub fn update_config<S: Storage, A: Api, Q: Querier>(
     quorum: Option<Decimal>,
     threshold: Option<Decimal>,
     voting_period: Option<u64>,
-    effective_delay: Option<u64>,
+    timelock_period: Option<u64>,
     expiration_period: Option<u64>,
     proposal_deposit: Option<Uint128>,
+    snapshot_period: Option<u64>,
 ) -> HandleResult {
     let api = deps.api;
     config_store(&mut deps.storage).update(|mut config| {
@@ -214,8 +219,8 @@ pub fn update_config<S: Storage, A: Api, Q: Querier>(
             config.voting_period = voting_period;
         }
 
-        if let Some(effective_delay) = effective_delay {
-            config.effective_delay = effective_delay;
+        if let Some(timelock_period) = timelock_period {
+            config.timelock_period = timelock_period;
         }
 
         if let Some(expiration_period) = expiration_period {
@@ -224,6 +229,10 @@ pub fn update_config<S: Storage, A: Api, Q: Querier>(
 
         if let Some(proposal_deposit) = proposal_deposit {
             config.proposal_deposit = proposal_deposit;
+        }
+
+        if let Some(period) = snapshot_period {
+            config.snapshot_period = period;
         }
 
         Ok(config)
@@ -351,7 +360,7 @@ pub fn create_poll<S: Storage, A: Api, Q: Querier>(
     title: String,
     description: String,
     link: Option<String>,
-    execute_msg: Option<ExecuteMsg>,
+    execute_msgs: Option<Vec<ExecuteMsg>>,
 ) -> StdResult<HandleResponse> {
     validate_title(&title)?;
     validate_description(&description)?;
@@ -372,11 +381,17 @@ pub fn create_poll<S: Storage, A: Api, Q: Querier>(
     state.poll_count += 1;
     state.total_deposit += deposit_amount;
 
-    let execute_data = if let Some(execute_msg) = execute_msg {
-        Some(ExecuteData {
-            contract: deps.api.canonical_address(&execute_msg.contract)?,
-            msg: execute_msg.msg,
-        })
+    let mut data_list: Vec<ExecuteData> = vec![];
+    let all_execute_data = if let Some(exe_msgs) = execute_msgs {
+        for msgs in exe_msgs {
+            let execute_data = ExecuteData {
+                order: msgs.order,
+                contract: deps.api.canonical_address(&msgs.contract)?,
+                msg: msgs.msg,
+            };
+            data_list.push(execute_data)
+        }
+        Some(data_list)
     } else {
         None
     };
@@ -392,9 +407,10 @@ pub fn create_poll<S: Storage, A: Api, Q: Querier>(
         title,
         description,
         link,
-        execute_data,
+        execute_data: all_execute_data,
         deposit_amount,
         total_balance_at_end_poll: None,
+        staked_amount: None,
     };
 
     poll_store(&mut deps.storage).save(&poll_id.to_be_bytes(), &new_poll)?;
@@ -452,13 +468,25 @@ pub fn end_poll<S: Storage, A: Api, Q: Querier>(
     let yes = a_poll.yes_votes.u128();
 
     let tallied_weight = yes + no;
-    let staked_weight = (load_token_balance(
-        &deps,
-        &deps.api.human_address(&config.anchor_token)?,
-        &state.contract_addr,
-    )? - state.total_deposit)?;
 
-    let quorum = Decimal::from_ratio(tallied_weight, staked_weight);
+    let (quorum, staked_weight) = if let Some(staked_amount) = a_poll.staked_amount {
+        (
+            Decimal::from_ratio(tallied_weight, staked_amount),
+            staked_amount,
+        )
+    } else {
+        let staked_weight = (load_token_balance(
+            &deps,
+            &deps.api.human_address(&config.anchor_token)?,
+            &state.contract_addr,
+        )? - state.total_deposit)?;
+
+        (
+            Decimal::from_ratio(tallied_weight, staked_weight),
+            staked_weight,
+        )
+    };
+
     if tallied_weight == 0 || quorum < config.quorum {
         // Quorum: More than quorum of the total staked tokens at the end of the voting
         // period need to have participated in the vote.
@@ -538,8 +566,8 @@ pub fn execute_poll<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::generic_err("Poll is not in passed status"));
     }
 
-    if a_poll.end_height + config.effective_delay > env.block.height {
-        return Err(StdError::generic_err("Effective delay has not expired"));
+    if a_poll.end_height + config.timelock_period > env.block.height {
+        return Err(StdError::generic_err("Timelock period has not expired"));
     }
 
     poll_indexer_store(&mut deps.storage, &PollStatus::Passed).remove(&poll_id.to_be_bytes());
@@ -550,12 +578,16 @@ pub fn execute_poll<S: Storage, A: Api, Q: Querier>(
     poll_store(&mut deps.storage).save(&poll_id.to_be_bytes(), &a_poll)?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
-    if let Some(execute_data) = a_poll.execute_data {
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.human_address(&execute_data.contract)?,
-            msg: execute_data.msg,
-            send: vec![],
-        }))
+    if let Some(all_msgs) = a_poll.execute_data {
+        let mut msgs = all_msgs;
+        msgs.sort();
+        for msg in msgs {
+            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: deps.api.human_address(&msg.contract)?,
+                msg: msg.msg,
+                send: vec![],
+            }))
+        }
     } else {
         return Err(StdError::generic_err("The poll does not have execute_data"));
     }
@@ -605,6 +637,53 @@ pub fn expire_poll<S: Storage, A: Api, Q: Querier>(
         log: vec![
             log("action", "expire_poll"),
             log("poll_id", poll_id.to_string()),
+        ],
+        data: None,
+    })
+}
+
+/// SnapshotPoll is used to take a snapshot of the staked amount for quorum calculation
+pub fn snapshot_poll<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    poll_id: u64,
+) -> HandleResult {
+    let config: Config = config_read(&deps.storage).load()?;
+    let mut a_poll: Poll = poll_store(&mut deps.storage).load(&poll_id.to_be_bytes())?;
+
+    if a_poll.status != PollStatus::InProgress {
+        return Err(StdError::generic_err("Poll is not in progress"));
+    }
+
+    let time_to_end = a_poll.end_height - env.block.height;
+
+    if time_to_end > config.snapshot_period {
+        return Err(StdError::generic_err("Cannot snapshot at this height"));
+    }
+
+    if a_poll.staked_amount.is_some() {
+        return Err(StdError::generic_err("Snapshot has already occurred"));
+    }
+
+    // store the current staked amount for quorum calculation
+    let state: State = state_store(&mut deps.storage).load()?;
+
+    let staked_amount = (load_token_balance(
+        &deps,
+        &deps.api.human_address(&config.anchor_token)?,
+        &state.contract_addr,
+    )? - state.total_deposit)?;
+
+    a_poll.staked_amount = Some(staked_amount);
+
+    poll_store(&mut deps.storage).save(&poll_id.to_be_bytes(), &a_poll)?;
+
+    Ok(HandleResponse {
+        messages: vec![],
+        log: vec![
+            log("action", "snapshot_poll"),
+            log("poll_id", poll_id.to_string()),
+            log("staked_amount", staked_amount),
         ],
         data: None,
     })
@@ -708,6 +787,14 @@ pub fn cast_vote<S: Storage, A: Api, Q: Querier>(
     // store poll voter && and update poll data
     poll_voter_store(&mut deps.storage, poll_id)
         .save(&sender_address_raw.as_slice(), &vote_info)?;
+
+    // processing snapshot
+    let time_to_end = a_poll.end_height - env.block.height;
+
+    if time_to_end < config.snapshot_period && a_poll.staked_amount.is_none() {
+        a_poll.staked_amount = Some(total_balance);
+    }
+
     poll_store(&mut deps.storage).save(&poll_id.to_be_bytes(), &a_poll)?;
 
     let log = vec![
@@ -790,9 +877,10 @@ fn query_config<S: Storage, A: Api, Q: Querier>(
         quorum: config.quorum,
         threshold: config.threshold,
         voting_period: config.voting_period,
-        effective_delay: config.effective_delay,
+        timelock_period: config.timelock_period,
         expiration_period: config.expiration_period,
         proposal_deposit: config.proposal_deposit,
+        snapshot_period: config.snapshot_period,
     })
 }
 
@@ -815,6 +903,8 @@ fn query_poll<S: Storage, A: Api, Q: Querier>(
     }
     .unwrap();
 
+    let mut data_list: Vec<ExecuteMsg> = vec![];
+
     Ok(PollResponse {
         id: poll.id,
         creator: deps.api.human_address(&poll.creator).unwrap(),
@@ -824,16 +914,22 @@ fn query_poll<S: Storage, A: Api, Q: Querier>(
         description: poll.description,
         link: poll.link,
         deposit_amount: poll.deposit_amount,
-        execute_data: if let Some(execute_data) = poll.execute_data {
-            Some(ExecuteMsg {
-                contract: deps.api.human_address(&execute_data.contract)?,
-                msg: execute_data.msg,
-            })
+        execute_data: if let Some(exe_msgs) = poll.execute_data.clone() {
+            for msg in exe_msgs {
+                let execute_data = ExecuteMsg {
+                    order: msg.order,
+                    contract: deps.api.human_address(&msg.contract)?,
+                    msg: msg.msg,
+                };
+                data_list.push(execute_data)
+            }
+            Some(data_list)
         } else {
             None
         },
         yes_votes: poll.yes_votes,
         no_votes: poll.no_votes,
+        staked_amount: poll.staked_amount,
         total_balance_at_end_poll: poll.total_balance_at_end_poll,
     })
 }
@@ -846,6 +942,9 @@ fn query_polls<S: Storage, A: Api, Q: Querier>(
     order_by: Option<OrderBy>,
 ) -> StdResult<PollsResponse> {
     let polls = read_polls(&deps.storage, filter, start_after, limit, order_by)?;
+
+    let mut data_list: Vec<ExecuteMsg> = vec![];
+
     let poll_responses: StdResult<Vec<PollResponse>> = polls
         .iter()
         .map(|poll| {
@@ -858,16 +957,22 @@ fn query_polls<S: Storage, A: Api, Q: Querier>(
                 description: poll.description.to_string(),
                 link: poll.link.clone(),
                 deposit_amount: poll.deposit_amount,
-                execute_data: if let Some(execute_data) = poll.execute_data.clone() {
-                    Some(ExecuteMsg {
-                        contract: deps.api.human_address(&execute_data.contract)?,
-                        msg: execute_data.msg,
-                    })
+                execute_data: if let Some(exe_msgs) = poll.execute_data.clone() {
+                    for msg in exe_msgs {
+                        let execute_data = ExecuteMsg {
+                            order: msg.order,
+                            contract: deps.api.human_address(&msg.contract)?,
+                            msg: msg.msg,
+                        };
+                        data_list.push(execute_data)
+                    }
+                    Some(data_list.clone())
                 } else {
                     None
                 },
                 yes_votes: poll.yes_votes,
                 no_votes: poll.no_votes,
+                staked_amount: poll.staked_amount,
                 total_balance_at_end_poll: poll.total_balance_at_end_poll,
             })
         })
@@ -941,12 +1046,4 @@ fn query_staker<S: Storage, A: Api, Q: Querier>(
         share: token_manager.share,
         locked_balance: token_manager.locked_balance,
     })
-}
-
-pub fn migrate<S: Storage, A: Api, Q: Querier>(
-    _deps: &mut Extern<S, A, Q>,
-    _env: Env,
-    _msg: MigrateMsg,
-) -> MigrateResult {
-    Ok(MigrateResponse::default())
 }
