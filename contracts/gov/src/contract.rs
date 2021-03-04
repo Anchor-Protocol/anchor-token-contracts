@@ -959,8 +959,6 @@ fn query_polls<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<PollsResponse> {
     let polls = read_polls(&deps.storage, filter, start_after, limit, order_by)?;
 
-    let mut data_list: Vec<ExecuteMsg> = vec![];
-
     let poll_responses: StdResult<Vec<PollResponse>> = polls
         .iter()
         .map(|poll| {
@@ -974,6 +972,8 @@ fn query_polls<S: Storage, A: Api, Q: Querier>(
                 link: poll.link.clone(),
                 deposit_amount: poll.deposit_amount,
                 execute_data: if let Some(exe_msgs) = poll.execute_data.clone() {
+                    let mut data_list: Vec<ExecuteMsg> = vec![];
+
                     for msg in exe_msgs {
                         let execute_data = ExecuteMsg {
                             order: msg.order,
