@@ -29,14 +29,13 @@
       "minimum": 0.0
     },
     "execute_data": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/ExecuteMsg"
-        },
-        {
-          "type": "null"
-        }
-      ]
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "$ref": "#/definitions/ExecuteMsg"
+      }
     },
     "id": {
       "type": "integer",
@@ -51,6 +50,16 @@
     },
     "no_votes": {
       "$ref": "#/definitions/Uint128"
+    },
+    "staked_amount": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Uint128"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "status": {
       "$ref": "#/definitions/PollStatus"
@@ -81,7 +90,8 @@
       "type": "object",
       "required": [
         "contract",
-        "msg"
+        "msg",
+        "order"
       ],
       "properties": {
         "contract": {
@@ -89,6 +99,11 @@
         },
         "msg": {
           "$ref": "#/definitions/Binary"
+        },
+        "order": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
         }
       }
     },

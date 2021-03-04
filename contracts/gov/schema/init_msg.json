@@ -3,19 +3,15 @@
   "title": "InitMsg",
   "type": "object",
   "required": [
-    "effective_delay",
     "expiration_period",
     "proposal_deposit",
     "quorum",
+    "snapshot_period",
     "threshold",
+    "timelock_period",
     "voting_period"
   ],
   "properties": {
-    "effective_delay": {
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
-    },
     "expiration_period": {
       "type": "integer",
       "format": "uint64",
@@ -27,8 +23,18 @@
     "quorum": {
       "$ref": "#/definitions/Decimal"
     },
+    "snapshot_period": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
     "threshold": {
       "$ref": "#/definitions/Decimal"
+    },
+    "timelock_period": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
     },
     "voting_period": {
       "type": "integer",

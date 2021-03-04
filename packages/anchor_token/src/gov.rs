@@ -11,9 +11,10 @@ pub struct InitMsg {
     pub quorum: Decimal,
     pub threshold: Decimal,
     pub voting_period: u64,
-    pub effective_delay: u64,
+    pub timelock_period: u64,
     pub expiration_period: u64,
     pub proposal_deposit: Uint128,
+    pub snapshot_period:u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -28,9 +29,10 @@ pub enum HandleMsg {
         quorum: Option<Decimal>,
         threshold: Option<Decimal>,
         voting_period: Option<u64>,
-        effective_delay: Option<u64>,
+        timelock_period: Option<u64>,
         expiration_period: Option<u64>,
         proposal_deposit: Option<Uint128>,
+        snapshot_period: Option<u64>,
     },
     CastVote {
         poll_id: u64,
@@ -49,6 +51,9 @@ pub enum HandleMsg {
     ExpirePoll {
         poll_id: u64,
     },
+    SnapshotPoll {
+        poll_id: u64,
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -62,13 +67,14 @@ pub enum Cw20HookMsg {
         title: String,
         description: String,
         link: Option<String>,
-        execute_msg: Option<ExecuteMsg>,
+        execute_msgs: Option<Vec<ExecuteMsg>>,
     },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct ExecuteMsg {
+    pub order: u64,
     pub contract: HumanAddr,
     pub msg: Binary,
 }
@@ -105,9 +111,10 @@ pub struct ConfigResponse {
     pub quorum: Decimal,
     pub threshold: Decimal,
     pub voting_period: u64,
-    pub effective_delay: u64,
+    pub timelock_period: u64,
     pub expiration_period: u64,
     pub proposal_deposit: Uint128,
+    pub snapshot_period: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
@@ -127,9 +134,10 @@ pub struct PollResponse {
     pub description: String,
     pub link: Option<String>,
     pub deposit_amount: Uint128,
-    pub execute_data: Option<ExecuteMsg>,
+    pub execute_data: Option<Vec<ExecuteMsg>>,
     pub yes_votes: Uint128, // balance
     pub no_votes: Uint128,  // balance
+    pub staked_amount: Option<Uint128>,
     pub total_balance_at_end_poll: Option<Uint128>,
 }
 
@@ -162,9 +170,6 @@ pub struct VotersResponse {
     pub voters: Vec<VotersResponseItem>,
 }
 
-/// We currently take no arguments for migrations
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VoterInfo {

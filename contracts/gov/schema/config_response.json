@@ -4,22 +4,18 @@
   "type": "object",
   "required": [
     "anchor_token",
-    "effective_delay",
     "expiration_period",
     "owner",
     "proposal_deposit",
     "quorum",
+    "snapshot_period",
     "threshold",
+    "timelock_period",
     "voting_period"
   ],
   "properties": {
     "anchor_token": {
       "$ref": "#/definitions/HumanAddr"
-    },
-    "effective_delay": {
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
     },
     "expiration_period": {
       "type": "integer",
@@ -35,8 +31,18 @@
     "quorum": {
       "$ref": "#/definitions/Decimal"
     },
+    "snapshot_period": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
     "threshold": {
       "$ref": "#/definitions/Decimal"
+    },
+    "timelock_period": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
     },
     "voting_period": {
       "type": "integer",
