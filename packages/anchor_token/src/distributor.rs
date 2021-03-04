@@ -7,7 +7,7 @@ use cosmwasm_std::{HumanAddr, Uint128};
 pub struct InitMsg {
     pub gov_contract: HumanAddr,   // anchor gov contract
     pub anchor_token: HumanAddr,   // anchor token address
-    pub whitelist: Vec<HumanAddr>, // whitelisted contract addresses to spend faucet
+    pub whitelist: Vec<HumanAddr>, // whitelisted contract addresses to spend distributor
     pub spend_limit: Uint128,      // spend limit per each `spend` request
 }
 

@@ -15,7 +15,7 @@ fn proper_initialization() {
         terraswap_factory: HumanAddr("terraswapfactory".to_string()),
         gov_contract: HumanAddr("gov".to_string()),
         anchor_token: HumanAddr("tokenANC".to_string()),
-        faucet_contract: HumanAddr::from("faucet"),
+        distributor_contract: HumanAddr::from("distributor"),
         reward_factor: Decimal::percent(90),
     };
 
@@ -37,7 +37,7 @@ fn update_config() {
         terraswap_factory: HumanAddr("terraswapfactory".to_string()),
         gov_contract: HumanAddr("gov".to_string()),
         anchor_token: HumanAddr("tokenANC".to_string()),
-        faucet_contract: HumanAddr::from("faucet"),
+        distributor_contract: HumanAddr::from("distributor"),
         reward_factor: Decimal::percent(90),
     };
 
@@ -92,7 +92,7 @@ fn test_sweep() {
         terraswap_factory: HumanAddr("terraswapfactory".to_string()),
         gov_contract: HumanAddr("gov".to_string()),
         anchor_token: HumanAddr("tokenANC".to_string()),
-        faucet_contract: HumanAddr::from("faucet"),
+        distributor_contract: HumanAddr::from("distributor"),
         reward_factor: Decimal::percent(90),
     };
 
@@ -150,7 +150,7 @@ fn test_distribute() {
         terraswap_factory: HumanAddr("terraswapfactory".to_string()),
         gov_contract: HumanAddr("gov".to_string()),
         anchor_token: HumanAddr("tokenANC".to_string()),
-        faucet_contract: HumanAddr::from("faucet"),
+        distributor_contract: HumanAddr::from("distributor"),
         reward_factor: Decimal::percent(90),
     };
 
@@ -182,7 +182,7 @@ fn test_distribute() {
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: HumanAddr::from("tokenANC"),
                 msg: to_binary(&Cw20HandleMsg::Transfer {
-                    recipient: HumanAddr::from("faucet"),
+                    recipient: HumanAddr::from("distributor"),
                     amount: Uint128(10u128),
                 })
                 .unwrap(),

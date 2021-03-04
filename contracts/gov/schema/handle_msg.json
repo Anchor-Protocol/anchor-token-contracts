@@ -16,6 +16,25 @@
     {
       "type": "object",
       "required": [
+        "register_contracts"
+      ],
+      "properties": {
+        "register_contracts": {
+          "type": "object",
+          "required": [
+            "anchor_token"
+          ],
+          "properties": {
+            "anchor_token": {
+              "$ref": "#/definitions/HumanAddr"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
         "update_config"
       ],
       "properties": {

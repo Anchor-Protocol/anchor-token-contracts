@@ -1,6 +1,6 @@
 use crate::contract::{handle, init, query};
 
-use anchor_token::faucet::{ConfigResponse, HandleMsg, InitMsg, QueryMsg};
+use anchor_token::distributor::{ConfigResponse, HandleMsg, InitMsg, QueryMsg};
 use cosmwasm_std::testing::{mock_dependencies, mock_env};
 use cosmwasm_std::{from_binary, to_binary, CosmosMsg, HumanAddr, StdError, Uint128, WasmMsg};
 use cw20::Cw20HandleMsg;

@@ -23,7 +23,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
             gov_contract: deps.api.canonical_address(&msg.gov_contract)?,
             terraswap_factory: deps.api.canonical_address(&msg.terraswap_factory)?,
             anchor_token: deps.api.canonical_address(&msg.anchor_token)?,
-            faucet_contract: deps.api.canonical_address(&msg.faucet_contract)?,
+            distributor_contract: deps.api.canonical_address(&msg.distributor_contract)?,
             reward_factor: msg.reward_factor,
         },
     )?;
@@ -162,7 +162,7 @@ pub fn distribute<S: Storage, A: Api, Q: Querier>(
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: deps.api.human_address(&config.anchor_token)?,
                 msg: to_binary(&Cw20HandleMsg::Transfer {
-                    recipient: deps.api.human_address(&config.faucet_contract)?,
+                    recipient: deps.api.human_address(&config.distributor_contract)?,
                     amount: left_amount,
                 })?,
                 send: vec![],
@@ -171,7 +171,7 @@ pub fn distribute<S: Storage, A: Api, Q: Querier>(
         log: vec![
             log("action", "distribute"),
             log("distribute_amount", distribute_amount.to_string()),
-            log("faucet_payback_amount", left_amount.to_string()),
+            log("distributor_payback_amount", left_amount.to_string()),
         ],
         data: None,
     })
@@ -194,7 +194,7 @@ pub fn query_config<S: Storage, A: Api, Q: Querier>(
         gov_contract: deps.api.human_address(&state.gov_contract)?,
         terraswap_factory: deps.api.human_address(&state.terraswap_factory)?,
         anchor_token: deps.api.human_address(&state.anchor_token)?,
-        faucet_contract: deps.api.human_address(&state.faucet_contract)?,
+        distributor_contract: deps.api.human_address(&state.distributor_contract)?,
         reward_factor: state.reward_factor,
     };
 

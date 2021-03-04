@@ -6,7 +6,7 @@ use cosmwasm_std::{
     StdResult, Storage, Uint128, WasmMsg,
 };
 
-use anchor_token::faucet::{ConfigResponse, HandleMsg, InitMsg, MigrateMsg, QueryMsg};
+use anchor_token::distributor::{ConfigResponse, HandleMsg, InitMsg, MigrateMsg, QueryMsg};
 
 use cw20::Cw20HandleMsg;
 

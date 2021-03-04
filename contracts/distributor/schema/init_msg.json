@@ -4,7 +4,7 @@
   "type": "object",
   "required": [
     "anchor_token",
-    "faucet_contract",
+    "distributor_contract",
     "gov_contract",
     "reward_factor",
     "terraswap_factory"
@@ -13,7 +13,7 @@
     "anchor_token": {
       "$ref": "#/definitions/HumanAddr"
     },
-    "faucet_contract": {
+    "distributor_contract": {
       "$ref": "#/definitions/HumanAddr"
     },
     "gov_contract": {

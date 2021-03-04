@@ -8,7 +8,7 @@ pub struct InitMsg {
     pub gov_contract: HumanAddr, // collected rewards receiver
     pub terraswap_factory: HumanAddr,
     pub anchor_token: HumanAddr,
-    pub faucet_contract: HumanAddr,
+    pub distributor_contract: HumanAddr,
     pub reward_factor: Decimal,
 }
 
@@ -42,7 +42,7 @@ pub struct ConfigResponse {
     pub gov_contract: HumanAddr, // collected rewards receiver
     pub terraswap_factory: HumanAddr,
     pub anchor_token: HumanAddr,
-    pub faucet_contract: HumanAddr,
+    pub distributor_contract: HumanAddr,
     pub reward_factor: Decimal,
 }
 

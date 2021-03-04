@@ -3,16 +3,19 @@
   "title": "ConfigResponse",
   "type": "object",
   "required": [
+    "anchor_token",
     "effective_delay",
     "expiration_period",
     "owner",
     "proposal_deposit",
     "quorum",
-    "anchor_token",
     "threshold",
     "voting_period"
   ],
   "properties": {
+    "anchor_token": {
+      "$ref": "#/definitions/HumanAddr"
+    },
     "effective_delay": {
       "type": "integer",
       "format": "uint64",
@@ -31,9 +34,6 @@
     },
     "quorum": {
       "$ref": "#/definitions/Decimal"
-    },
-    "anchor_token": {
-      "$ref": "#/definitions/HumanAddr"
     },
     "threshold": {
       "$ref": "#/definitions/Decimal"

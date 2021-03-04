@@ -11,8 +11,8 @@ pub struct Config {
     pub gov_contract: CanonicalAddr,      // collected rewards receiver
     pub terraswap_factory: CanonicalAddr, // terraswap factory contract
     pub anchor_token: CanonicalAddr,      // anchor token address
-    pub faucet_contract: CanonicalAddr,   // faucet contract to sent back rewards
-    pub reward_factor: Decimal, // reward distribution rate to gov contract, left rewards sent back to faucet contract
+    pub distributor_contract: CanonicalAddr,   // distributor contract to sent back rewards
+    pub reward_factor: Decimal, // reward distribution rate to gov contract, left rewards sent back to distributor contract
 }
 
 pub fn store_config<S: Storage>(storage: &mut S, config: &Config) -> StdResult<()> {
