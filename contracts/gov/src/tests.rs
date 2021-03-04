@@ -373,12 +373,45 @@ fn query_polls() {
     mock_init(&mut deps);
     let env = mock_env_height(VOTING_TOKEN, &vec![], 0, 10000);
 
+    let exec_msg_bz = to_binary(&Cw20HandleMsg::Burn {
+        amount: Uint128(123),
+    })
+    .unwrap();
+
+    let exec_msg_bz2 = to_binary(&Cw20HandleMsg::Burn {
+        amount: Uint128(12),
+    })
+    .unwrap();
+
+    let exec_msg_bz3 = to_binary(&Cw20HandleMsg::Burn { amount: Uint128(1) }).unwrap();
+
+    let mut execute_msgs: Vec<ExecuteMsg> = vec![];
+
+    execute_msgs.push(ExecuteMsg {
+        order: 1u64,
+        contract: HumanAddr::from(VOTING_TOKEN),
+        msg: exec_msg_bz.clone(),
+    });
+
+    execute_msgs.push(ExecuteMsg {
+        order: 3u64,
+        contract: HumanAddr::from(VOTING_TOKEN),
+        msg: exec_msg_bz3.clone(),
+    });
+
+    execute_msgs.push(ExecuteMsg {
+        order: 2u64,
+        contract: HumanAddr::from(VOTING_TOKEN),
+        msg: exec_msg_bz2.clone(),
+    });
+
     let msg = create_poll_msg(
         "test".to_string(),
         "test".to_string(),
         Some("http://google.com".to_string()),
-        None,
+        Some(execute_msgs.clone()),
     );
+
     let _handle_res = handle(&mut deps, env.clone(), msg.clone()).unwrap();
     let msg = create_poll_msg("test2".to_string(), "test2".to_string(), None, None);
     let _handle_res = handle(&mut deps, env.clone(), msg.clone()).unwrap();
@@ -406,7 +439,7 @@ fn query_polls() {
                 description: "test".to_string(),
                 link: Some("http://google.com".to_string()),
                 deposit_amount: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
-                execute_data: None,
+                execute_data: Some(execute_msgs.clone()),
                 yes_votes: Uint128::zero(),
                 no_votes: Uint128::zero(),
                 staked_amount: None,
@@ -482,7 +515,7 @@ fn query_polls() {
             description: "test".to_string(),
             link: Some("http://google.com".to_string()),
             deposit_amount: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
-            execute_data: None,
+            execute_data: Some(execute_msgs),
             yes_votes: Uint128::zero(),
             no_votes: Uint128::zero(),
             staked_amount: None,
