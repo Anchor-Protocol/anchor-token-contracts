@@ -8,7 +8,6 @@ use crate::common::OrderBy;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
-    pub anchor_token: HumanAddr,
     pub quorum: Decimal,
     pub threshold: Decimal,
     pub voting_period: u64,
@@ -21,6 +20,9 @@ pub struct InitMsg {
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
     Receive(Cw20ReceiveMsg),
+    RegisterContracts {
+        anchor_token: HumanAddr,
+    },
     UpdateConfig {
         owner: Option<HumanAddr>,
         quorum: Option<Decimal>,

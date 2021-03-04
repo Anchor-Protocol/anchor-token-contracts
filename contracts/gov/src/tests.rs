@@ -2,18 +2,18 @@ use crate::contract::{handle, init, query};
 use crate::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::state::{config_read, state_read, Config, State};
 
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{
-    coins, from_binary, log, to_binary, Api, Coin, CosmosMsg, Decimal, Env, Extern, HandleResponse,
-    HumanAddr, StdError, Uint128, WasmMsg,
-};
-use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 use anchor_token::common::OrderBy;
 use anchor_token::gov::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, HandleMsg, InitMsg, PollResponse, PollStatus,
     PollsResponse, QueryMsg, StakerResponse, VoteOption, VoterInfo, VotersResponse,
     VotersResponseItem,
 };
+use cosmwasm_std::testing::{mock_env, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
+use cosmwasm_std::{
+    coins, from_binary, log, to_binary, Api, CanonicalAddr, Coin, CosmosMsg, Decimal, Env, Extern,
+    HandleResponse, HumanAddr, StdError, Uint128, WasmMsg,
+};
+use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 
 const VOTING_TOKEN: &str = "voting_token";
 const TEST_CREATOR: &str = "creator";
@@ -25,9 +25,9 @@ const DEFAULT_VOTING_PERIOD: u64 = 10000u64;
 const DEFAULT_EFFECTIVE_DELAY: u64 = 10000u64;
 const DEFAULT_EXPIRATION_PERIOD: u64 = 20000u64;
 const DEFAULT_PROPOSAL_DEPOSIT: u128 = 10000000000u128;
+
 fn mock_init(mut deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     let msg = InitMsg {
-        anchor_token: HumanAddr::from(VOTING_TOKEN),
         quorum: Decimal::percent(DEFAULT_QUORUM),
         threshold: Decimal::percent(DEFAULT_THRESHOLD),
         voting_period: DEFAULT_VOTING_PERIOD,
@@ -37,7 +37,13 @@ fn mock_init(mut deps: &mut Extern<MockStorage, MockApi, WasmMockQuerier>) {
     };
 
     let env = mock_env(TEST_CREATOR, &[]);
-    let _res = init(&mut deps, env, msg).expect("contract successfully handles InitMsg");
+    let _res = init(&mut deps, env.clone(), msg).expect("contract successfully handles InitMsg");
+
+    let msg = HandleMsg::RegisterContracts {
+        anchor_token: HumanAddr::from(VOTING_TOKEN),
+    };
+    let _res =
+        handle(&mut deps, env, msg).expect("contract successfully handles RegisterContracts");
 }
 
 fn mock_env_height(sender: &str, sent: &[Coin], height: u64, time: u64) -> Env {
@@ -49,7 +55,6 @@ fn mock_env_height(sender: &str, sent: &[Coin], height: u64, time: u64) -> Env {
 
 fn init_msg() -> InitMsg {
     InitMsg {
-        anchor_token: HumanAddr::from(VOTING_TOKEN),
         quorum: Decimal::percent(DEFAULT_QUORUM),
         threshold: Decimal::percent(DEFAULT_THRESHOLD),
         voting_period: DEFAULT_VOTING_PERIOD,
@@ -65,17 +70,14 @@ fn proper_initialization() {
 
     let msg = init_msg();
     let env = mock_env(TEST_CREATOR, &coins(2, VOTING_TOKEN));
-    let res = init(&mut deps, env, msg).unwrap();
+    let res = init(&mut deps, env.clone(), msg).unwrap();
     assert_eq!(0, res.messages.len());
 
     let config: Config = config_read(&mut deps.storage).load().unwrap();
     assert_eq!(
         config,
         Config {
-            anchor_token: deps
-                .api
-                .canonical_address(&HumanAddr::from(VOTING_TOKEN))
-                .unwrap(),
+            anchor_token: CanonicalAddr::default(),
             owner: deps
                 .api
                 .canonical_address(&HumanAddr::from(TEST_CREATOR))
@@ -87,6 +89,18 @@ fn proper_initialization() {
             expiration_period: DEFAULT_EXPIRATION_PERIOD,
             proposal_deposit: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
         }
+    );
+
+    let msg = HandleMsg::RegisterContracts {
+        anchor_token: HumanAddr::from(VOTING_TOKEN),
+    };
+    let _res = handle(&mut deps, env, msg).unwrap();
+    let config: Config = config_read(&mut deps.storage).load().unwrap();
+    assert_eq!(
+        config.anchor_token,
+        deps.api
+            .canonical_address(&HumanAddr::from(VOTING_TOKEN))
+            .unwrap()
     );
 
     let state: State = state_read(&mut deps.storage).load().unwrap();
@@ -119,11 +133,10 @@ fn poll_not_found() {
 }
 
 #[test]
-fn fails_create_poll_invalid_quorum() {
+fn fails_init_invalid_quorum() {
     let mut deps = mock_dependencies(20, &[]);
     let env = mock_env("voter", &coins(11, VOTING_TOKEN));
     let msg = InitMsg {
-        anchor_token: HumanAddr::from(VOTING_TOKEN),
         quorum: Decimal::percent(101),
         threshold: Decimal::percent(DEFAULT_THRESHOLD),
         voting_period: DEFAULT_VOTING_PERIOD,
@@ -142,11 +155,10 @@ fn fails_create_poll_invalid_quorum() {
 }
 
 #[test]
-fn fails_create_poll_invalid_threshold() {
+fn fails_init_invalid_threshold() {
     let mut deps = mock_dependencies(20, &[]);
     let env = mock_env("voter", &coins(11, VOTING_TOKEN));
     let msg = InitMsg {
-        anchor_token: HumanAddr::from(VOTING_TOKEN),
         quorum: Decimal::percent(DEFAULT_QUORUM),
         threshold: Decimal::percent(101),
         voting_period: DEFAULT_VOTING_PERIOD,
@@ -160,6 +172,33 @@ fn fails_create_poll_invalid_threshold() {
     match res {
         Ok(_) => panic!("Must return error"),
         Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "threshold must be 0 to 1"),
+        Err(e) => panic!("Unexpected error: {:?}", e),
+    }
+}
+
+#[test]
+fn fails_contract_already_registered() {
+    let mut deps = mock_dependencies(20, &[]);
+    let env = mock_env("voter", &coins(11, VOTING_TOKEN));
+    let msg = InitMsg {
+        quorum: Decimal::percent(DEFAULT_QUORUM),
+        threshold: Decimal::percent(DEFAULT_THRESHOLD),
+        voting_period: DEFAULT_VOTING_PERIOD,
+        effective_delay: DEFAULT_EFFECTIVE_DELAY,
+        expiration_period: DEFAULT_EXPIRATION_PERIOD,
+        proposal_deposit: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+    };
+
+    let _res = init(&mut deps, env.clone(), msg).unwrap();
+
+    let msg = HandleMsg::RegisterContracts {
+        anchor_token: HumanAddr::from(VOTING_TOKEN),
+    };
+    let _res = handle(&mut deps, env.clone(), msg.clone()).unwrap();
+    let res = handle(&mut deps, env.clone(), msg.clone());
+    match res {
+        Ok(_) => panic!("Must return error"),
+        Err(StdError::Unauthorized { .. }) => {}
         Err(e) => panic!("Unexpected error: {:?}", e),
     }
 }
@@ -1590,10 +1629,7 @@ fn fails_insufficient_funds() {
     let mut deps = mock_dependencies(20, &[]);
 
     // initialize the store
-    let msg = init_msg();
-    let env = mock_env(TEST_VOTER, &coins(2, VOTING_TOKEN));
-    let init_res = init(&mut deps, env, msg).unwrap();
-    assert_eq!(0, init_res.messages.len());
+    mock_init(&mut deps);
 
     // insufficient token
     let msg = HandleMsg::Receive(Cw20ReceiveMsg {
@@ -1617,10 +1653,7 @@ fn fails_staking_wrong_token() {
     let mut deps = mock_dependencies(20, &[]);
 
     // initialize the store
-    let msg = init_msg();
-    let env = mock_env(TEST_VOTER, &coins(2, VOTING_TOKEN));
-    let init_res = init(&mut deps, env, msg).unwrap();
-    assert_eq!(0, init_res.messages.len());
+    mock_init(&mut deps);
 
     deps.querier.with_token_balances(&[(
         &HumanAddr::from(VOTING_TOKEN),
@@ -1649,10 +1682,7 @@ fn share_calculation() {
     let mut deps = mock_dependencies(20, &[]);
 
     // initialize the store
-    let msg = init_msg();
-    let env = mock_env(TEST_VOTER, &coins(2, VOTING_TOKEN));
-    let init_res = init(&mut deps, env, msg).unwrap();
-    assert_eq!(0, init_res.messages.len());
+    mock_init(&mut deps);
 
     // create 100 share
     deps.querier.with_token_balances(&[(

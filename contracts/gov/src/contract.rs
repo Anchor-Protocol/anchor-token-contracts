@@ -34,7 +34,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     validate_threshold(msg.threshold)?;
 
     let config = Config {
-        anchor_token: deps.api.canonical_address(&msg.anchor_token)?,
+        anchor_token: CanonicalAddr::default(),
         owner: deps.api.canonical_address(&env.message.sender)?,
         quorum: msg.quorum,
         threshold: msg.threshold,
@@ -64,6 +64,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<HandleResponse> {
     match msg {
         HandleMsg::Receive(msg) => receive_cw20(deps, env, msg),
+        HandleMsg::RegisterContracts { anchor_token } => register_contracts(deps, anchor_token),
         HandleMsg::UpdateConfig {
             owner,
             quorum,
@@ -93,6 +94,21 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
         HandleMsg::ExecutePoll { poll_id } => execute_poll(deps, env, poll_id),
         HandleMsg::ExpirePoll { poll_id } => expire_poll(deps, env, poll_id),
     }
+}
+
+pub fn register_contracts<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    anchor_token: HumanAddr,
+) -> HandleResult {
+    let mut config: Config = config_read(&deps.storage).load()?;
+    if config.anchor_token != CanonicalAddr::default() {
+        return Err(StdError::unauthorized());
+    }
+
+    config.anchor_token = deps.api.canonical_address(&anchor_token)?;
+    config_store(&mut deps.storage).save(&config)?;
+
+    Ok(HandleResponse::default())
 }
 
 pub fn receive_cw20<S: Storage, A: Api, Q: Querier>(
