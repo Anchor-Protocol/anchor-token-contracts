@@ -149,25 +149,32 @@ pub fn distribute<S: Storage, A: Api, Q: Querier>(
     let distribute_amount = amount * config.reward_factor;
     let left_amount = (amount - distribute_amount)?;
 
+    let mut messages: Vec<CosmosMsg> = vec![];
+
+    if !distribute_amount.is_zero() {
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: deps.api.human_address(&config.anchor_token)?,
+            msg: to_binary(&Cw20HandleMsg::Transfer {
+                recipient: deps.api.human_address(&config.gov_contract)?,
+                amount: distribute_amount,
+            })?,
+            send: vec![],
+        }));
+    }
+
+    if !left_amount.is_zero() {
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: deps.api.human_address(&config.anchor_token)?,
+            msg: to_binary(&Cw20HandleMsg::Transfer {
+                recipient: deps.api.human_address(&config.distributor_contract)?,
+                amount: left_amount,
+            })?,
+            send: vec![],
+        }));
+    }
+
     Ok(HandleResponse {
-        messages: vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: deps.api.human_address(&config.anchor_token)?,
-                msg: to_binary(&Cw20HandleMsg::Transfer {
-                    recipient: deps.api.human_address(&config.gov_contract)?,
-                    amount: distribute_amount,
-                })?,
-                send: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: deps.api.human_address(&config.anchor_token)?,
-                msg: to_binary(&Cw20HandleMsg::Transfer {
-                    recipient: deps.api.human_address(&config.distributor_contract)?,
-                    amount: left_amount,
-                })?,
-                send: vec![],
-            }),
-        ],
+        messages,
         log: vec![
             log("action", "distribute"),
             log("distribute_amount", distribute_amount.to_string()),
