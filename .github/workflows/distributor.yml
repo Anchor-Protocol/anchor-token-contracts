@@ -1,4 +1,4 @@
-name: Interest Contract
+name: Distributor Contract
 
 on:
   push:
@@ -26,7 +26,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ./contracts/interest
+        working-directory: ./contracts/distributor
 
     steps:
       - name: Checkout

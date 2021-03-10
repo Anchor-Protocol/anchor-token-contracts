@@ -119,69 +119,6 @@ fn register_merkle_root() {
 }
 
 #[test]
-fn update_merkle_root() {
-    let mut deps = mock_dependencies(20, &[]);
-
-    let msg = InitMsg {
-        owner: HumanAddr::from("owner0000"),
-        anchor_token: HumanAddr::from("anchor0000"),
-    };
-
-    let env = mock_env("addr0000", &[]);
-    let _res = init(&mut deps, env.clone(), msg).unwrap();
-
-    // register new merkle root
-    let env = mock_env("owner0000", &[]);
-    let msg = HandleMsg::RegisterMerkleRoot {
-        merkle_root: "634de21cde1044f41d90373733b0f0fb1c1c71f9652b905cdf159e73c4cf0d37".to_string(),
-    };
-
-    let res = handle(&mut deps, env, msg).unwrap();
-    assert_eq!(
-        res.log,
-        vec![
-            log("action", "register_merkle_root"),
-            log("stage", "1"),
-            log(
-                "merkle_root",
-                "634de21cde1044f41d90373733b0f0fb1c1c71f9652b905cdf159e73c4cf0d37"
-            )
-        ]
-    );
-
-    // register new merkle root
-    let env = mock_env("owner0000", &[]);
-    let msg = HandleMsg::UpdateMerkleRoot {
-        stage: 1,
-        merkle_root: "12345678".to_string(),
-    };
-
-    let res = handle(&mut deps, env, msg).unwrap();
-    assert_eq!(
-        res.log,
-        vec![
-            log("action", "update_merkle_root"),
-            log("stage", "1"),
-            log("merkle_root", "12345678")
-        ]
-    );
-
-    let res = query(&deps, QueryMsg::LatestStage {}).unwrap();
-    let latest_stage: LatestStageResponse = from_binary(&res).unwrap();
-    assert_eq!(1u8, latest_stage.latest_stage);
-
-    let res = query(
-        &deps,
-        QueryMsg::MerkleRoot {
-            stage: latest_stage.latest_stage,
-        },
-    )
-    .unwrap();
-    let merkle_root: MerkleRootResponse = from_binary(&res).unwrap();
-    assert_eq!("12345678".to_string(), merkle_root.merkle_root);
-}
-
-#[test]
 fn claim() {
     let mut deps = mock_dependencies(44, &[]);
 

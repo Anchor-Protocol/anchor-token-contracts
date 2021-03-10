@@ -1,4 +1,4 @@
-name: Oracle Contract
+name: Community Contract
 
 on:
   push:
@@ -26,7 +26,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ./contracts/oracle
+        working-directory: ./contracts/community
 
     steps:
       - name: Checkout
