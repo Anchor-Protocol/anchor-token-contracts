@@ -6,6 +6,7 @@ pub mod distributor;
 pub mod gov;
 pub mod querier;
 pub mod staking;
+pub mod vesting;
 
 #[cfg(test)]
 mod mock_querier;

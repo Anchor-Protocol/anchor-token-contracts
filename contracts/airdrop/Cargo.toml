@@ -37,7 +37,7 @@ cranelift = ["cosmwasm-vm/default-cranelift"]
 singlepass = ["cosmwasm-vm/default-singlepass"]
 
 [dependencies]
-anchor-token = { version = "0.1.0", path = "../../packages/anchor_token" }
+anchor-token = { version = "1.0.0", path = "../../packages/anchor_token" }
 cw20 = "0.2"
 cosmwasm-std = { version = "0.10.1", features = ["iterator"] }
 cosmwasm-storage = { version = "0.10.1", features = ["iterator"] }
