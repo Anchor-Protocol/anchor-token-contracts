@@ -1,6 +1,8 @@
 pub mod contract;
-pub mod querier;
-pub mod state;
+
+mod querier;
+mod staking;
+mod state;
 
 #[cfg(test)]
 mod tests;

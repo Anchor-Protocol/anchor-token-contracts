@@ -1,6 +1,4 @@
-use cosmwasm_std::{
-    Binary, CanonicalAddr, Decimal, Order, ReadonlyStorage, StdResult, Storage, Uint128,
-};
+use cosmwasm_std::{Binary, CanonicalAddr, Decimal, ReadonlyStorage, StdResult, Storage, Uint128};
 use cosmwasm_storage::{
     bucket, bucket_read, singleton, singleton_read, Bucket, ReadonlyBucket, ReadonlySingleton,
     Singleton,
@@ -15,6 +13,7 @@ use std::cmp::Ordering;
 static KEY_CONFIG: &[u8] = b"config";
 static KEY_STATE: &[u8] = b"state";
 
+static PREFIX_POLL_INDEXER: &[u8] = b"poll_indexer";
 static PREFIX_POLL_VOTER: &[u8] = b"poll_voter";
 static PREFIX_POLL: &[u8] = b"poll";
 static PREFIX_BANK: &[u8] = b"bank";
@@ -44,7 +43,6 @@ pub struct State {
 pub struct TokenManager {
     pub share: Uint128,                        // total staked balance
     pub locked_balance: Vec<(u64, VoterInfo)>, // maps poll_id to weight voted
-    pub participated_polls: Vec<u64>,          // poll_id
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -119,7 +117,10 @@ pub fn poll_indexer_store<'a, S: Storage>(
     storage: &'a mut S,
     status: &PollStatus,
 ) -> Bucket<'a, S, bool> {
-    Bucket::multilevel(&[PREFIX_POLL_VOTER, status.to_string().as_bytes()], storage)
+    Bucket::multilevel(
+        &[PREFIX_POLL_INDEXER, status.to_string().as_bytes()],
+        storage,
+    )
 }
 
 pub fn poll_voter_store<S: Storage>(storage: &mut S, poll_id: u64) -> Bucket<S, VoterInfo> {
@@ -131,22 +132,6 @@ pub fn poll_voter_read<S: ReadonlyStorage>(
     poll_id: u64,
 ) -> ReadonlyBucket<S, VoterInfo> {
     ReadonlyBucket::multilevel(&[PREFIX_POLL_VOTER, &poll_id.to_be_bytes()], storage)
-}
-
-pub fn poll_all_voters<S: ReadonlyStorage>(
-    storage: &S,
-    poll_id: u64,
-) -> StdResult<Vec<CanonicalAddr>> {
-    let voters: ReadonlyBucket<S, VoterInfo> =
-        ReadonlyBucket::multilevel(&[PREFIX_POLL_VOTER, &poll_id.to_be_bytes()], storage);
-
-    voters
-        .range(None, None, Order::Ascending)
-        .map(|item| {
-            let (k, _) = item?;
-            Ok(CanonicalAddr::from(k))
-        })
-        .collect()
 }
 
 pub fn read_poll_voters<'a, S: ReadonlyStorage>(
@@ -191,7 +176,7 @@ pub fn read_polls<'a, S: ReadonlyStorage>(
 
     if let Some(status) = filter {
         let poll_indexer: ReadonlyBucket<'a, S, bool> = ReadonlyBucket::multilevel(
-            &[PREFIX_POLL_VOTER, status.to_string().as_bytes()],
+            &[PREFIX_POLL_INDEXER, status.to_string().as_bytes()],
             storage,
         );
         poll_indexer
