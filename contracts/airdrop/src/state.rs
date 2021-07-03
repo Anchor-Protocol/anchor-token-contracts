@@ -16,50 +16,46 @@ pub struct Config {
     pub anchor_token: CanonicalAddr,
 }
 
-pub fn store_config<S: Storage>(storage: &mut S, config: &Config) -> StdResult<()> {
+pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
     singleton(storage, KEY_CONFIG).save(config)
 }
 
-pub fn read_config<S: Storage>(storage: &S) -> StdResult<Config> {
+pub fn read_config(storage: &dyn Storage) -> StdResult<Config> {
     singleton_read(storage, KEY_CONFIG).load()
 }
 
-pub fn store_latest_stage<S: Storage>(storage: &mut S, stage: u8) -> StdResult<()> {
+pub fn store_latest_stage(storage: &mut dyn Storage, stage: u8) -> StdResult<()> {
     singleton(storage, KEY_LATEST_STAGE).save(&stage)
 }
 
-pub fn read_latest_stage<S: Storage>(storage: &S) -> StdResult<u8> {
+pub fn read_latest_stage(storage: &dyn Storage) -> StdResult<u8> {
     singleton_read(storage, KEY_LATEST_STAGE).load()
 }
 
-pub fn store_merkle_root<S: Storage>(
-    storage: &mut S,
+pub fn store_merkle_root(
+    storage: &mut dyn Storage,
     stage: u8,
     merkle_root: String,
 ) -> StdResult<()> {
-    let mut merkle_root_bucket: Bucket<S, String> = Bucket::new(PREFIX_MERKLE_ROOT, storage);
+    let mut merkle_root_bucket: Bucket<String> = Bucket::new(storage, PREFIX_MERKLE_ROOT);
     merkle_root_bucket.save(&[stage], &merkle_root)
 }
 
-pub fn read_merkle_root<S: Storage>(storage: &S, stage: u8) -> StdResult<String> {
-    let claim_index_bucket: ReadonlyBucket<S, String> =
-        ReadonlyBucket::new(PREFIX_MERKLE_ROOT, storage);
+pub fn read_merkle_root(storage: &dyn Storage, stage: u8) -> StdResult<String> {
+    let claim_index_bucket: ReadonlyBucket<String> =
+        ReadonlyBucket::new(storage, PREFIX_MERKLE_ROOT);
     claim_index_bucket.load(&[stage])
 }
 
-pub fn store_claimed<S: Storage>(
-    storage: &mut S,
-    user: &CanonicalAddr,
-    stage: u8,
-) -> StdResult<()> {
-    let mut claim_index_bucket: Bucket<S, bool> =
-        Bucket::multilevel(&[PREFIX_CLAIM_INDEX, user.as_slice()], storage);
+pub fn store_claimed(storage: &mut dyn Storage, user: &CanonicalAddr, stage: u8) -> StdResult<()> {
+    let mut claim_index_bucket: Bucket<bool> =
+        Bucket::multilevel(storage, &[PREFIX_CLAIM_INDEX, user.as_slice()]);
     claim_index_bucket.save(&[stage], &true)
 }
 
-pub fn read_claimed<S: Storage>(storage: &S, user: &CanonicalAddr, stage: u8) -> StdResult<bool> {
-    let claim_index_bucket: ReadonlyBucket<S, bool> =
-        ReadonlyBucket::multilevel(&[PREFIX_CLAIM_INDEX, user.as_slice()], storage);
+pub fn read_claimed(storage: &dyn Storage, user: &CanonicalAddr, stage: u8) -> StdResult<bool> {
+    let claim_index_bucket: ReadonlyBucket<bool> =
+        ReadonlyBucket::multilevel(storage, &[PREFIX_CLAIM_INDEX, user.as_slice()]);
     let res = claim_index_bucket.may_load(&[stage])?;
     match res {
         Some(v) => Ok(v),
