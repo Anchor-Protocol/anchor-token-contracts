@@ -7,10 +7,7 @@ use cosmwasm_storage::to_length_prefixed;
 use cw20::TokenInfoResponse;
 use terra_cosmwasm::TerraQuerier;
 
-pub fn query_all_balances(
-    deps: Deps,
-    account_addr: Addr,
-) -> StdResult<Vec<Coin>> {
+pub fn query_all_balances(deps: Deps, account_addr: Addr) -> StdResult<Vec<Coin>> {
     // load price form the oracle
     let all_balances: AllBalanceResponse =
         deps.querier
@@ -20,11 +17,7 @@ pub fn query_all_balances(
     Ok(all_balances.amount)
 }
 
-pub fn query_balance(
-    deps: Deps,
-    account_addr: Addr,
-    denom: String,
-) -> StdResult<Uint256> {
+pub fn query_balance(deps: Deps, account_addr: Addr, denom: String) -> StdResult<Uint256> {
     // load price form the oracle
     let balance: BalanceResponse = deps.querier.query(&QueryRequest::Bank(BankQuery::Balance {
         address: account_addr.to_string(),
@@ -54,10 +47,7 @@ pub fn query_token_balance(
     Ok(balance.into())
 }
 
-pub fn query_supply(
-    deps: Deps,
-    contract_addr: Addr,
-) -> StdResult<Uint256> {
+pub fn query_supply(deps: Deps, contract_addr: Addr) -> StdResult<Uint256> {
     // load price form the oracle
     let res: Binary = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
         contract_addr: contract_addr.to_string(),
@@ -68,17 +58,12 @@ pub fn query_supply(
     Ok(Uint256::from(token_info.total_supply.u128())) // TODO: wtf
 }
 
-pub fn query_tax_rate(
-    deps: Deps,
-) -> StdResult<Decimal256> {
+pub fn query_tax_rate(deps: Deps) -> StdResult<Decimal256> {
     let terra_querier = TerraQuerier::new(&deps.querier);
     Ok(terra_querier.query_tax_rate()?.rate.into())
 }
 
-pub fn compute_tax(
-    deps: Deps,
-    coin: &Coin,
-) -> StdResult<Uint256> {
+pub fn compute_tax(deps: Deps, coin: &Coin) -> StdResult<Uint256> {
     let terra_querier = TerraQuerier::new(&deps.querier);
     let tax_rate = Decimal256::from((terra_querier.query_tax_rate()?).rate);
     let tax_cap = Uint256::from((terra_querier.query_tax_cap(coin.denom.to_string())?).cap);
@@ -89,10 +74,7 @@ pub fn compute_tax(
     ))
 }
 
-pub fn deduct_tax(
-    deps: Deps,
-    coin: Coin,
-) -> StdResult<Coin> {
+pub fn deduct_tax(deps: Deps, coin: Coin) -> StdResult<Coin> {
     let tax_amount = compute_tax(deps, &coin)?;
     Ok(Coin {
         denom: coin.denom,

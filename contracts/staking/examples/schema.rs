@@ -2,7 +2,8 @@ use std::env::current_dir;
 use std::fs::create_dir_all;
 
 use anchor_token::staking::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, StakerInfoResponse, StateResponse,
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, StakerInfoResponse,
+    StateResponse,
 };
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 

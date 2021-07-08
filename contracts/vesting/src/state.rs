@@ -17,18 +17,15 @@ pub struct Config {
 }
 
 pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
-    Ok(singleton::<Config>(storage, KEY_CONFIG).save(&config)?)
+    singleton::<Config>(storage, KEY_CONFIG).save(&config)
 }
 
 pub fn read_config(storage: &dyn Storage) -> StdResult<Config> {
-    Ok(singleton_read::<Config>(storage, KEY_CONFIG).load()?)
+    singleton_read::<Config>(storage, KEY_CONFIG).load()
 }
 
-pub fn read_vesting_info(
-    storage: &dyn Storage,
-    address: &CanonicalAddr,
-) -> StdResult<VestingInfo> {
-    Ok(bucket_read::<VestingInfo>(storage, PREFIX_KEY_VESTING_INFO).load(address.as_slice())?)
+pub fn read_vesting_info(storage: &dyn Storage, address: &CanonicalAddr) -> StdResult<VestingInfo> {
+    bucket_read::<VestingInfo>(storage, PREFIX_KEY_VESTING_INFO).load(address.as_slice())
 }
 
 pub fn store_vesting_info(
@@ -36,8 +33,7 @@ pub fn store_vesting_info(
     address: &CanonicalAddr,
     vesting_info: &VestingInfo,
 ) -> StdResult<()> {
-    Ok(bucket::<VestingInfo>(storage, PREFIX_KEY_VESTING_INFO)
-        .save(address.as_slice(), vesting_info)?)
+    bucket::<VestingInfo>(storage, PREFIX_KEY_VESTING_INFO).save(address.as_slice(), vesting_info)
 }
 
 const MAX_LIMIT: u32 = 30;

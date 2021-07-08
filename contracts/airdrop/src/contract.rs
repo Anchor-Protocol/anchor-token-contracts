@@ -7,16 +7,16 @@ use crate::state::{
     store_latest_stage, store_merkle_root, Config,
 };
 
+use anchor_token::airdrop::{
+    ConfigResponse, ExecuteMsg, InstantiateMsg, IsClaimedResponse, LatestStageResponse,
+    MerkleRootResponse, MigrateMsg, QueryMsg,
+};
 use cosmwasm_std::{
     attr, to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
     SubMsg, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 use hex;
-use anchor_token::airdrop::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, IsClaimedResponse, LatestStageResponse,
-    MerkleRootResponse, MigrateMsg, QueryMsg,
-};
 use sha3::Digest;
 use std::convert::TryInto;
 
@@ -171,16 +171,14 @@ pub fn claim(
     store_claimed(deps.storage, &user_raw, stage)?;
 
     Ok(Response {
-        messages: vec![SubMsg::new(
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
-                funds: vec![],
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: info.sender.to_string(),
-                    amount, // TODO: wtf
-                })?,
-            })
-        )],
+        messages: vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
+            funds: vec![],
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: info.sender.to_string(),
+                amount, // TODO: wtf
+            })?,
+        }))],
         attributes: vec![
             attr("action", "claim"),
             attr("stage", stage),

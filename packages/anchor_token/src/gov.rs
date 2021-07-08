@@ -14,7 +14,7 @@ pub struct InstantiateMsg {
     pub timelock_period: u64,
     pub expiration_period: u64,
     pub proposal_deposit: Uint128,
-    pub snapshot_period:u64,
+    pub snapshot_period: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -53,7 +53,7 @@ pub enum ExecuteMsg {
     },
     SnapshotPoll {
         poll_id: u64,
-    }
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -169,7 +169,6 @@ pub struct VotersResponseItem {
 pub struct VotersResponse {
     pub voters: Vec<VotersResponseItem>,
 }
-
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VoterInfo {

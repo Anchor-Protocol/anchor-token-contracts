@@ -26,7 +26,8 @@ fn proper_initialization() {
     let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     // it worked, let's query the state
-    let config: ConfigResponse = from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
+    let config: ConfigResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
     assert_eq!("gov", config.gov_contract.as_str());
     assert_eq!("anchor", config.anchor_token.as_str());
     assert_eq!(
@@ -61,7 +62,8 @@ fn update_config() {
     let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     // it worked, let's query the state
-    let config: ConfigResponse = from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
+    let config: ConfigResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
     assert_eq!("gov", config.gov_contract.as_str());
     assert_eq!("anchor", config.anchor_token.as_str());
     assert_eq!(
@@ -87,8 +89,8 @@ fn update_config() {
 
     let info = mock_info("gov", &[]);
     let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-    let config: ConfigResponse = from_binary(
-        &query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
+    let config: ConfigResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
     assert_eq!(
         config,
         ConfigResponse {
@@ -127,35 +129,36 @@ fn test_add_remove_distributor() {
     // Permission check AddDistributor
     let info = mock_info("addr0000", &[]);
     let msg = ExecuteMsg::AddDistributor {
-       distributor: "addr4".to_string(),
+        distributor: "addr4".to_string(),
     };
 
     let res = execute(deps.as_mut(), mock_env(), info, msg);
     match res {
-        Err(StdError::GenericErr{ msg, .. }) => assert_eq!(msg, "unauthorized"),
+        Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "unauthorized"),
         _ => panic!("DO NOT ENTER HERE"),
     }
 
     // Permission check RemoveDistributor
     let info = mock_info("addr0000", &[]);
     let msg = ExecuteMsg::RemoveDistributor {
-       distributor: "addr4".to_string(),
+        distributor: "addr4".to_string(),
     };
 
     let res = execute(deps.as_mut(), mock_env(), info, msg);
     match res {
-        Err(StdError::GenericErr{ msg, .. }) => assert_eq!(msg, "unauthorized"),
+        Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "unauthorized"),
         _ => panic!("DO NOT ENTER HERE"),
     }
 
     // AddDistributor
     let info = mock_info("gov", &[]);
     let msg = ExecuteMsg::AddDistributor {
-       distributor: "addr4".to_string(),
+        distributor: "addr4".to_string(),
     };
 
     let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-    let config: ConfigResponse = from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
+    let config: ConfigResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
     assert_eq!(
         config,
         ConfigResponse {
@@ -174,11 +177,12 @@ fn test_add_remove_distributor() {
     // RemoveDistributor
     let info = mock_info("gov", &[]);
     let msg = ExecuteMsg::RemoveDistributor {
-       distributor: "addr1".to_string(),
+        distributor: "addr1".to_string(),
     };
 
     let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-    let config: ConfigResponse = from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
+    let config: ConfigResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
     assert_eq!(
         config,
         ConfigResponse {
@@ -233,7 +237,7 @@ fn test_spend() {
         amount: Uint128::from(2000000u128),
     };
 
-    let env = mock_info("addr1", &[]);
+    let info = mock_info("addr1", &[]);
     let res = execute(deps.as_mut(), mock_env(), info, msg);
     match res {
         Err(StdError::GenericErr { msg, .. }) => {

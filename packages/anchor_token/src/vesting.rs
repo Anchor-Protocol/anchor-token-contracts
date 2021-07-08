@@ -25,7 +25,7 @@ pub enum ExecuteMsg {
     Claim {},
 }
 
-/// CONTRACT: end_time > start_time 
+/// CONTRACT: end_time > start_time
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccount {
     pub address: String,

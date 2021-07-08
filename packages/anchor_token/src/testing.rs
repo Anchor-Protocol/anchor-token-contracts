@@ -9,7 +9,10 @@ fn tax_rate_querier() {
     let mut deps = mock_dependencies(&[]);
 
     deps.querier.with_tax(Decimal::percent(1), &[]);
-    assert_eq!(query_tax_rate(deps.as_ref()).unwrap(), Decimal256::percent(1),);
+    assert_eq!(
+        query_tax_rate(deps.as_ref()).unwrap(),
+        Decimal256::percent(1),
+    );
 }
 
 #[test]

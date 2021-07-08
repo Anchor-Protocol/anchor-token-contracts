@@ -13,13 +13,8 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    UpdateConfig {
-        spend_limit: Option<Uint128>,
-    },
-    Spend {
-        recipient: String,
-        amount: Uint128,
-    },
+    UpdateConfig { spend_limit: Option<Uint128> },
+    Spend { recipient: String, amount: Uint128 },
 }
 
 /// We currently take no arguments for migrations

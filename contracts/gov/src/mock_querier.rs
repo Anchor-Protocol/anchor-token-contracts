@@ -1,9 +1,9 @@
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_slice, to_binary, Addr, Api, CanonicalAddr, ContractResult, Coin, Empty, OwnedDeps, Querier,
+    from_binary, from_slice, to_binary, Coin, ContractResult, Empty, OwnedDeps, Querier,
     QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
-use cosmwasm_storage::to_length_prefixed;
+use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20QueryMsg};
 use std::collections::HashMap;
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
@@ -11,9 +11,8 @@ use std::collections::HashMap;
 pub fn mock_dependencies(
     contract_balance: &[Coin],
 ) -> OwnedDeps<MockStorage, MockApi, WasmMockQuerier> {
-    let custom_querier: WasmMockQuerier = WasmMockQuerier::new(
-        MockQuerier::new(&[(&MOCK_CONTRACT_ADDR, contract_balance)]),
-    );
+    let custom_querier: WasmMockQuerier =
+        WasmMockQuerier::new(MockQuerier::new(&[(&MOCK_CONTRACT_ADDR, contract_balance)]));
 
     OwnedDeps {
         api: MockApi::default(),
@@ -75,52 +74,40 @@ impl Querier for WasmMockQuerier {
 impl WasmMockQuerier {
     pub fn handle_query(&self, request: &QueryRequest<Empty>) -> QuerierResult {
         match &request {
-            QueryRequest::Wasm(WasmQuery::Raw { contract_addr, key }) => {
-                let key: &[u8] = key.as_slice();
+            QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
+                match from_binary(&msg).unwrap() {
+                    Cw20QueryMsg::Balance { address } => {
+                        let balances: &HashMap<String, Uint128> =
+                            match self.token_querier.balances.get(contract_addr) {
+                                Some(balances) => balances,
+                                None => {
+                                    return SystemResult::Err(SystemError::InvalidRequest {
+                                        error: format!(
+                                            "No balance info exists for the contract {}",
+                                            contract_addr
+                                        ),
+                                        request: msg.as_slice().into(),
+                                    })
+                                }
+                            };
 
-                let balances: &HashMap<String, Uint128> =
-                    match self.token_querier.balances.get(contract_addr) {
-                        Some(balances) => balances,
-                        None => {
-                            return SystemResult::Err(SystemError::InvalidRequest {
-                                error: format!(
-                                    "No balance info exists for the contract {}",
-                                    contract_addr
-                                ),
-                                request: key.into(),
-                            })
-                        }
-                    };
+                        let balance = match balances.get(&address) {
+                            Some(v) => *v,
+                            None => {
+                                return SystemResult::Ok(ContractResult::Ok(
+                                    to_binary(&Cw20BalanceResponse {
+                                        balance: Uint128::zero(),
+                                    })
+                                    .unwrap(),
+                                ));
+                            }
+                        };
 
-                let prefix_balance = to_length_prefixed(b"balance").to_vec();
-                if key[..prefix_balance.len()].to_vec() == prefix_balance {
-                    let key_address: &[u8] = &key[prefix_balance.len()..];
-                    let address_raw: CanonicalAddr = CanonicalAddr::from(key_address);
-
-                    let api: MockApi = MockApi::default();
-                    let address: Addr = match api.addr_humanize(&address_raw) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            return SystemResult::Err(SystemError::InvalidRequest {
-                                error: format!("Parsing query request: {}", e),
-                                request: key.into(),
-                            })
-                        }
-                    };
-
-                    let balance = match balances.get(&address.to_string()) {
-                        Some(v) => v,
-                        None => {
-                            return SystemResult::Err(SystemError::InvalidRequest {
-                                error: "Balance not found".to_string(),
-                                request: key.into(),
-                            })
-                        }
-                    };
-                    
-                    SystemResult::Ok(ContractResult::from(to_binary(&balance)))
-                } else {
-                    panic!("DO NOT ENTER HERE")
+                        SystemResult::Ok(ContractResult::Ok(
+                            to_binary(&Cw20BalanceResponse { balance }).unwrap(),
+                        ))
+                    }
+                    _ => panic!("DO NOT ENTER HERE"),
                 }
             }
             _ => self.base.handle_query(request),

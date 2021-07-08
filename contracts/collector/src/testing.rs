@@ -1,12 +1,12 @@
 use crate::contract::{execute, instantiate, query_config, reply};
 use crate::mock_querier::mock_dependencies;
+use anchor_token::collector::{ConfigResponse, ExecuteMsg, InstantiateMsg};
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    to_binary, Coin, ContractResult, CosmosMsg, Decimal, Reply, ReplyOn, SubMsg, 
+    to_binary, Coin, ContractResult, CosmosMsg, Decimal, Reply, ReplyOn, StdError, SubMsg,
     SubMsgExecutionResponse, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
-use anchor_token::collector::{ConfigResponse, ExecuteMsg, InstantiateMsg};
 use terraswap::asset::{Asset, AssetInfo};
 use terraswap::pair::ExecuteMsg as TerraswapExecuteMsg;
 
@@ -68,7 +68,7 @@ fn update_config() {
 
     let res = execute(deps.as_mut(), mock_env(), info, msg);
     match res {
-        Err(GenericErr::Unauthorized { msg, .. }) => assert_eq!(msg, "unauthorized"),
+        Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "unauthorized"),
         _ => panic!("Must return unauthorized error"),
     }
 }
@@ -110,7 +110,7 @@ fn test_sweep() {
         res.messages,
         vec![SubMsg {
             msg: WasmMsg::Execute {
-                contract_addr: "pairOZ".to_string(),
+                contract_addr: "pairANC".to_string(),
                 msg: to_binary(&TerraswapExecuteMsg::Swap {
                     offer_asset: Asset {
                         info: AssetInfo::NativeToken {
@@ -144,7 +144,6 @@ fn test_distribute() {
         &"tokenANC".to_string(),
         &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(100u128))],
     )]);
-
 
     let msg = InstantiateMsg {
         terraswap_factory: "terraswapfactory".to_string(),

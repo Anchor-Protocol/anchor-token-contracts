@@ -36,15 +36,10 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    msg: ExecuteMsg,
-) -> StdResult<Response> {
+pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
         ExecuteMsg::UpdateConfig { reward_factor } => update_config(deps, info, reward_factor),
-        ExecuteMsg::Sweep { denom } => sweep(deps, env, info, denom),
+        ExecuteMsg::Sweep { denom } => sweep(deps, env, denom),
     }
 }
 
@@ -70,12 +65,7 @@ pub fn update_config(
 /// Anyone can execute sweep function to swap
 /// asset token => ANC token and distribute
 /// result ANC token to gov contract
-pub fn sweep(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    denom: String,
-) -> StdResult<Response> {
+pub fn sweep(deps: DepsMut, env: Env, denom: String) -> StdResult<Response> {
     let config: Config = read_config(deps.storage)?;
     let anchor_token = deps.api.addr_humanize(&config.anchor_token)?;
     let terraswap_factory_addr = deps.api.addr_humanize(&config.terraswap_factory)?;
@@ -93,7 +83,8 @@ pub fn sweep(
         ],
     )?;
 
-    let amount = query_balance(&deps.querier, info.sender.clone(), denom.to_string())?;
+    let amount = query_balance(&deps.querier, env.contract.address, denom.to_string())?;
+
     let swap_asset = Asset {
         info: AssetInfo::NativeToken {
             denom: denom.to_string(),
@@ -121,7 +112,7 @@ pub fn sweep(
                     amount,
                 }],
             }),
-            1
+            1,
         )],
         attributes: vec![
             attr("action", "sweep"),
@@ -142,10 +133,7 @@ pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> StdResult<Response> {
 }
 
 // Only contract itself can execute distribute function
-pub fn distribute(
-    deps: DepsMut,
-    env: Env,
-) -> StdResult<Response> {
+pub fn distribute(deps: DepsMut, env: Env) -> StdResult<Response> {
     let config: Config = read_config(deps.storage)?;
     let amount = query_token_balance(
         &deps.querier,
@@ -173,7 +161,10 @@ pub fn distribute(
         messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: deps.api.addr_humanize(&config.distributor_contract)?.to_string(),
+                recipient: deps
+                    .api
+                    .addr_humanize(&config.distributor_contract)?
+                    .to_string(),
                 amount: left_amount,
             })?,
             funds: vec![],
@@ -193,25 +184,25 @@ pub fn distribute(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(
-    deps: Deps,
-    _env: Env,
-    msg: QueryMsg,
-) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
     }
 }
 
-pub fn query_config(
-    deps: Deps,
-) -> StdResult<ConfigResponse> {
+pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let state = read_config(deps.storage)?;
     let resp = ConfigResponse {
         gov_contract: deps.api.addr_humanize(&state.gov_contract)?.to_string(),
-        terraswap_factory: deps.api.addr_humanize(&state.terraswap_factory)?.to_string(),
+        terraswap_factory: deps
+            .api
+            .addr_humanize(&state.terraswap_factory)?
+            .to_string(),
         anchor_token: deps.api.addr_humanize(&state.anchor_token)?.to_string(),
-        distributor_contract: deps.api.addr_humanize(&state.distributor_contract)?.to_string(),
+        distributor_contract: deps
+            .api
+            .addr_humanize(&state.distributor_contract)?
+            .to_string(),
         reward_factor: state.reward_factor,
     };
 

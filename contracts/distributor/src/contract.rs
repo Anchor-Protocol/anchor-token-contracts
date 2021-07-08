@@ -4,8 +4,8 @@ use cosmwasm_std::entry_point;
 use crate::state::{read_config, store_config, Config};
 
 use cosmwasm_std::{
-    attr, to_binary, Binary, CanonicalAddr, CosmosMsg, Deps, DepsMut, Env, 
-    MessageInfo, Response, StdError, StdResult, SubMsg, WasmMsg
+    attr, to_binary, Binary, CanonicalAddr, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response,
+    StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 
 use anchor_token::distributor::{ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
@@ -16,7 +16,7 @@ use cw20::Cw20ExecuteMsg;
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     let whitelist = msg
@@ -39,12 +39,19 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(deps: DepsMut, _env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
+pub fn execute(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> StdResult<Response> {
     match msg {
         ExecuteMsg::UpdateConfig { spend_limit } => update_config(deps, info, spend_limit),
         ExecuteMsg::Spend { recipient, amount } => spend(deps, info, recipient, amount),
         ExecuteMsg::AddDistributor { distributor } => add_distributor(deps, info, distributor),
-        ExecuteMsg::RemoveDistributor { distributor } => remove_distributor(deps, info, distributor),
+        ExecuteMsg::RemoveDistributor { distributor } => {
+            remove_distributor(deps, info, distributor)
+        }
     }
 }
 
@@ -87,8 +94,7 @@ pub fn add_distributor(
         .whitelist
         .clone()
         .into_iter()
-        .find(|w| *w == distributor_raw)
-        .is_some()
+        .any(|w| w == distributor_raw)
     {
         return Err(StdError::generic_err("Distributor already registered"));
     }
@@ -155,12 +161,7 @@ pub fn spend(
     let config: Config = read_config(deps.storage)?;
     let sender_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
 
-    if config
-        .whitelist
-        .into_iter()
-        .find(|w| *w == sender_raw)
-        .is_none()
-    {
+    if !config.whitelist.into_iter().any(|w| w == sender_raw) {
         return Err(StdError::generic_err("unauthorized"));
     }
 
@@ -189,19 +190,13 @@ pub fn spend(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(
-    deps: Deps,
-    _env: Env,
-    msg: QueryMsg,
-) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
     }
 }
 
-pub fn query_config(
-    deps: Deps,
-) -> StdResult<ConfigResponse> {
+pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let state = read_config(deps.storage)?;
     let resp = ConfigResponse {
         gov_contract: deps.api.addr_humanize(&state.gov_contract)?.to_string(),

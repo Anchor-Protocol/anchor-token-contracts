@@ -2,8 +2,8 @@
 use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{
-    attr, to_binary, Addr, Binary, CosmosMsg, Decimal, DepsMut, Deps, Env, MessageInfo, 
-    Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    attr, to_binary, Addr, Api, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Response, StdError, StdResult, Storage, SubMsg, Uint128, WasmMsg,
 };
 
 use crate::state::{
@@ -36,16 +36,11 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    msg: ExecuteMsg,
-) -> StdResult<Response> {
+pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg.clone() {
         ExecuteMsg::Claim {} => claim(deps, env, info),
         _ => {
-            assert_owner_privilege(deps, info.sender.clone())?;
+            assert_owner_privilege(deps.storage, deps.api, info.sender)?;
             match msg {
                 ExecuteMsg::UpdateConfig {
                     owner,
@@ -61,11 +56,8 @@ pub fn execute(
     }
 }
 
-fn assert_owner_privilege(
-    deps: DepsMut,
-    sender: Addr,
-) -> StdResult<()> {
-    if read_config(deps.storage)?.owner != deps.api.addr_canonicalize(sender.as_str())? {
+fn assert_owner_privilege(storage: &dyn Storage, api: &dyn Api, sender: Addr) -> StdResult<()> {
+    if read_config(storage)?.owner != api.addr_canonicalize(sender.as_str())? {
         return Err(StdError::generic_err("unauthorized"));
     }
 
@@ -101,7 +93,7 @@ pub fn update_config(
     })
 }
 
-fn assert_vesting_schedules(vesting_schedules: &Vec<(u64, u64, Uint128)>) -> StdResult<()> {
+fn assert_vesting_schedules(vesting_schedules: &[(u64, u64, Uint128)]) -> StdResult<()> {
     for vesting_schedule in vesting_schedules.iter() {
         if vesting_schedule.0 >= vesting_schedule.1 {
             return Err(StdError::generic_err(
@@ -110,7 +102,7 @@ fn assert_vesting_schedules(vesting_schedules: &Vec<(u64, u64, Uint128)>) -> Std
         }
     }
 
-    return Ok(());
+    Ok(())
 }
 
 pub fn register_vesting_accounts(
@@ -152,16 +144,14 @@ pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> 
     let messages: Vec<SubMsg> = if claim_amount.is_zero() {
         vec![]
     } else {
-        vec![SubMsg::new(
-                CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
-                    funds: vec![],
-                    msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                        recipient: address.to_string(),
-                        amount: claim_amount, // TODO: wtf
-                    })?,
-                })
-            )]
+        vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
+            funds: vec![],
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: address.to_string(),
+                amount: claim_amount, // TODO: wtf
+            })?,
+        }))]
     };
 
     vesting_info.last_claim_time = current_time;
@@ -198,15 +188,11 @@ fn compute_claim_amount(current_time: u64, vesting_info: &VestingInfo) -> Uint12
         claimable_amount += Uint128::from(passed_time as u128) * release_amount_per_time;
     }
 
-    return claimable_amount;
+    claimable_amount
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(
-    deps: Deps,
-    _env: Env,
-    msg: QueryMsg,
-) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
         QueryMsg::VestingAccount { address } => {
@@ -225,9 +211,7 @@ pub fn query(
     }
 }
 
-pub fn query_config(
-    deps: Deps,
-) -> StdResult<ConfigResponse> {
+pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let state = read_config(deps.storage)?;
     let resp = ConfigResponse {
         owner: deps.api.addr_humanize(&state.owner)?.to_string(),
@@ -238,10 +222,7 @@ pub fn query_config(
     Ok(resp)
 }
 
-pub fn query_vesting_account(
-    deps: Deps,
-    address: String,
-) -> StdResult<VestingAccountResponse> {
+pub fn query_vesting_account(deps: Deps, address: String) -> StdResult<VestingAccountResponse> {
     let info = read_vesting_info(deps.storage, &deps.api.addr_canonicalize(&address)?)?;
     let resp = VestingAccountResponse { address, info };
 
@@ -283,7 +264,7 @@ pub fn query_vesting_accounts(
 #[test]
 fn test_assert_vesting_schedules() {
     // valid
-    assert_vesting_schedules(&vec![
+    assert_vesting_schedules(&[
         (100u64, 101u64, Uint128::from(100u128)),
         (100u64, 110u64, Uint128::from(100u128)),
         (100u64, 200u64, Uint128::from(100u128)),
@@ -291,7 +272,7 @@ fn test_assert_vesting_schedules() {
     .unwrap();
 
     // invalid
-    let res = assert_vesting_schedules(&vec![
+    let res = assert_vesting_schedules(&[
         (100u64, 100u64, Uint128::from(100u128)),
         (100u64, 110u64, Uint128::from(100u128)),
         (100u64, 200u64, Uint128::from(100u128)),

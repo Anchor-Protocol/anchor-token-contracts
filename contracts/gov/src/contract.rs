@@ -9,15 +9,15 @@ use crate::state::{
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Addr, Binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, 
-    Env, MessageInfo, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    attr, from_binary, to_binary, Binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    MessageInfo, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-// use terraswap::querier::query_token_balance;
+use terraswap::querier::query_token_balance;
 
 use anchor_token::common::OrderBy;
 use anchor_token::gov::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, PollExecuteMsg, PollResponse, 
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, PollExecuteMsg, PollResponse,
     PollStatus, PollsResponse, QueryMsg, StateResponse, VoteOption, VoterInfo, VotersResponse,
     VotersResponseItem,
 };
@@ -108,10 +108,7 @@ pub fn execute(
     }
 }
 
-pub fn register_contracts(
-    deps: DepsMut,
-    anchor_token: String,
-) -> Result<Response, ContractError> {
+pub fn register_contracts(deps: DepsMut, anchor_token: String) -> Result<Response, ContractError> {
     let mut config: Config = config_read(deps.storage).load()?;
     if config.anchor_token != CanonicalAddr::from(vec![]) {
         return Err(ContractError::Unauthorized {});
@@ -135,9 +132,10 @@ pub fn receive_cw20(
         return Err(ContractError::Unauthorized {});
     }
 
-    match from_binary(&cw20_msg.msg)? {
+    match from_binary(&cw20_msg.msg) {
         Ok(Cw20HookMsg::StakeVotingTokens {}) => {
-            stake_voting_tokens(deps, deps.api.addr_validate(&cw20_msg.sender)?, cw20_msg.amount)
+            let api = deps.api;
+            stake_voting_tokens(deps, api.addr_validate(&cw20_msg.sender)?, cw20_msg.amount)
         }
         Ok(Cw20HookMsg::CreatePoll {
             title,
@@ -154,7 +152,6 @@ pub fn receive_cw20(
             link,
             execute_msgs,
         ),
-        Err(err) => Err(ContractError::Std(err)),
         _ => Err(ContractError::DataShouldBeGiven {}),
     }
 }
@@ -397,11 +394,12 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, Contr
             staked_amount,
         )
     } else {
-        let staked_weight = (query_token_balance(
+        let staked_weight = query_token_balance(
             &deps.querier,
             deps.api.addr_humanize(&config.anchor_token)?,
             deps.api.addr_humanize(&state.contract_addr)?,
-        )? - state.total_deposit)?;
+        )?
+        .checked_sub(state.total_deposit)?;
 
         (
             Decimal::from_ratio(tallied_weight, staked_weight),
@@ -437,7 +435,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, Contr
     }
 
     // Decrease total deposit amount
-    state.total_deposit.sub_assign(a_poll.deposit_amount)?; // TODO: check if this worked
+    state.total_deposit = state.total_deposit.checked_sub(a_poll.deposit_amount)?; // TODO: check if this worked
     state_store(deps.storage).save(&state)?;
 
     // Update poll indexer
@@ -478,8 +476,7 @@ pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, C
     }
 
     poll_indexer_store(deps.storage, &PollStatus::Passed).remove(&poll_id.to_be_bytes());
-    poll_indexer_store(deps.storage, &PollStatus::Executed)
-        .save(&poll_id.to_be_bytes(), &true)?;
+    poll_indexer_store(deps.storage, &PollStatus::Executed).save(&poll_id.to_be_bytes(), &true)?;
 
     a_poll.status = PollStatus::Executed;
     poll_store(deps.storage).save(&poll_id.to_be_bytes(), &a_poll)?;
@@ -528,8 +525,7 @@ pub fn expire_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, Co
     }
 
     poll_indexer_store(deps.storage, &PollStatus::Passed).remove(&poll_id.to_be_bytes());
-    poll_indexer_store(deps.storage, &PollStatus::Expired)
-        .save(&poll_id.to_be_bytes(), &true)?;
+    poll_indexer_store(deps.storage, &PollStatus::Expired).save(&poll_id.to_be_bytes(), &true)?;
 
     a_poll.status = PollStatus::Expired;
     poll_store(deps.storage).save(&poll_id.to_be_bytes(), &a_poll)?;
@@ -567,11 +563,12 @@ pub fn snapshot_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, 
     // store the current staked amount for quorum calculation
     let state: State = state_store(deps.storage).load()?;
 
-    let staked_amount = load_token_balance(
-        &deps,
+    let staked_amount = query_token_balance(
+        &deps.querier,
         deps.api.addr_humanize(&config.anchor_token)?,
         deps.api.addr_humanize(&state.contract_addr)?,
-    )?.checked_sub(state.total_deposit)?;
+    )?
+    .checked_sub(state.total_deposit)?;
 
     a_poll.staked_amount = Some(staked_amount);
 
@@ -622,11 +619,12 @@ pub fn cast_vote(
 
     // convert share to amount
     let total_share = state.total_share;
-    let total_balance = (load_token_balance(
+    let total_balance = query_token_balance(
         &deps.querier,
         deps.api.addr_humanize(&config.anchor_token)?,
         deps.api.addr_humanize(&state.contract_addr)?,
-    )? - state.total_deposit)?;
+    )?
+    .checked_sub(state.total_deposit)?;
 
     if token_manager
         .share
@@ -653,8 +651,7 @@ pub fn cast_vote(
     bank_store(deps.storage).save(key, &token_manager)?;
 
     // store poll voter && and update poll data
-    poll_voter_store(deps.storage, poll_id)
-        .save(&sender_address_raw.as_slice(), &vote_info)?;
+    poll_voter_store(deps.storage, poll_id).save(&sender_address_raw.as_slice(), &vote_info)?;
 
     // processing snapshot
     let time_to_end = a_poll.end_height - env.block.height;
@@ -678,28 +675,40 @@ pub fn cast_vote(
         attributes,
         events: vec![],
         data: None,
-    });
+    })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::Config {} => to_binary(&query_config(&deps)?),
-        QueryMsg::State {} => to_binary(&query_state(&deps)?),
-        QueryMsg::Staker { address } => to_binary(&query_staker(deps, address)?),
-        QueryMsg::Poll { poll_id } => to_binary(&query_poll(deps, poll_id)?),
+        QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
+        QueryMsg::State {} => Ok(to_binary(&query_state(deps)?)?),
+        QueryMsg::Staker { address } => Ok(to_binary(&query_staker(deps, address)?)?),
+        QueryMsg::Poll { poll_id } => Ok(to_binary(&query_poll(deps, poll_id)?)?),
         QueryMsg::Polls {
             filter,
             start_after,
             limit,
             order_by,
-        } => to_binary(&query_polls(deps, filter, start_after, limit, order_by)?),
+        } => Ok(to_binary(&query_polls(
+            deps,
+            filter,
+            start_after,
+            limit,
+            order_by,
+        )?)?),
         QueryMsg::Voters {
             poll_id,
             start_after,
             limit,
             order_by,
-        } => to_binary(&query_voters(deps, poll_id, start_after, limit, order_by)?),
+        } => Ok(to_binary(&query_voters(
+            deps,
+            poll_id,
+            start_after,
+            limit,
+            order_by,
+        )?)?),
     }
 }
 
@@ -797,7 +806,7 @@ fn query_polls(
                         };
                         data_list.push(execute_data)
                     }
-                    Some(data_list.clone())
+                    Some(data_list)
                 } else {
                     None
                 },

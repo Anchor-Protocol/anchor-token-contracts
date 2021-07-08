@@ -6,11 +6,11 @@ use crate::state::{
 
 use anchor_token::gov::{PollStatus, StakerResponse};
 use cosmwasm_std::{
-    attr, to_binary, Addr, CanonicalAddr, CosmosMsg, Deps, DepsMut, MessageInfo, 
-    Response, StdResult, Storage, SubMsg, Uint128, WasmMsg,
+    attr, to_binary, Addr, CanonicalAddr, CosmosMsg, Deps, DepsMut, MessageInfo, Response,
+    StdResult, Storage, SubMsg, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
-// use terraswap::querier::query_token_balance;
+use terraswap::querier::query_token_balance;
 
 pub fn stake_voting_tokens(
     deps: DepsMut,
@@ -33,7 +33,8 @@ pub fn stake_voting_tokens(
         &deps.querier,
         deps.api.addr_humanize(&config.anchor_token)?,
         deps.api.addr_humanize(&state.contract_addr)?,
-    )?.checked_sub(state.total_deposit + amount)?;
+    )?
+    .checked_sub(state.total_deposit + amount)?;
 
     let share = if total_balance.is_zero() || state.total_share.is_zero() {
         amount
@@ -79,10 +80,12 @@ pub fn withdraw_voting_tokens(
             &deps.querier,
             deps.api.addr_humanize(&config.anchor_token)?,
             deps.api.addr_humanize(&state.contract_addr)?,
-        )?.checked_sub(state.total_deposit)?
-            .u128();
+        )?
+        .checked_sub(state.total_deposit)?
+        .u128();
 
-        let locked_balance = compute_locked_balance(deps.storage, &mut token_manager, &sender_address_raw)?;
+        let locked_balance =
+            compute_locked_balance(deps.storage, &mut token_manager, &sender_address_raw)?;
         let locked_share = locked_balance * total_share / total_balance;
         let user_share = token_manager.share.u128();
 
@@ -126,9 +129,7 @@ fn compute_locked_balance(
 ) -> StdResult<u128> {
     // filter out not in-progress polls
     token_manager.locked_balance.retain(|(poll_id, _)| {
-        let poll: Poll = poll_read(storage)
-            .load(&poll_id.to_be_bytes())
-            .unwrap();
+        let poll: Poll = poll_read(storage).load(&poll_id.to_be_bytes()).unwrap();
 
         if poll.status != PollStatus::InProgress {
             // remove voter info from the poll
@@ -176,10 +177,7 @@ fn send_tokens(
     })
 }
 
-pub fn query_staker(
-    deps: Deps,
-    address: String,
-) -> StdResult<StakerResponse> {
+pub fn query_staker(deps: Deps, address: String) -> StdResult<StakerResponse> {
     let addr_raw = deps.api.addr_canonicalize(&address).unwrap();
     let config: Config = config_read(deps.storage).load()?;
     let state: State = state_read(deps.storage).load()?;
@@ -200,7 +198,8 @@ pub fn query_staker(
         &deps.querier,
         deps.api.addr_humanize(&config.anchor_token)?,
         deps.api.addr_humanize(&state.contract_addr)?,
-    )?.checked_sub(state.total_deposit)?;
+    )?
+    .checked_sub(state.total_deposit)?;
 
     Ok(StakerResponse {
         balance: if !state.total_share.is_zero() {

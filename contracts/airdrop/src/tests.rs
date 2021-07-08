@@ -1,10 +1,10 @@
 use crate::contract::{execute, instantiate, query};
 use crate::error::ContractError;
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{attr, from_binary};
 use anchor_token::airdrop::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, LatestStageResponse, MerkleRootResponse, QueryMsg,
 };
+use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+use cosmwasm_std::{attr, from_binary};
 
 #[test]
 fn proper_initialization() {
