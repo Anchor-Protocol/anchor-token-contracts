@@ -61,6 +61,8 @@ pub fn update_config(
     Ok(Response::default())
 }
 
+const SWEEP_REPLY_ID: u64 = 1;
+
 /// Sweep
 /// Anyone can execute sweep function to swap
 /// asset token => ANC token and distribute
@@ -94,8 +96,8 @@ pub fn sweep(deps: DepsMut, env: Env, denom: String) -> StdResult<Response> {
 
     // deduct tax first
     let amount = (swap_asset.deduct_tax(&deps.querier)?).amount;
-    Ok(Response {
-        messages: vec![SubMsg::reply_on_success(
+    Ok(Response::new()
+        .add_submessage(SubMsg::reply_on_success(
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: pair_info.contract_addr.to_string(),
                 msg: to_binary(&TerraswapExecuteMsg::Swap {
@@ -112,24 +114,25 @@ pub fn sweep(deps: DepsMut, env: Env, denom: String) -> StdResult<Response> {
                     amount,
                 }],
             }),
-            1,
-        )],
-        attributes: vec![
+            SWEEP_REPLY_ID,
+        ))
+        .add_attributes(vec![
             attr("action", "sweep"),
             attr(
                 "collected_rewards",
                 format!("{:?}{:?}", amount.to_string(), denom),
             ),
-        ],
-        events: vec![],
-        data: None,
-    })
+        ]))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> StdResult<Response> {
-    // send tokens on successfull callback
-    distribute(deps, env)
+pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
+    if msg.id == SWEEP_REPLY_ID {
+        // send tokens on successful callback
+        return distribute(deps, env);
+    }
+
+    Err(StdError::generic_err("not supported reply"))
 }
 
 // Only contract itself can execute distribute function
@@ -144,21 +147,21 @@ pub fn distribute(deps: DepsMut, env: Env) -> StdResult<Response> {
     let distribute_amount = amount * config.reward_factor;
     let left_amount = amount.checked_sub(distribute_amount)?;
 
-    let mut messages: Vec<SubMsg> = vec![];
+    let mut messages: Vec<CosmosMsg> = vec![];
 
     if !distribute_amount.is_zero() {
-        messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: deps.api.addr_humanize(&config.gov_contract)?.to_string(),
                 amount: distribute_amount,
             })?,
             funds: vec![],
-        })));
+        }));
     }
 
     if !left_amount.is_zero() {
-        messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: deps
@@ -168,19 +171,14 @@ pub fn distribute(deps: DepsMut, env: Env) -> StdResult<Response> {
                 amount: left_amount,
             })?,
             funds: vec![],
-        })));
+        }));
     }
 
-    Ok(Response {
-        messages,
-        attributes: vec![
-            attr("action", "distribute"),
-            attr("distribute_amount", distribute_amount.to_string()),
-            attr("distributor_payback_amount", left_amount.to_string()),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        ("action", "distribute"),
+        ("distribute_amount", &distribute_amount.to_string()),
+        ("distributor_payback_amount", &left_amount.to_string()),
+    ]))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

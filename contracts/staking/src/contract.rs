@@ -2,8 +2,8 @@
 use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Addr, Binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, MessageInfo, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    from_binary, to_binary, Addr, Binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 
 use anchor_token::staking::{
@@ -95,16 +95,11 @@ pub fn bond(deps: DepsMut, env: Env, sender_addr: Addr, amount: Uint128) -> StdR
     store_staker_info(deps.storage, &sender_addr_raw, &staker_info)?;
     store_state(deps.storage, &state)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
-            attr("action", "bond"),
-            attr("owner", sender_addr),
-            attr("amount", amount.to_string()),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![
+        ("action", "bond"),
+        ("owner", sender_addr.as_str()),
+        ("amount", amount.to_string().as_str()),
+    ]))
 }
 
 pub fn unbond(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128) -> StdResult<Response> {
@@ -136,23 +131,20 @@ pub fn unbond(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128) -> St
     // Store updated state
     store_state(deps.storage, &state)?;
 
-    Ok(Response {
-        messages: vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+    Ok(Response::new()
+        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.staking_token)?.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: info.sender.to_string(),
                 amount,
             })?,
             funds: vec![],
-        }))],
-        attributes: vec![
-            attr("action", "unbond"),
-            attr("owner", info.sender),
-            attr("amount", amount.to_string()),
-        ],
-        events: vec![],
-        data: None,
-    })
+        })])
+        .add_attributes(vec![
+            ("action", "unbond"),
+            ("owner", info.sender.as_str()),
+            ("amount", amount.to_string().as_str()),
+        ]))
 }
 
 // withdraw rewards to executor
@@ -181,23 +173,20 @@ pub fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     // Store updated state
     store_state(deps.storage, &state)?;
 
-    Ok(Response {
-        messages: vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+    Ok(Response::new()
+        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: info.sender.to_string(),
                 amount,
             })?,
             funds: vec![],
-        }))],
-        attributes: vec![
-            attr("action", "withdraw"),
-            attr("owner", info.sender),
-            attr("amount", amount.to_string()),
-        ],
-        events: vec![],
-        data: None,
-    })
+        })])
+        .add_attributes(vec![
+            ("action", "withdraw"),
+            ("owner", info.sender.as_str()),
+            ("amount", amount.to_string().as_str()),
+        ]))
 }
 
 fn increase_bond_amount(state: &mut State, staker_info: &mut StakerInfo, amount: Uint128) {

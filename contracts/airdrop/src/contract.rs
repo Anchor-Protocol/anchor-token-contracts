@@ -12,11 +12,10 @@ use anchor_token::airdrop::{
     MerkleRootResponse, MigrateMsg, QueryMsg,
 };
 use cosmwasm_std::{
-    attr, to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
-    SubMsg, Uint128, WasmMsg,
+    to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128,
+    WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
-use hex;
 use sha3::Digest;
 use std::convert::TryInto;
 
@@ -76,12 +75,7 @@ pub fn update_config(
     }
 
     store_config(deps.storage, &config)?;
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "update_config")],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![("action", "update_config")]))
 }
 
 pub fn register_merkle_root(
@@ -106,16 +100,11 @@ pub fn register_merkle_root(
     store_merkle_root(deps.storage, stage, merkle_root.to_string())?;
     store_latest_stage(deps.storage, stage)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
-            attr("action", "register_merkle_root"),
-            attr("stage", stage),
-            attr("merkle_root", merkle_root),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![
+        ("action", "register_merkle_root"),
+        ("stage", &stage.to_string()),
+        ("merkle_root", &merkle_root),
+    ]))
 }
 
 pub fn claim(
@@ -170,24 +159,21 @@ pub fn claim(
     // Update claim index to the current stage
     store_claimed(deps.storage, &user_raw, stage)?;
 
-    Ok(Response {
-        messages: vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+    Ok(Response::new()
+        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
             funds: vec![],
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: info.sender.to_string(),
                 amount,
             })?,
-        }))],
-        attributes: vec![
-            attr("action", "claim"),
-            attr("stage", stage),
-            attr("address", info.sender),
-            attr("amount", amount),
-        ],
-        events: vec![],
-        data: None,
-    })
+        })])
+        .add_attributes(vec![
+            ("action", "claim"),
+            ("stage", &stage.to_string()),
+            ("address", info.sender.as_str()),
+            ("amount", &amount.to_string()),
+        ]))
 }
 
 fn bytes_cmp(a: [u8; 32], b: [u8; 32]) -> std::cmp::Ordering {

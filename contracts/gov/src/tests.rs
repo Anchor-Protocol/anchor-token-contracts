@@ -754,7 +754,7 @@ fn happy_days_end_poll() {
         execute_res.attributes,
         vec![
             attr("action", "cast_vote"),
-            attr("poll_id", POLL_ID),
+            attr("poll_id", POLL_ID.to_string().as_str()),
             attr("amount", "1000"),
             attr("voter", TEST_VOTER),
             attr("vote_option", "yes"),
@@ -1047,7 +1047,7 @@ fn expire_poll() {
         execute_res.attributes,
         vec![
             attr("action", "cast_vote"),
-            attr("poll_id", POLL_ID),
+            attr("poll_id", POLL_ID.to_string().as_str()),
             attr("amount", "1000"),
             attr("voter", TEST_VOTER),
             attr("vote_option", "yes"),
@@ -2614,7 +2614,7 @@ fn execute_poll_with_order() {
         execute_res.attributes,
         vec![
             attr("action", "cast_vote"),
-            attr("poll_id", POLL_ID),
+            attr("poll_id", POLL_ID.to_string().as_str()),
             attr("amount", "1000"),
             attr("voter", TEST_VOTER),
             attr("vote_option", "yes"),
@@ -2765,7 +2765,7 @@ fn snapshot_poll() {
         vec![
             attr("action", "snapshot_poll"),
             attr("poll_id", "1"),
-            attr("staked_amount", stake_amount),
+            attr("staked_amount", stake_amount.to_string().as_str()),
         ]
     );
 
@@ -3013,7 +3013,7 @@ fn fails_end_poll_quorum_inflation_without_snapshot_poll() {
         execute_res.attributes,
         vec![
             attr("action", "cast_vote"),
-            attr("poll_id", POLL_ID),
+            attr("poll_id", POLL_ID.to_string().as_str()),
             attr("amount", "1000"),
             attr("voter", TEST_VOTER),
             attr("vote_option", "yes"),
@@ -3057,7 +3057,7 @@ fn fails_end_poll_quorum_inflation_without_snapshot_poll() {
         execute_res.attributes,
         vec![
             attr("action", "cast_vote"),
-            attr("poll_id", POLL_ID),
+            attr("poll_id", POLL_ID.to_string().as_str()),
             attr("amount", "1000"),
             attr("voter", TEST_VOTER_2),
             attr("vote_option", "yes"),
@@ -3182,7 +3182,7 @@ fn happy_days_end_poll_with_controlled_quorum() {
         execute_res.attributes,
         vec![
             attr("action", "cast_vote"),
-            attr("poll_id", POLL_ID),
+            attr("poll_id", POLL_ID.to_string().as_str()),
             attr("amount", "1000"),
             attr("voter", TEST_VOTER),
             attr("vote_option", "yes"),
@@ -3205,7 +3205,7 @@ fn happy_days_end_poll_with_controlled_quorum() {
         vec![
             attr("action", "snapshot_poll"),
             attr("poll_id", "1"),
-            attr("staked_amount", stake_amount),
+            attr("staked_amount", stake_amount.to_string().as_str()),
         ]
     );
 
@@ -3241,7 +3241,7 @@ fn happy_days_end_poll_with_controlled_quorum() {
         execute_res.attributes,
         vec![
             attr("action", "cast_vote"),
-            attr("poll_id", POLL_ID),
+            attr("poll_id", POLL_ID.to_string().as_str()),
             attr("amount", "8000"),
             attr("voter", TEST_VOTER_2),
             attr("vote_option", "yes"),

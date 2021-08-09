@@ -4,8 +4,8 @@ use cosmwasm_std::entry_point;
 use crate::state::{read_config, store_config, Config};
 
 use cosmwasm_std::{
-    attr, to_binary, Binary, CanonicalAddr, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response,
-    StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    to_binary, Binary, CanonicalAddr, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response,
+    StdError, StdResult, Uint128, WasmMsg,
 };
 
 use anchor_token::distributor::{ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
@@ -71,12 +71,7 @@ pub fn update_config(
 
     store_config(deps.storage, &config)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "update_config")],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![("action", "update_config")]))
 }
 
 pub fn add_distributor(
@@ -102,15 +97,10 @@ pub fn add_distributor(
     config.whitelist.push(distributor_raw);
     store_config(deps.storage, &config)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
-            attr("action", "add_distributor"),
-            attr("distributor", distributor),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![
+        ("action", "add_distributor"),
+        ("distributor", distributor.as_str()),
+    ]))
 }
 
 pub fn remove_distributor(
@@ -123,30 +113,25 @@ pub fn remove_distributor(
         return Err(StdError::generic_err("unauthorized"));
     }
 
-    let distributor = deps.api.addr_canonicalize(&distributor)?;
+    let distributor_raw = deps.api.addr_canonicalize(&distributor)?;
+    let whitelist_len = config.whitelist.len();
     let whitelist: Vec<CanonicalAddr> = config
         .whitelist
-        .clone()
         .into_iter()
-        .filter(|w| *w != distributor)
+        .filter(|w| *w != distributor_raw)
         .collect();
 
-    if config.whitelist.len() == whitelist.len() {
+    if whitelist_len == whitelist.len() {
         return Err(StdError::generic_err("Distributor not found"));
     }
 
     config.whitelist = whitelist;
     store_config(deps.storage, &config)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
-            attr("action", "remove_distributor"),
-            attr("distributor", distributor),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![
+        ("action", "remove_distributor"),
+        ("distributor", distributor.as_str()),
+    ]))
 }
 
 /// Spend
@@ -170,23 +155,20 @@ pub fn spend(
     }
 
     let anchor_token = deps.api.addr_humanize(&config.anchor_token)?.to_string();
-    Ok(Response {
-        messages: vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+    Ok(Response::new()
+        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: anchor_token,
             funds: vec![],
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: recipient.clone(),
                 amount,
             })?,
-        }))],
-        attributes: vec![
-            attr("action", "spend"),
-            attr("recipient", recipient),
-            attr("amount", amount),
-        ],
-        events: vec![],
-        data: None,
-    })
+        })])
+        .add_attributes(vec![
+            ("action", "spend"),
+            ("recipient", recipient.as_str()),
+            ("amount", amount.to_string().as_str()),
+        ]))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

@@ -4,8 +4,8 @@ use cosmwasm_std::entry_point;
 use crate::state::{read_config, store_config, Config};
 
 use cosmwasm_std::{
-    attr, to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError,
-    StdResult, SubMsg, Uint128, WasmMsg,
+    to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    Uint128, WasmMsg,
 };
 
 use anchor_token::community::{ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
@@ -60,12 +60,7 @@ pub fn update_config(
 
     store_config(deps.storage, &config)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "update_config")],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![("action", "update_config")]))
 }
 
 /// Spend
@@ -87,23 +82,20 @@ pub fn spend(
     }
 
     let anchor_token = deps.api.addr_humanize(&config.anchor_token)?.to_string();
-    Ok(Response {
-        messages: vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+    Ok(Response::new()
+        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: anchor_token,
             funds: vec![],
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: recipient.clone(),
                 amount,
             })?,
-        }))],
-        attributes: vec![
-            attr("action", "spend"),
-            attr("recipient", recipient),
-            attr("amount", amount),
-        ],
-        events: vec![],
-        data: None,
-    })
+        })])
+        .add_attributes(vec![
+            ("action", "spend"),
+            ("recipient", recipient.as_str()),
+            ("amount", &amount.to_string()),
+        ]))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

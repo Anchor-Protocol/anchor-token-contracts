@@ -10,7 +10,7 @@ use crate::state::{
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, from_binary, to_binary, Binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use terraswap::querier::query_token_balance;
@@ -210,12 +210,7 @@ pub fn update_config(
         Ok(config)
     })?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "update_config")],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![("action", "update_config")]))
 }
 
 /// validate_title returns an error if the title is invalid
@@ -343,20 +338,18 @@ pub fn create_poll(
 
     state_store(deps.storage).save(&state)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
-            attr("action", "create_poll"),
-            attr(
-                "creator",
-                deps.api.addr_humanize(&new_poll.creator)?.to_string(),
-            ),
-            attr("poll_id", &poll_id.to_string()),
-            attr("end_height", new_poll.end_height),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![
+        ("action", "create_poll"),
+        (
+            "creator",
+            deps.api
+                .addr_humanize(&new_poll.creator)?
+                .to_string()
+                .as_str(),
+        ),
+        ("poll_id", &poll_id.to_string()),
+        ("end_height", new_poll.end_height.to_string().as_str()),
+    ]))
 }
 
 /*
@@ -382,7 +375,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, Contr
     let mut rejected_reason = "";
     let mut passed = false;
 
-    let mut messages: Vec<SubMsg> = vec![];
+    let mut messages: Vec<CosmosMsg> = vec![];
     let config: Config = config_read(deps.storage).load()?;
     let mut state: State = state_read(deps.storage).load()?;
 
@@ -423,14 +416,14 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, Contr
 
         // Refunds deposit only when quorum is reached
         if !a_poll.deposit_amount.is_zero() {
-            messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
                 funds: vec![],
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: deps.api.addr_humanize(&a_poll.creator)?.to_string(),
                     amount: a_poll.deposit_amount,
                 })?,
-            })))
+            }))
         }
     }
 
@@ -447,17 +440,12 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, Contr
     a_poll.total_balance_at_end_poll = Some(staked_weight);
     poll_store(deps.storage).save(&poll_id.to_be_bytes(), &a_poll)?;
 
-    Ok(Response {
-        messages,
-        attributes: vec![
-            attr("action", "end_poll"),
-            attr("poll_id", &poll_id.to_string()),
-            attr("rejected_reason", rejected_reason),
-            attr("passed", &passed.to_string()),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        ("action", "end_poll"),
+        ("poll_id", &poll_id.to_string()),
+        ("rejected_reason", rejected_reason),
+        ("passed", &passed.to_string()),
+    ]))
 }
 
 /*
@@ -481,30 +469,25 @@ pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, C
     a_poll.status = PollStatus::Executed;
     poll_store(deps.storage).save(&poll_id.to_be_bytes(), &a_poll)?;
 
-    let mut messages: Vec<SubMsg> = vec![];
+    let mut messages: Vec<CosmosMsg> = vec![];
     if let Some(all_msgs) = a_poll.execute_data {
         let mut msgs = all_msgs;
         msgs.sort();
         for msg in msgs {
-            messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: deps.api.addr_humanize(&msg.contract)?.to_string(),
                 msg: msg.msg,
                 funds: vec![],
-            })))
+            }))
         }
     } else {
         return Err(ContractError::NoExecuteData {});
     }
 
-    Ok(Response {
-        messages,
-        attributes: vec![
-            attr("action", "execute_poll"),
-            attr("poll_id", poll_id.to_string()),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        ("action", "execute_poll"),
+        ("poll_id", poll_id.to_string().as_str()),
+    ]))
 }
 
 /// ExpirePoll is used to make the poll as expired state for querying purpose
@@ -530,15 +513,10 @@ pub fn expire_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, Co
     a_poll.status = PollStatus::Expired;
     poll_store(deps.storage).save(&poll_id.to_be_bytes(), &a_poll)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
-            attr("action", "expire_poll"),
-            attr("poll_id", poll_id.to_string()),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![
+        ("action", "expire_poll"),
+        ("poll_id", poll_id.to_string().as_str()),
+    ]))
 }
 
 /// SnapshotPoll is used to take a snapshot of the staked amount for quorum calculation
@@ -574,16 +552,11 @@ pub fn snapshot_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, 
 
     poll_store(deps.storage).save(&poll_id.to_be_bytes(), &a_poll)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
-            attr("action", "snapshot_poll"),
-            attr("poll_id", poll_id.to_string()),
-            attr("staked_amount", staked_amount),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "snapshot_poll"),
+        attr("poll_id", poll_id.to_string().as_str()),
+        attr("staked_amount", staked_amount.to_string().as_str()),
+    ]))
 }
 
 pub fn cast_vote(
@@ -662,20 +635,13 @@ pub fn cast_vote(
 
     poll_store(deps.storage).save(&poll_id.to_be_bytes(), &a_poll)?;
 
-    let attributes = vec![
-        attr("action", "cast_vote"),
-        attr("poll_id", &poll_id.to_string()),
-        attr("amount", &amount.to_string()),
-        attr("voter", &info.sender.as_str()),
-        attr("vote_option", vote_info.vote),
-    ];
-
-    Ok(Response {
-        messages: vec![],
-        attributes,
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![
+        ("action", "cast_vote"),
+        ("poll_id", poll_id.to_string().as_str()),
+        ("amount", amount.to_string().as_str()),
+        ("voter", info.sender.as_str()),
+        ("vote_option", vote_info.vote.to_string().as_str()),
+    ]))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

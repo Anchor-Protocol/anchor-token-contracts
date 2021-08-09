@@ -2,8 +2,8 @@
 use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{
-    attr, to_binary, Addr, Api, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, Storage, SubMsg, Uint128, WasmMsg,
+    to_binary, Addr, Api, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
+    StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 
 use crate::state::{
@@ -37,7 +37,7 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
-    match msg.clone() {
+    match msg {
         ExecuteMsg::Claim {} => claim(deps, env, info),
         _ => {
             assert_owner_privilege(deps.storage, deps.api, info.sender)?;
@@ -85,12 +85,7 @@ pub fn update_config(
 
     store_config(deps.storage, &config)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "update_config")],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![("action", "update_config")]))
 }
 
 fn assert_vesting_schedules(vesting_schedules: &[(u64, u64, Uint128)]) -> StdResult<()> {
@@ -124,12 +119,7 @@ pub fn register_vesting_accounts(
         )?;
     }
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "register_vesting_accounts")],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![("action", "register_vesting_accounts")]))
 }
 
 pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
@@ -141,33 +131,28 @@ pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> 
     let mut vesting_info: VestingInfo = read_vesting_info(deps.storage, &address_raw)?;
 
     let claim_amount = compute_claim_amount(current_time, &vesting_info);
-    let messages: Vec<SubMsg> = if claim_amount.is_zero() {
+    let messages: Vec<CosmosMsg> = if claim_amount.is_zero() {
         vec![]
     } else {
-        vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+        vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
             funds: vec![],
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: address.to_string(),
                 amount: claim_amount,
             })?,
-        }))]
+        })]
     };
 
     vesting_info.last_claim_time = current_time;
     store_vesting_info(deps.storage, &address_raw, &vesting_info)?;
 
-    Ok(Response {
-        messages,
-        attributes: vec![
-            attr("action", "claim"),
-            attr("address", address),
-            attr("claim_amount", claim_amount),
-            attr("last_claim_time", current_time),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        ("action", "claim"),
+        ("address", address.as_str()),
+        ("claim_amount", claim_amount.to_string().as_str()),
+        ("last_claim_time", current_time.to_string().as_str()),
+    ]))
 }
 
 fn compute_claim_amount(current_time: u64, vesting_info: &VestingInfo) -> Uint128 {

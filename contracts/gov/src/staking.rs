@@ -6,8 +6,8 @@ use crate::state::{
 
 use anchor_token::gov::{PollStatus, StakerResponse};
 use cosmwasm_std::{
-    attr, to_binary, Addr, CanonicalAddr, CosmosMsg, Deps, DepsMut, MessageInfo, Response,
-    StdResult, Storage, SubMsg, Uint128, WasmMsg,
+    to_binary, Addr, CanonicalAddr, CosmosMsg, Deps, DepsMut, MessageInfo, Response, StdResult,
+    Storage, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 use terraswap::querier::query_token_balance;
@@ -48,17 +48,12 @@ pub fn stake_voting_tokens(
     state_store(deps.storage).save(&state)?;
     bank_store(deps.storage).save(key, &token_manager)?;
 
-    Ok(Response {
-        messages: vec![],
-        data: None,
-        attributes: vec![
-            attr("action", "staking"),
-            attr("sender", sender.as_str()),
-            attr("share", share.to_string()),
-            attr("amount", amount.to_string()),
-        ],
-        events: vec![],
-    })
+    Ok(Response::new().add_attributes(vec![
+        ("action", "staking"),
+        ("sender", sender.as_str()),
+        ("share", share.to_string().as_str()),
+        ("amount", amount.to_string().as_str()),
+    ]))
 }
 
 // Withdraw amount if not staked. By default all funds will be withdrawn.
@@ -85,7 +80,7 @@ pub fn withdraw_voting_tokens(
         .u128();
 
         let locked_balance =
-            compute_locked_balance(deps.storage, &mut token_manager, &sender_address_raw)?;
+            compute_locked_balance(deps.storage, &mut token_manager, &sender_address_raw);
         let locked_share = locked_balance * total_share / total_balance;
         let user_share = token_manager.share.u128();
 
@@ -126,8 +121,7 @@ fn compute_locked_balance(
     storage: &mut dyn Storage,
     token_manager: &mut TokenManager,
     voter: &CanonicalAddr,
-) -> StdResult<u128> {
-    // filter out not in-progress polls
+) -> u128 {
     token_manager.locked_balance.retain(|(poll_id, _)| {
         let poll: Poll = poll_read(storage).load(&poll_id.to_be_bytes()).unwrap();
 
@@ -139,12 +133,12 @@ fn compute_locked_balance(
         poll.status == PollStatus::InProgress
     });
 
-    Ok(token_manager
+    token_manager
         .locked_balance
         .iter()
         .map(|(_, v)| v.balance.u128())
         .max()
-        .unwrap_or_default())
+        .unwrap_or_default()
 }
 
 fn send_tokens(
@@ -156,25 +150,21 @@ fn send_tokens(
 ) -> Result<Response, ContractError> {
     let contract_human = deps.api.addr_humanize(asset_token)?.to_string();
     let recipient_human = deps.api.addr_humanize(recipient)?.to_string();
-    let attributes = vec![
-        attr("action", action),
-        attr("recipient", recipient_human.as_str()),
-        attr("amount", &amount.to_string()),
-    ];
 
-    Ok(Response {
-        messages: vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+    Ok(Response::new()
+        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: contract_human,
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: recipient_human,
+                recipient: recipient_human.clone(),
                 amount: Uint128::from(amount),
             })?,
             funds: vec![],
-        }))],
-        attributes,
-        events: vec![],
-        data: None,
-    })
+        })])
+        .add_attributes(vec![
+            ("action", action),
+            ("recipient", recipient_human.as_str()),
+            ("amount", amount.to_string().as_str()),
+        ]))
 }
 
 pub fn query_staker(deps: Deps, address: String) -> StdResult<StakerResponse> {
