@@ -8,6 +8,7 @@ license = "Apache-2.0"
 repository = "https://github.com/anchor-protocol/anchor-token-contracts"
 homepage = "https://terra.money"
 documentation = "https://docs.terra.money"
+resolver = "2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
