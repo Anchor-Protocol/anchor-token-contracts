@@ -167,8 +167,14 @@ impl WasmMockQuerier {
                         match self.terraswap_factory_querier.pairs.get(&key) {
                             Some(v) => {
                                 SystemResult::Ok(ContractResult::from(to_binary(&PairInfo {
-                                    contract_addr: api.addr_validate(v.clone().as_str()).unwrap(),
-                                    liquidity_token: api.addr_validate("liquidity").unwrap(),
+                                    contract_addr: api
+                                        .addr_validate(v.clone().as_str())
+                                        .unwrap()
+                                        .to_string(),
+                                    liquidity_token: api
+                                        .addr_validate("liquidity")
+                                        .unwrap()
+                                        .to_string(),
                                     asset_infos: [
                                         AssetInfo::NativeToken {
                                             denom: "uusd".to_string(),

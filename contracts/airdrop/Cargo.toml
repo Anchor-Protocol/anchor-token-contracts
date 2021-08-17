@@ -37,7 +37,7 @@ backtraces = ["cosmwasm-std/backtraces"]
 anchor-token = { version = "0.2.0-rc1", path = "../../packages/anchor_token" }
 cosmwasm-std = { version = "0.16.0" }
 cosmwasm-storage = { version = "0.16.0" }
-cw20 = { version = "0.8.0-rc2" } 
+cw20 = { version = "0.8.0" } 
 hex = "0.4"
 schemars = "0.8.1"
 sha3 = { version = "0.9.1", default-features = false }

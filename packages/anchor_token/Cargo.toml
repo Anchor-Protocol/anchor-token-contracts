@@ -17,7 +17,7 @@ documentation = "https://docs.terra.money"
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cw20 = { version = "0.8.0-rc2" } 
+cw20 = { version = "0.8.0" } 
 cosmwasm-bignumber = "2.2.0"
 cosmwasm-std = { version = "0.16.0" }
 cosmwasm-storage = { version = "0.16.0" }

@@ -80,7 +80,7 @@ pub fn sweep(deps: DepsMut, env: Env, denom: String) -> StdResult<Response> {
                 denom: denom.to_string(),
             },
             AssetInfo::Token {
-                contract_addr: anchor_token,
+                contract_addr: anchor_token.to_string(),
             },
         ],
     )?;
