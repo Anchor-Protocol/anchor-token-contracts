@@ -127,7 +127,7 @@ fn compute_locked_balance(
 
         if poll.status != PollStatus::InProgress {
             // remove voter info from the poll
-            poll_voter_store(storage, *poll_id).remove(&voter.as_slice());
+            poll_voter_store(storage, *poll_id).remove(voter.as_slice());
         }
 
         poll.status == PollStatus::InProgress

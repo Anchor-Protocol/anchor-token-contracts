@@ -41,7 +41,7 @@ pub fn instantiate(
 
     let config = Config {
         anchor_token: CanonicalAddr::from(vec![]),
-        owner: deps.api.addr_canonicalize(&info.sender.as_str())?,
+        owner: deps.api.addr_canonicalize(info.sender.as_str())?,
         quorum: msg.quorum,
         threshold: msg.threshold,
         voting_period: msg.voting_period,
@@ -581,7 +581,7 @@ pub fn cast_vote(
 
     // Check the voter already has a vote on the poll
     if poll_voter_read(deps.storage, poll_id)
-        .load(&sender_address_raw.as_slice())
+        .load(sender_address_raw.as_slice())
         .is_ok()
     {
         return Err(ContractError::AlreadyVoted {});
@@ -624,7 +624,7 @@ pub fn cast_vote(
     bank_store(deps.storage).save(key, &token_manager)?;
 
     // store poll voter && and update poll data
-    poll_voter_store(deps.storage, poll_id).save(&sender_address_raw.as_slice(), &vote_info)?;
+    poll_voter_store(deps.storage, poll_id).save(sender_address_raw.as_slice(), &vote_info)?;
 
     // processing snapshot
     let time_to_end = a_poll.end_height - env.block.height;

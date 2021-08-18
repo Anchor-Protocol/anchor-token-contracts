@@ -160,7 +160,7 @@ impl WasmMockQuerier {
                 }
             }
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
-                match from_binary(&msg) {
+                match from_binary(msg) {
                     Ok(QueryMsg::Pair { asset_infos }) => {
                         let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
                         match self.terraswap_factory_querier.pairs.get(&key) {
@@ -184,7 +184,7 @@ impl WasmMockQuerier {
                             }),
                         }
                     }
-                    _ => match from_binary(&msg).unwrap() {
+                    _ => match from_binary(msg).unwrap() {
                         Cw20QueryMsg::Balance { address } => {
                             let balances: &HashMap<String, Uint128> =
                                 match self.token_querier.balances.get(contract_addr) {
