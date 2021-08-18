@@ -17,7 +17,7 @@ pub struct Config {
 }
 
 pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
-    singleton::<Config>(storage, KEY_CONFIG).save(&config)
+    singleton::<Config>(storage, KEY_CONFIG).save(config)
 }
 
 pub fn read_config(storage: &dyn Storage) -> StdResult<Config> {

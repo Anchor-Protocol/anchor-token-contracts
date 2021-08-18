@@ -91,7 +91,7 @@ fn proper_initialization() {
         config,
         Config {
             anchor_token: CanonicalAddr::from(vec![]),
-            owner: deps.api.addr_canonicalize(&TEST_CREATOR).unwrap(),
+            owner: deps.api.addr_canonicalize(TEST_CREATOR).unwrap(),
             quorum: Decimal::percent(DEFAULT_QUORUM),
             threshold: Decimal::percent(DEFAULT_THRESHOLD),
             voting_period: DEFAULT_VOTING_PERIOD,
@@ -109,7 +109,7 @@ fn proper_initialization() {
     let config: Config = config_read(deps.as_ref().storage).load().unwrap();
     assert_eq!(
         config.anchor_token,
-        deps.api.addr_canonicalize(&VOTING_TOKEN).unwrap()
+        deps.api.addr_canonicalize(VOTING_TOKEN).unwrap()
     );
 
     let state: State = state_read(deps.as_ref().storage).load().unwrap();
@@ -940,7 +940,7 @@ fn happy_days_end_poll() {
     // But the data is still in the store
     let voter_addr_raw = deps.api.addr_canonicalize(TEST_VOTER).unwrap();
     let voter = poll_voter_read(&deps.storage, 1u64)
-        .load(&voter_addr_raw.as_slice())
+        .load(voter_addr_raw.as_slice())
         .unwrap();
     assert_eq!(
         voter,
@@ -951,7 +951,7 @@ fn happy_days_end_poll() {
     );
 
     let token_manager = bank_read(&deps.storage)
-        .load(&voter_addr_raw.as_slice())
+        .load(voter_addr_raw.as_slice())
         .unwrap();
     assert_eq!(
         token_manager.locked_balance,
@@ -1883,7 +1883,7 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
     let voter_addr_raw = deps.api.addr_canonicalize(TEST_VOTER).unwrap();
     poll_voter_store(&mut deps.storage, 1u64)
         .save(
-            &voter_addr_raw.as_slice(),
+            voter_addr_raw.as_slice(),
             &VoterInfo {
                 vote: VoteOption::Yes,
                 balance: Uint128::from(5u128),
@@ -1892,7 +1892,7 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
         .unwrap();
     poll_voter_store(&mut deps.storage, 2u64)
         .save(
-            &voter_addr_raw.as_slice(),
+            voter_addr_raw.as_slice(),
             &VoterInfo {
                 vote: VoteOption::Yes,
                 balance: Uint128::from(5u128),
@@ -1901,7 +1901,7 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
         .unwrap();
     bank_store(&mut deps.storage)
         .save(
-            &voter_addr_raw.as_slice(),
+            voter_addr_raw.as_slice(),
             &TokenManager {
                 share: Uint128::from(11u128),
                 locked_balance: vec![
@@ -1932,7 +1932,7 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
 
     let _ = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
     let voter = poll_voter_read(&deps.storage, 1u64)
-        .load(&voter_addr_raw.as_slice())
+        .load(voter_addr_raw.as_slice())
         .unwrap();
     assert_eq!(
         voter,
@@ -1942,11 +1942,11 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
         }
     );
     assert!(poll_voter_read(&deps.storage, 2u64)
-        .load(&voter_addr_raw.as_slice())
+        .load(voter_addr_raw.as_slice())
         .is_err(),);
 
     let token_manager = bank_read(&deps.storage)
-        .load(&voter_addr_raw.as_slice())
+        .load(voter_addr_raw.as_slice())
         .unwrap();
     assert_eq!(
         token_manager.locked_balance,
