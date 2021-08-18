@@ -99,7 +99,7 @@ pub fn sweep(deps: DepsMut, env: Env, denom: String) -> StdResult<Response> {
     Ok(Response::new()
         .add_submessage(SubMsg::reply_on_success(
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: pair_info.contract_addr.to_string(),
+                contract_addr: pair_info.contract_addr,
                 msg: to_binary(&TerraswapExecuteMsg::Swap {
                     offer_asset: Asset {
                         amount,
