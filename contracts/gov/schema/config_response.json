@@ -4,7 +4,6 @@
   "type": "object",
   "required": [
     "anchor_token",
-    "expiration_period",
     "owner",
     "proposal_deposit",
     "quorum",
@@ -16,11 +15,6 @@
   "properties": {
     "anchor_token": {
       "type": "string"
-    },
-    "expiration_period": {
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
     },
     "owner": {
       "type": "string"

@@ -17,6 +17,28 @@
     {
       "type": "object",
       "required": [
+        "execute_poll_msgs"
+      ],
+      "properties": {
+        "execute_poll_msgs": {
+          "type": "object",
+          "required": [
+            "poll_id"
+          ],
+          "properties": {
+            "poll_id": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "register_contracts"
       ],
       "properties": {
@@ -43,14 +65,6 @@
         "update_config": {
           "type": "object",
           "properties": {
-            "expiration_period": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
-            },
             "owner": {
               "type": [
                 "string",
@@ -199,28 +213,6 @@
       ],
       "properties": {
         "execute_poll": {
-          "type": "object",
-          "required": [
-            "poll_id"
-          ],
-          "properties": {
-            "poll_id": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "expire_poll"
-      ],
-      "properties": {
-        "expire_poll": {
           "type": "object",
           "required": [
             "poll_id"

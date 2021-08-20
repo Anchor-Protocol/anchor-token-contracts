@@ -12,7 +12,6 @@ pub struct InstantiateMsg {
     pub threshold: Decimal,
     pub voting_period: u64,
     pub timelock_period: u64,
-    pub expiration_period: u64,
     pub proposal_deposit: Uint128,
     pub snapshot_period: u64,
 }
@@ -21,6 +20,9 @@ pub struct InstantiateMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     Receive(Cw20ReceiveMsg),
+    ExecutePollMsgs {
+        poll_id: u64,
+    },
     RegisterContracts {
         anchor_token: String,
     },
@@ -30,7 +32,6 @@ pub enum ExecuteMsg {
         threshold: Option<Decimal>,
         voting_period: Option<u64>,
         timelock_period: Option<u64>,
-        expiration_period: Option<u64>,
         proposal_deposit: Option<Uint128>,
         snapshot_period: Option<u64>,
     },
@@ -46,9 +47,6 @@ pub enum ExecuteMsg {
         poll_id: u64,
     },
     ExecutePoll {
-        poll_id: u64,
-    },
-    ExpirePoll {
         poll_id: u64,
     },
     SnapshotPoll {
@@ -112,7 +110,6 @@ pub struct ConfigResponse {
     pub threshold: Decimal,
     pub voting_period: u64,
     pub timelock_period: u64,
-    pub expiration_period: u64,
     pub proposal_deposit: Uint128,
     pub snapshot_period: u64,
 }
@@ -183,7 +180,8 @@ pub enum PollStatus {
     Passed,
     Rejected,
     Executed,
-    Expired,
+    Expired, // Depricated
+    Failed,
 }
 
 impl fmt::Display for PollStatus {
