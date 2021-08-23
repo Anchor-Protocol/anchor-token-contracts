@@ -46,6 +46,27 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "Owner operation to stop distribution on current staking contract and send remaining tokens to the new contract",
+      "type": "object",
+      "required": [
+        "migrate_staking"
+      ],
+      "properties": {
+        "migrate_staking": {
+          "type": "object",
+          "required": [
+            "new_staking_contract"
+          ],
+          "properties": {
+            "new_staking_contract": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
