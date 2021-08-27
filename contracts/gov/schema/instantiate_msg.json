@@ -3,7 +3,6 @@
   "title": "InstantiateMsg",
   "type": "object",
   "required": [
-    "expiration_period",
     "proposal_deposit",
     "quorum",
     "snapshot_period",
@@ -12,11 +11,6 @@
     "voting_period"
   ],
   "properties": {
-    "expiration_period": {
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
-    },
     "proposal_deposit": {
       "$ref": "#/definitions/Uint128"
     },

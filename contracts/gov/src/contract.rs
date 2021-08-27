@@ -9,8 +9,8 @@ use crate::state::{
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
+    attr, from_binary, to_binary, Binary, CanonicalAddr, ContractResult, CosmosMsg, Decimal, Deps,
+    DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use terraswap::querier::query_token_balance;
@@ -46,7 +46,7 @@ pub fn instantiate(
         threshold: msg.threshold,
         voting_period: msg.voting_period,
         timelock_period: msg.timelock_period,
-        expiration_period: msg.expiration_period,
+        expiration_period: 0u64, // Depricated
         proposal_deposit: msg.proposal_deposit,
         snapshot_period: msg.snapshot_period,
     };
@@ -73,6 +73,7 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::ExecutePollMsgs { poll_id } => execute_poll_messages(deps, env, info, poll_id),
         ExecuteMsg::RegisterContracts { anchor_token } => register_contracts(deps, anchor_token),
         ExecuteMsg::UpdateConfig {
             owner,
@@ -80,7 +81,6 @@ pub fn execute(
             threshold,
             voting_period,
             timelock_period,
-            expiration_period,
             proposal_deposit,
             snapshot_period,
         } => update_config(
@@ -91,7 +91,6 @@ pub fn execute(
             threshold,
             voting_period,
             timelock_period,
-            expiration_period,
             proposal_deposit,
             snapshot_period,
         ),
@@ -103,8 +102,15 @@ pub fn execute(
         } => cast_vote(deps, env, info, poll_id, vote, amount),
         ExecuteMsg::EndPoll { poll_id } => end_poll(deps, env, poll_id),
         ExecuteMsg::ExecutePoll { poll_id } => execute_poll(deps, env, poll_id),
-        ExecuteMsg::ExpirePoll { poll_id } => expire_poll(deps, env, poll_id),
         ExecuteMsg::SnapshotPoll { poll_id } => snapshot_poll(deps, env, poll_id),
+    }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+    match msg.result {
+        ContractResult::Err { .. } => fail_poll(deps, msg.id),
+        _ => Ok(Response::default()),
     }
 }
 
@@ -165,7 +171,6 @@ pub fn update_config(
     threshold: Option<Decimal>,
     voting_period: Option<u64>,
     timelock_period: Option<u64>,
-    expiration_period: Option<u64>,
     proposal_deposit: Option<Uint128>,
     snapshot_period: Option<u64>,
 ) -> Result<Response, ContractError> {
@@ -193,10 +198,6 @@ pub fn update_config(
 
         if let Some(timelock_period) = timelock_period {
             config.timelock_period = timelock_period;
-        }
-
-        if let Some(expiration_period) = expiration_period {
-            config.expiration_period = expiration_period;
         }
 
         if let Some(proposal_deposit) = proposal_deposit {
@@ -449,11 +450,11 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, Contr
 }
 
 /*
- * Execute a msg of passed poll.
+ * Execute a msgs of passed poll as one submsg to catch failures
  */
 pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, ContractError> {
     let config: Config = config_read(deps.storage).load()?;
-    let mut a_poll: Poll = poll_store(deps.storage).load(&poll_id.to_be_bytes())?;
+    let a_poll: Poll = poll_store(deps.storage).load(&poll_id.to_be_bytes())?;
 
     if a_poll.status != PollStatus::Passed {
         return Err(ContractError::PollNotPassed {});
@@ -462,6 +463,31 @@ pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, C
     if a_poll.end_height + config.timelock_period > env.block.height {
         return Err(ContractError::TimelockNotExpired {});
     }
+
+    Ok(Response::new().add_submessage(SubMsg::reply_always(
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: env.contract.address.to_string(),
+            msg: to_binary(&ExecuteMsg::ExecutePollMsgs { poll_id })?,
+            funds: vec![],
+        }),
+        poll_id,
+    )))
+}
+
+/*
+ * Execute a msgs of a poll
+ */
+pub fn execute_poll_messages(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    poll_id: u64,
+) -> Result<Response, ContractError> {
+    if env.contract.address != info.sender {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let mut a_poll: Poll = poll_store(deps.storage).load(&poll_id.to_be_bytes())?;
 
     poll_indexer_store(deps.storage, &PollStatus::Passed).remove(&poll_id.to_be_bytes());
     poll_indexer_store(deps.storage, &PollStatus::Executed).save(&poll_id.to_be_bytes(), &true)?;
@@ -478,7 +504,7 @@ pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, C
                 contract_addr: deps.api.addr_humanize(&msg.contract)?.to_string(),
                 msg: msg.msg,
                 funds: vec![],
-            }))
+            }));
         }
     } else {
         return Err(ContractError::NoExecuteData {});
@@ -486,6 +512,24 @@ pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, C
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         ("action", "execute_poll"),
+        ("poll_id", poll_id.to_string().as_str()),
+    ]))
+}
+
+/*
+ * Set the status of a poll to Failed if execute_poll fails
+ */
+pub fn fail_poll(deps: DepsMut, poll_id: u64) -> Result<Response, ContractError> {
+    let mut a_poll: Poll = poll_store(deps.storage).load(&poll_id.to_be_bytes())?;
+
+    poll_indexer_store(deps.storage, &PollStatus::Passed).remove(&poll_id.to_be_bytes());
+    poll_indexer_store(deps.storage, &PollStatus::Failed).save(&poll_id.to_be_bytes(), &true)?;
+
+    a_poll.status = PollStatus::Failed;
+    poll_store(deps.storage).save(&poll_id.to_be_bytes(), &a_poll)?;
+
+    Ok(Response::new().add_attributes(vec![
+        ("action", "fail_poll"),
         ("poll_id", poll_id.to_string().as_str()),
     ]))
 }
@@ -687,7 +731,6 @@ fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
         threshold: config.threshold,
         voting_period: config.voting_period,
         timelock_period: config.timelock_period,
-        expiration_period: config.expiration_period,
         proposal_deposit: config.proposal_deposit,
         snapshot_period: config.snapshot_period,
     })
