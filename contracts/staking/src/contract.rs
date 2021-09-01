@@ -203,6 +203,7 @@ pub fn migrate_staking(
 ) -> StdResult<Response> {
     let sender_addr_raw: CanonicalAddr = deps.api.addr_canonicalize(info.sender.as_str())?;
     let mut config: Config = read_config(deps.storage)?;
+    let mut state: State = read_state(deps.storage)?;
     let anc_token: Addr = deps.api.addr_humanize(&config.anchor_token)?;
 
     // get gov address by querying anc token minter
@@ -212,6 +213,9 @@ pub fn migrate_staking(
     if sender_addr_raw != gov_addr_raw {
         return Err(StdError::generic_err("unauthorized"));
     }
+
+    // compute global reward, sets last_distributed_height to env.block.height
+    compute_reward(&config, &mut state, env.block.height);
 
     let total_distribution_amount: Uint128 =
         config.distribution_schedule.iter().map(|item| item.2).sum();
@@ -245,6 +249,8 @@ pub fn migrate_staking(
 
     // update config
     store_config(deps.storage, &config)?;
+    // update state
+    store_state(deps.storage, &state)?;
 
     let remaining_anc = total_distribution_amount.checked_sub(distributed_amount)?;
 

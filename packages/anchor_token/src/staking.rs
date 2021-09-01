@@ -23,7 +23,7 @@ pub enum ExecuteMsg {
     /// Owner operation to stop distribution on current staking contract
     /// and send remaining tokens to the new contract
     MigrateStaking {
-        new_staking_contract: String
+        new_staking_contract: String,
     },
 }
 
