@@ -20,6 +20,11 @@ pub enum ExecuteMsg {
     },
     /// Withdraw pending rewards
     Withdraw {},
+    /// Owner operation to stop distribution on current staking contract
+    /// and send remaining tokens to the new contract
+    MigrateStaking {
+        new_staking_contract: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

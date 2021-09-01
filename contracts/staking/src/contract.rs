@@ -11,9 +11,12 @@ use anchor_token::staking::{
     StakerInfoResponse, StateResponse,
 };
 
-use crate::state::{
-    read_config, read_staker_info, read_state, remove_staker_info, store_config, store_staker_info,
-    store_state, Config, StakerInfo, State,
+use crate::{
+    querier::query_anc_minter,
+    state::{
+        read_config, read_staker_info, read_state, remove_staker_info, store_config,
+        store_staker_info, store_state, Config, StakerInfo, State,
+    },
 };
 
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -52,6 +55,9 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Unbond { amount } => unbond(deps, env, info, amount),
         ExecuteMsg::Withdraw {} => withdraw(deps, env, info),
+        ExecuteMsg::MigrateStaking {
+            new_staking_contract,
+        } => migrate_staking(deps, env, info, new_staking_contract),
     }
 }
 
@@ -186,6 +192,81 @@ pub fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
             ("action", "withdraw"),
             ("owner", info.sender.as_str()),
             ("amount", amount.to_string().as_str()),
+        ]))
+}
+
+pub fn migrate_staking(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    new_staking_contract: String,
+) -> StdResult<Response> {
+    let sender_addr_raw: CanonicalAddr = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let mut config: Config = read_config(deps.storage)?;
+    let mut state: State = read_state(deps.storage)?;
+    let anc_token: Addr = deps.api.addr_humanize(&config.anchor_token)?;
+
+    // get gov address by querying anc token minter
+    let gov_addr_raw: CanonicalAddr = deps
+        .api
+        .addr_canonicalize(&query_anc_minter(&deps.querier, anc_token.clone())?)?;
+    if sender_addr_raw != gov_addr_raw {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    // compute global reward, sets last_distributed_height to env.block.height
+    compute_reward(&config, &mut state, env.block.height);
+
+    let total_distribution_amount: Uint128 =
+        config.distribution_schedule.iter().map(|item| item.2).sum();
+
+    let block_height = env.block.height;
+    // eliminate distribution slots that have not started
+    config
+        .distribution_schedule
+        .retain(|slot| slot.0 < block_height);
+
+    let mut distributed_amount = Uint128::zero();
+    for s in config.distribution_schedule.iter_mut() {
+        if s.1 < block_height {
+            // all distributed
+            distributed_amount += s.2;
+        } else {
+            // partially distributed slot
+            let num_blocks = s.1 - s.0;
+            let distribution_amount_per_block: Decimal = Decimal::from_ratio(s.2, num_blocks);
+
+            let passed_blocks = block_height - s.0;
+            let distributed_amount_on_slot =
+                distribution_amount_per_block * Uint128::from(passed_blocks as u128);
+            distributed_amount += distributed_amount_on_slot;
+
+            // modify distribution slot
+            s.1 = block_height;
+            s.2 = distributed_amount_on_slot;
+        }
+    }
+
+    // update config
+    store_config(deps.storage, &config)?;
+    // update state
+    store_state(deps.storage, &state)?;
+
+    let remaining_anc = total_distribution_amount.checked_sub(distributed_amount)?;
+
+    Ok(Response::new()
+        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: anc_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: new_staking_contract,
+                amount: remaining_anc,
+            })?,
+            funds: vec![],
+        })])
+        .add_attributes(vec![
+            ("action", "migrate_staking"),
+            ("distributed_amount", &distributed_amount.to_string()),
+            ("remaining_amount", &remaining_anc.to_string()),
         ]))
 }
 
