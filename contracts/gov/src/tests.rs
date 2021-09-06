@@ -831,7 +831,7 @@ fn happy_days_end_poll() {
     let execute_res = execute(deps.as_mut(), creator_env.clone(), creator_info, msg).unwrap();
     assert_eq!(
         execute_res.messages,
-        vec![SubMsg::reply_always(
+        vec![SubMsg::reply_on_error(
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: creator_env.contract.address.to_string(),
                 msg: to_binary(&ExecuteMsg::ExecutePollMsgs { poll_id: 1 }).unwrap(),
@@ -1102,7 +1102,7 @@ fn fail_poll() {
     let execute_res = execute(deps.as_mut(), creator_env.clone(), creator_info, msg).unwrap();
     assert_eq!(
         execute_res.messages,
-        vec![SubMsg::reply_always(
+        vec![SubMsg::reply_on_error(
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: creator_env.contract.address.to_string(),
                 msg: to_binary(&ExecuteMsg::ExecutePollMsgs { poll_id: 1 }).unwrap(),
@@ -1125,6 +1125,15 @@ fn fail_poll() {
         }))]
     );
 
+    // invalid reply id
+    let reply_msg = Reply {
+        id: 2,
+        result: ContractResult::Err("Error".to_string()),
+    };
+    let res = reply(deps.as_mut(), mock_env(), reply_msg);
+    assert_eq!(res, Err(ContractError::InvalidReplyId {}));
+
+    // correct reply id
     let reply_msg = Reply {
         id: 1,
         result: ContractResult::Err("Error".to_string()),
@@ -2684,7 +2693,7 @@ fn execute_poll_with_order() {
     let execute_res = execute(deps.as_mut(), creator_env.clone(), creator_info, msg).unwrap();
     assert_eq!(
         execute_res.messages,
-        vec![SubMsg::reply_always(
+        vec![SubMsg::reply_on_error(
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: creator_env.contract.address.to_string(),
                 msg: to_binary(&ExecuteMsg::ExecutePollMsgs { poll_id: 1 }).unwrap(),

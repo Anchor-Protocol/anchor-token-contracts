@@ -2,15 +2,15 @@ use crate::error::ContractError;
 use crate::staking::{query_staker, stake_voting_tokens, withdraw_voting_tokens};
 use crate::state::{
     bank_read, bank_store, config_read, config_store, poll_indexer_store, poll_read, poll_store,
-    poll_voter_read, poll_voter_store, read_poll_voters, read_polls, state_read, state_store,
-    Config, ExecuteData, Poll, State,
+    poll_voter_read, poll_voter_store, read_poll_voters, read_polls, read_tmp_poll_id, state_read,
+    state_store, store_tmp_poll_id, Config, ExecuteData, Poll, State,
 };
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Binary, CanonicalAddr, ContractResult, CosmosMsg, Decimal, Deps,
-    DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    attr, from_binary, to_binary, Binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use terraswap::querier::query_token_balance;
@@ -28,6 +28,8 @@ const MIN_DESC_LENGTH: usize = 4;
 const MAX_DESC_LENGTH: usize = 1024;
 const MIN_LINK_LENGTH: usize = 12;
 const MAX_LINK_LENGTH: usize = 128;
+
+const POLL_EXECUTE_REPLY_ID: u64 = 1;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -108,9 +110,12 @@ pub fn execute(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
-    match msg.result {
-        ContractResult::Err { .. } => fail_poll(deps, msg.id),
-        _ => Ok(Response::default()),
+    match msg.id {
+        POLL_EXECUTE_REPLY_ID => {
+            let poll_id: u64 = read_tmp_poll_id(deps.storage)?;
+            fail_poll(deps, poll_id)
+        }
+        _ => Err(ContractError::InvalidReplyId {}),
     }
 }
 
@@ -464,13 +469,15 @@ pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, C
         return Err(ContractError::TimelockNotExpired {});
     }
 
-    Ok(Response::new().add_submessage(SubMsg::reply_always(
+    store_tmp_poll_id(deps.storage, a_poll.id)?;
+
+    Ok(Response::new().add_submessage(SubMsg::reply_on_error(
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: env.contract.address.to_string(),
             msg: to_binary(&ExecuteMsg::ExecutePollMsgs { poll_id })?,
             funds: vec![],
         }),
-        poll_id,
+        POLL_EXECUTE_REPLY_ID,
     )))
 }
 
@@ -530,35 +537,6 @@ pub fn fail_poll(deps: DepsMut, poll_id: u64) -> Result<Response, ContractError>
 
     Ok(Response::new().add_attributes(vec![
         ("action", "fail_poll"),
-        ("poll_id", poll_id.to_string().as_str()),
-    ]))
-}
-
-/// ExpirePoll is used to make the poll as expired state for querying purpose
-pub fn expire_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, ContractError> {
-    let config: Config = config_read(deps.storage).load()?;
-    let mut a_poll: Poll = poll_store(deps.storage).load(&poll_id.to_be_bytes())?;
-
-    if a_poll.status != PollStatus::Passed {
-        return Err(ContractError::PollNotPassed {});
-    }
-
-    if a_poll.execute_data.is_none() {
-        return Err(ContractError::NoExecuteData {});
-    }
-
-    if a_poll.end_height + config.expiration_period > env.block.height {
-        return Err(ContractError::PollNotExpired {});
-    }
-
-    poll_indexer_store(deps.storage, &PollStatus::Passed).remove(&poll_id.to_be_bytes());
-    poll_indexer_store(deps.storage, &PollStatus::Expired).save(&poll_id.to_be_bytes(), &true)?;
-
-    a_poll.status = PollStatus::Expired;
-    poll_store(deps.storage).save(&poll_id.to_be_bytes(), &a_poll)?;
-
-    Ok(Response::new().add_attributes(vec![
-        ("action", "expire_poll"),
         ("poll_id", poll_id.to_string().as_str()),
     ]))
 }
