@@ -60,7 +60,7 @@ pub enum ContractError {
     #[error("User has already voted")]
     AlreadyVoted {},
 
-    #[error("Cannot make a text proposal to expired state")]
+    #[error("Poll does not inlcude any execute data")]
     NoExecuteData {},
 
     #[error("Expire height has not been reached")]
@@ -68,4 +68,7 @@ pub enum ContractError {
 
     #[error("Voting period has not expired")]
     PollVotingPeriod {},
+
+    #[error("Invalid Reply Id")]
+    InvalidReplyId {},
 }
