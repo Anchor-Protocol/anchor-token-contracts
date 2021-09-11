@@ -27,7 +27,7 @@ const TEST_VOTER_2: &str = "voter2";
 const TEST_VOTER_3: &str = "voter3";
 const DEFAULT_QUORUM: u64 = 30u64;
 const DEFAULT_THRESHOLD: u64 = 50u64;
-const DEFAULT_VOTING_PERIOD: u64 = 10000u64;
+const DEFAULT_VOTING_PERIOD: u64 = 20000u64;
 const DEFAULT_FIX_PERIOD: u64 = 10u64;
 const DEFAULT_TIMELOCK_PERIOD: u64 = 10000u64;
 const DEFAULT_PROPOSAL_DEPOSIT: u128 = 10000000000u128;
@@ -448,7 +448,7 @@ fn query_polls() {
                 id: 1u64,
                 creator: TEST_CREATOR.to_string(),
                 status: PollStatus::InProgress,
-                end_height: 10000u64,
+                end_height: 20000u64,
                 title: "test".to_string(),
                 description: "test".to_string(),
                 link: Some("http://google.com".to_string()),
@@ -463,7 +463,7 @@ fn query_polls() {
                 id: 2u64,
                 creator: TEST_CREATOR.to_string(),
                 status: PollStatus::InProgress,
-                end_height: 10000u64,
+                end_height: 20000u64,
                 title: "test2".to_string(),
                 description: "test2".to_string(),
                 link: None,
@@ -495,7 +495,7 @@ fn query_polls() {
             id: 2u64,
             creator: TEST_CREATOR.to_string(),
             status: PollStatus::InProgress,
-            end_height: 10000u64,
+            end_height: 20000u64,
             title: "test2".to_string(),
             description: "test2".to_string(),
             link: None,
@@ -526,7 +526,7 @@ fn query_polls() {
             id: 1u64,
             creator: TEST_CREATOR.to_string(),
             status: PollStatus::InProgress,
-            end_height: 10000u64,
+            end_height: 20000u64,
             title: "test".to_string(),
             description: "test".to_string(),
             link: Some("http://google.com".to_string()),
@@ -557,7 +557,7 @@ fn query_polls() {
             id: 2u64,
             creator: TEST_CREATOR.to_string(),
             status: PollStatus::InProgress,
-            end_height: 10000u64,
+            end_height: 20000u64,
             title: "test2".to_string(),
             description: "test2".to_string(),
             link: None,
@@ -1063,7 +1063,7 @@ fn fail_poll() {
         ]
     );
 
-    creator_env.block.height += DEFAULT_TIMELOCK_PERIOD;
+    creator_env.block.height += DEFAULT_VOTING_PERIOD;
 
     let msg = ExecuteMsg::EndPoll { poll_id: 1 };
     let execute_res = execute(
@@ -1303,7 +1303,7 @@ fn end_poll_quorum_rejected() {
             attr("action", "create_poll"),
             attr("creator", TEST_CREATOR),
             attr("poll_id", "1"),
-            attr("end_height", "22345"),
+            attr("end_height", "32345"),
         ]
     );
 
@@ -1370,7 +1370,7 @@ fn end_poll_quorum_rejected() {
 }
 
 #[test]
-fn end_poll_quorum_rejected_noting_staked() {
+fn end_poll_quorum_rejected_nothing_staked() {
     let mut deps = mock_dependencies(&coins(100, VOTING_TOKEN));
     mock_instantiate(deps.as_mut());
     mock_register_voting_token(deps.as_mut());
@@ -1391,7 +1391,7 @@ fn end_poll_quorum_rejected_noting_staked() {
             attr("action", "create_poll"),
             attr("creator", TEST_CREATOR),
             attr("poll_id", "1"),
-            attr("end_height", "22345"),
+            attr("end_height", "32345"),
         ]
     );
 
@@ -1437,7 +1437,7 @@ fn end_poll_nay_rejected() {
             attr("action", "create_poll"),
             attr("creator", TEST_CREATOR),
             attr("poll_id", "1"),
-            attr("end_height", "22345"),
+            attr("end_height", "32345"),
         ]
     );
 
@@ -2766,7 +2766,7 @@ fn snapshot_poll() {
             attr("action", "create_poll"),
             attr("creator", TEST_CREATOR),
             attr("poll_id", "1"),
-            attr("end_height", "22345"),
+            attr("end_height", "32345"),
         ]
     );
 
@@ -2781,7 +2781,7 @@ fn snapshot_poll() {
     assert_eq!(ContractError::SnapshotHeight {}, snapshot_err);
 
     // change time
-    creator_env.block.height = 22345 - 10;
+    creator_env.block.height = 32345 - 10;
 
     deps.querier.with_token_balances(&[(
         &VOTING_TOKEN.to_string(),
