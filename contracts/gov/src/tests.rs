@@ -2743,6 +2743,174 @@ fn execute_poll_with_order() {
 }
 
 #[test]
+fn execute_poll_with_empty_execute_data() {
+    const POLL_START_HEIGHT: u64 = 1000;
+    const POLL_ID: u64 = 1;
+    let stake_amount = 1000;
+
+    let mut deps = mock_dependencies(&coins(1000, VOTING_TOKEN));
+    mock_instantiate(deps.as_mut());
+    mock_register_voting_token(deps.as_mut());
+    let mut creator_env = mock_env_height(POLL_START_HEIGHT, 10000);
+    let mut creator_info = mock_info(VOTING_TOKEN, &coins(2, VOTING_TOKEN));
+
+    let msg = create_poll_msg("test".to_string(), "test".to_string(), None, Some(vec![]));
+
+    let execute_res = execute(
+        deps.as_mut(),
+        creator_env.clone(),
+        creator_info.clone(),
+        msg,
+    )
+    .unwrap();
+
+    assert_create_poll_result(
+        1,
+        creator_env.block.height + DEFAULT_VOTING_PERIOD,
+        TEST_CREATOR,
+        execute_res,
+        deps.as_ref(),
+    );
+
+    deps.querier.with_token_balances(&[(
+        &VOTING_TOKEN.to_string(),
+        &[(
+            &MOCK_CONTRACT_ADDR.to_string(),
+            &Uint128::from((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+        )],
+    )]);
+
+    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender: TEST_VOTER.to_string(),
+        amount: Uint128::from(stake_amount as u128),
+        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+    });
+
+    let info = mock_info(VOTING_TOKEN, &[]);
+    let execute_res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+    assert_stake_tokens_result(
+        stake_amount,
+        DEFAULT_PROPOSAL_DEPOSIT,
+        stake_amount,
+        1,
+        execute_res,
+        deps.as_ref(),
+    );
+
+    let msg = ExecuteMsg::CastVote {
+        poll_id: 1,
+        vote: VoteOption::Yes,
+        amount: Uint128::from(stake_amount),
+    };
+    let env = mock_env_height(POLL_START_HEIGHT, 10000);
+    let info = mock_info(TEST_VOTER, &[]);
+    let execute_res = execute(deps.as_mut(), env, info, msg).unwrap();
+
+    assert_eq!(
+        execute_res.attributes,
+        vec![
+            attr("action", "cast_vote"),
+            attr("poll_id", POLL_ID.to_string().as_str()),
+            attr("amount", "1000"),
+            attr("voter", TEST_VOTER),
+            attr("vote_option", "yes"),
+        ]
+    );
+
+    creator_info.sender = Addr::unchecked(TEST_CREATOR);
+    creator_env.block.height += DEFAULT_VOTING_PERIOD;
+
+    let msg = ExecuteMsg::EndPoll { poll_id: 1 };
+    let execute_res = execute(
+        deps.as_mut(),
+        creator_env.clone(),
+        creator_info.clone(),
+        msg,
+    )
+    .unwrap();
+
+    assert_eq!(
+        execute_res.attributes,
+        vec![
+            attr("action", "end_poll"),
+            attr("poll_id", "1"),
+            attr("rejected_reason", ""),
+            attr("passed", "true"),
+        ]
+    );
+    assert_eq!(
+        execute_res.messages,
+        vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: VOTING_TOKEN.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: TEST_CREATOR.to_string(),
+                amount: Uint128::from(DEFAULT_PROPOSAL_DEPOSIT),
+            })
+            .unwrap(),
+            funds: vec![],
+        }))]
+    );
+
+    // End poll will withdraw deposit balance
+    deps.querier.with_token_balances(&[(
+        &VOTING_TOKEN.to_string(),
+        &[(
+            &MOCK_CONTRACT_ADDR.to_string(),
+            &Uint128::from(stake_amount as u128),
+        )],
+    )]);
+
+    creator_env.block.height += DEFAULT_TIMELOCK_PERIOD;
+    let msg = ExecuteMsg::ExecutePoll { poll_id: 1 };
+    let execute_res = execute(deps.as_mut(), creator_env.clone(), creator_info, msg).unwrap();
+    assert_eq!(
+        execute_res.messages,
+        vec![SubMsg::reply_on_error(
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: creator_env.contract.address.to_string(),
+                msg: to_binary(&ExecuteMsg::ExecutePollMsgs { poll_id: 1 }).unwrap(),
+                funds: vec![],
+            }),
+            1
+        )]
+    );
+
+    // Returns Err since execute messages are empty list
+    let msg = ExecuteMsg::ExecutePollMsgs { poll_id: 1 };
+    let contract_info = mock_info(MOCK_CONTRACT_ADDR, &[]);
+    let execute_err = execute(deps.as_mut(), creator_env, contract_info, msg).unwrap_err();
+    assert_eq!(ContractError::NoExecuteData {}, execute_err);
+
+    let reply_msg = Reply {
+        id: 1,
+        result: ContractResult::Err("Error".to_string()),
+    };
+    let res = reply(deps.as_mut(), mock_env(), reply_msg).unwrap();
+    assert_eq!(
+        res.attributes,
+        vec![attr("action", "fail_poll"), attr("poll_id", "1")]
+    );
+
+    let res = query(deps.as_ref(), mock_env(), QueryMsg::Poll { poll_id: 1 }).unwrap();
+    let poll_res: PollResponse = from_binary(&res).unwrap();
+    assert_eq!(poll_res.status, PollStatus::Failed);
+
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::Polls {
+            filter: Some(PollStatus::Failed),
+            start_after: None,
+            limit: None,
+            order_by: Some(OrderBy::Desc),
+        },
+    )
+    .unwrap();
+    let polls_res: PollsResponse = from_binary(&res).unwrap();
+    assert_eq!(polls_res.polls[0], poll_res);
+}
+
+#[test]
 fn snapshot_poll() {
     let stake_amount = 1000;
 

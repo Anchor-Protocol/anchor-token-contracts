@@ -503,7 +503,12 @@ pub fn execute_poll_messages(
     poll_store(deps.storage).save(&poll_id.to_be_bytes(), &a_poll)?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
+
     if let Some(all_msgs) = a_poll.execute_data {
+        if all_msgs.is_empty() {
+            return Err(ContractError::NoExecuteData {});
+        }
+
         let mut msgs = all_msgs;
         msgs.sort();
         for msg in msgs {
