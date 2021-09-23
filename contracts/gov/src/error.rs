@@ -60,9 +60,6 @@ pub enum ContractError {
     #[error("User has already voted")]
     AlreadyVoted {},
 
-    #[error("Poll does not inlcude any execute data")]
-    NoExecuteData {},
-
     #[error("Expire height has not been reached")]
     PollNotExpired {},
 
