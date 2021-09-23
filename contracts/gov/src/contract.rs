@@ -513,8 +513,6 @@ pub fn execute_poll_messages(
                 funds: vec![],
             }));
         }
-    } else {
-        return Err(ContractError::NoExecuteData {});
     }
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
