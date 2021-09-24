@@ -1,3 +1,3 @@
-## 0.1.0
+## 0.2.0
 
-Initial release of Anchor Token Project.
+Columbus-5 upgrade compatible version release.

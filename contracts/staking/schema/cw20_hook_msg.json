@@ -11,7 +11,8 @@
         "bond": {
           "type": "object"
         }
-      }
+      },
+      "additionalProperties": false
     }
   ]
 }

@@ -2,21 +2,21 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::common::OrderBy;
-use cosmwasm_std::{HumanAddr, Uint128};
+use cosmwasm_std::Uint128;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
-    pub owner: HumanAddr,
-    pub anchor_token: HumanAddr,
+pub struct InstantiateMsg {
+    pub owner: String,
+    pub anchor_token: String,
     pub genesis_time: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     UpdateConfig {
-        owner: Option<HumanAddr>,
-        anchor_token: Option<HumanAddr>,
+        owner: Option<String>,
+        anchor_token: Option<String>,
         genesis_time: Option<u64>,
     },
     RegisterVestingAccounts {
@@ -25,10 +25,10 @@ pub enum HandleMsg {
     Claim {},
 }
 
-/// CONTRACT: end_time > start_time 
+/// CONTRACT: end_time > start_time
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccount {
-    pub address: HumanAddr,
+    pub address: String,
     pub schedules: Vec<(u64, u64, Uint128)>,
 }
 
@@ -43,10 +43,10 @@ pub struct VestingInfo {
 pub enum QueryMsg {
     Config {},
     VestingAccount {
-        address: HumanAddr,
+        address: String,
     },
     VestingAccounts {
-        start_after: Option<HumanAddr>,
+        start_after: Option<String>,
         limit: Option<u32>,
         order_by: Option<OrderBy>,
     },
@@ -55,15 +55,15 @@ pub enum QueryMsg {
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    pub owner: HumanAddr,
-    pub anchor_token: HumanAddr,
+    pub owner: String,
+    pub anchor_token: String,
     pub genesis_time: u64,
 }
 
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccountResponse {
-    pub address: HumanAddr,
+    pub address: String,
     pub info: VestingInfo,
 }
 

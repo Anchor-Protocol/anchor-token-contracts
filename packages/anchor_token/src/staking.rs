@@ -1,25 +1,30 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Decimal, HumanAddr, Uint128};
+use cosmwasm_std::{Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
-    pub anchor_token: HumanAddr,
-    pub staking_token: HumanAddr, // lp token of ANC-UST pair contract
+pub struct InstantiateMsg {
+    pub anchor_token: String,
+    pub staking_token: String, // lp token of ANC-UST pair contract
     pub distribution_schedule: Vec<(u64, u64, Uint128)>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     Receive(Cw20ReceiveMsg),
     Unbond {
         amount: Uint128,
     },
     /// Withdraw pending rewards
     Withdraw {},
+    /// Owner operation to stop distribution on current staking contract
+    /// and send remaining tokens to the new contract
+    MigrateStaking {
+        new_staking_contract: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -40,7 +45,7 @@ pub enum QueryMsg {
         block_height: Option<u64>,
     },
     StakerInfo {
-        staker: HumanAddr,
+        staker: String,
         block_height: Option<u64>,
     },
 }
@@ -48,8 +53,8 @@ pub enum QueryMsg {
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    pub anchor_token: HumanAddr,
-    pub staking_token: HumanAddr,
+    pub anchor_token: String,
+    pub staking_token: String,
     pub distribution_schedule: Vec<(u64, u64, Uint128)>,
 }
 
@@ -64,7 +69,7 @@ pub struct StateResponse {
 // We define a custom struct for each query response
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StakerInfoResponse {
-    pub staker: HumanAddr,
+    pub staker: String,
     pub reward_index: Decimal,
     pub bond_amount: Uint128,
     pub pending_reward: Uint128,
