@@ -1,7 +1,7 @@
 # Anchor Token (ANC) Contracts
 This monorepository contains the source code for the Money Market smart contracts implementing Anchor Protocol on the [Terra](https://terra.money) blockchain.
 
-You can find information about the architecture, usage, and function of the smart contracts on the official Anchor documentation [site](https://app.gitbook.com/@anchor-protocol/s/anchor-2/smart-contracts/anchor-token).
+You can find information about the architecture, usage, and function of the smart contracts on the official Anchor documentation [site](https://docs.anchorprotocol.com/smart-contracts/anchor-token).
 
 ### Dependencies
 
@@ -12,13 +12,13 @@ Anchor Token depends on [Terraswap](https://terraswap.io) and uses its [implemen
 
 | Contract                                 | Reference                                                                                         | Description                                                                    |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| [`airdrop`](./contracts/airdrop)         | [doc](https://app.gitbook.com/@anchor-protocol/s/anchor-2/smart-contracts/anchor-token/airdrop)   | Holds ANC tokens which are to be used Luna staker incentives                   |
-| [`collector`](./contracts/collector)     | [doc](https://app.gitbook.com/@anchor-protocol/s/anchor-2/smart-contracts/anchor-token/collector) | Accumulates protocol fees, converts them to ANC and distributes to ANC stakers |
-| [`community`](../contracts/community)    | [doc](https://app.gitbook.com/@anchor-protocol/s/anchor-2/smart-contracts/anchor-token/community) | Manages ANC community grants                                                   |
-| [`distributor`](./contracts/distributor) | [doc](https://app.gitbook.com/@anchor-protocol/s/anchor-2/smart-contracts/anchor-token/dripper)   | Holds ANC tokens which are to be used as borrower incentives                   |
-| [`gov`](./contracts/gov)                 | [doc](https://app.gitbook.com/@anchor-protocol/s/anchor-2/smart-contracts/anchor-token/gov)       | Handles Anchor Governance and reward distribution to ANC stakers               |
-| [`staking`](./contracts/staking)         | [doc](https://app.gitbook.com/@anchor-protocol/s/anchor-2/smart-contracts/anchor-token/staking)   | Handles ANC-UST pair LP token staking                                          |
-| [`vesting`](./contracts/vesting)         | [doc](https://app.gitbook.com/@anchor-protocol/s/anchor-2/smart-contracts/anchor-token/vesting)   | Holds ANC tokens which are to be used ANC token allocation vesting             |
+| [`airdrop`](./contracts/airdrop)         | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/airdrop)   | Holds ANC tokens which are to be used Luna staker incentives                   |
+| [`collector`](./contracts/collector)     | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/collector) | Accumulates protocol fees, converts them to ANC and distributes to ANC stakers |
+| [`community`](../contracts/community)    | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/community) | Manages ANC community grants                                                   |
+| [`distributor`](./contracts/distributor) | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/dripper)   | Holds ANC tokens which are to be used as borrower incentives                   |
+| [`gov`](./contracts/gov)                 | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/gov)       | Handles Anchor Governance and reward distribution to ANC stakers               |
+| [`staking`](./contracts/staking)         | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/staking)   | Handles ANC-UST pair LP token staking                                          |
+| [`vesting`](./contracts/vesting)         | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/vesting)   | Holds ANC tokens which are to be used ANC token allocation vesting             |
 
 ## Development
 
@@ -67,7 +67,7 @@ For production builds, run the following:
 docker run --rm -v "$(pwd)":/code \
   --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
   --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/workspace-optimizer:0.10.4
+  cosmwasm/workspace-optimizer:0.11.5
 ```
 
 This performs several optimizations which can significantly reduce the final size of the contract binaries, which will be available inside the `artifacts/` directory.

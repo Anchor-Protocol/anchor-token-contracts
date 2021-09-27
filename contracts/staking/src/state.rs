@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{CanonicalAddr, Decimal, ReadonlyStorage, StdResult, Storage, Uint128};
+use cosmwasm_std::{CanonicalAddr, Decimal, StdResult, Storage, Uint128};
 use cosmwasm_storage::{singleton, singleton_read, Bucket, ReadonlyBucket};
 
 static KEY_CONFIG: &[u8] = b"config";
@@ -16,11 +16,11 @@ pub struct Config {
     pub distribution_schedule: Vec<(u64, u64, Uint128)>,
 }
 
-pub fn store_config<S: Storage>(storage: &mut S, config: &Config) -> StdResult<()> {
+pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
     singleton(storage, KEY_CONFIG).save(config)
 }
 
-pub fn read_config<S: Storage>(storage: &S) -> StdResult<Config> {
+pub fn read_config(storage: &dyn Storage) -> StdResult<Config> {
     singleton_read(storage, KEY_CONFIG).load()
 }
 
@@ -31,11 +31,11 @@ pub struct State {
     pub global_reward_index: Decimal,
 }
 
-pub fn store_state<S: Storage>(storage: &mut S, state: &State) -> StdResult<()> {
+pub fn store_state(storage: &mut dyn Storage, state: &State) -> StdResult<()> {
     singleton(storage, KEY_STATE).save(state)
 }
 
-pub fn read_state<S: Storage>(storage: &S) -> StdResult<State> {
+pub fn read_state(storage: &dyn Storage) -> StdResult<State> {
     singleton_read(storage, KEY_STATE).load()
 }
 
@@ -47,26 +47,23 @@ pub struct StakerInfo {
 }
 
 /// returns return staker_info of the given owner
-pub fn store_staker_info<S: Storage>(
-    storage: &mut S,
+pub fn store_staker_info(
+    storage: &mut dyn Storage,
     owner: &CanonicalAddr,
     staker_info: &StakerInfo,
 ) -> StdResult<()> {
-    Bucket::new(PREFIX_REWARD, storage).save(owner.as_slice(), staker_info)
+    Bucket::new(storage, PREFIX_REWARD).save(owner.as_slice(), staker_info)
 }
 
 /// remove staker_info of the given owner
-pub fn remove_staker_info<S: Storage>(storage: &mut S, owner: &CanonicalAddr) {
-    Bucket::<S, StakerInfo>::new(PREFIX_REWARD, storage).remove(owner.as_slice())
+pub fn remove_staker_info(storage: &mut dyn Storage, owner: &CanonicalAddr) {
+    Bucket::<StakerInfo>::new(storage, PREFIX_REWARD).remove(owner.as_slice())
 }
 
 /// returns rewards owned by this owner
 /// (read-only version for queries)
-pub fn read_staker_info<S: ReadonlyStorage>(
-    storage: &S,
-    owner: &CanonicalAddr,
-) -> StdResult<StakerInfo> {
-    match ReadonlyBucket::new(PREFIX_REWARD, storage).may_load(owner.as_slice())? {
+pub fn read_staker_info(storage: &dyn Storage, owner: &CanonicalAddr) -> StdResult<StakerInfo> {
+    match ReadonlyBucket::new(storage, PREFIX_REWARD).may_load(owner.as_slice())? {
         Some(staker_info) => Ok(staker_info),
         None => Ok(StakerInfo {
             reward_index: Decimal::zero(),

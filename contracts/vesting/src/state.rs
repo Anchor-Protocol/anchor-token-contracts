@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use anchor_token::common::OrderBy;
 use anchor_token::vesting::VestingInfo;
-use cosmwasm_std::{CanonicalAddr, ReadonlyStorage, StdResult, Storage};
+use cosmwasm_std::{CanonicalAddr, StdResult, Storage};
 use cosmwasm_storage::{bucket, bucket_read, singleton, singleton_read, ReadonlyBucket};
 
 const KEY_CONFIG: &[u8] = b"config";
@@ -16,34 +16,30 @@ pub struct Config {
     pub genesis_time: u64,
 }
 
-pub fn store_config<S: Storage>(storage: &mut S, config: &Config) -> StdResult<()> {
-    Ok(singleton::<S, Config>(storage, KEY_CONFIG).save(&config)?)
+pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
+    singleton::<Config>(storage, KEY_CONFIG).save(config)
 }
 
-pub fn read_config<S: Storage>(storage: &S) -> StdResult<Config> {
-    Ok(singleton_read::<S, Config>(storage, KEY_CONFIG).load()?)
+pub fn read_config(storage: &dyn Storage) -> StdResult<Config> {
+    singleton_read::<Config>(storage, KEY_CONFIG).load()
 }
 
-pub fn read_vesting_info<S: ReadonlyStorage>(
-    storage: &S,
-    address: &CanonicalAddr,
-) -> StdResult<VestingInfo> {
-    Ok(bucket_read::<S, VestingInfo>(PREFIX_KEY_VESTING_INFO, storage).load(address.as_slice())?)
+pub fn read_vesting_info(storage: &dyn Storage, address: &CanonicalAddr) -> StdResult<VestingInfo> {
+    bucket_read::<VestingInfo>(storage, PREFIX_KEY_VESTING_INFO).load(address.as_slice())
 }
 
-pub fn store_vesting_info<S: Storage>(
-    storage: &mut S,
+pub fn store_vesting_info(
+    storage: &mut dyn Storage,
     address: &CanonicalAddr,
     vesting_info: &VestingInfo,
 ) -> StdResult<()> {
-    Ok(bucket::<S, VestingInfo>(PREFIX_KEY_VESTING_INFO, storage)
-        .save(address.as_slice(), vesting_info)?)
+    bucket::<VestingInfo>(storage, PREFIX_KEY_VESTING_INFO).save(address.as_slice(), vesting_info)
 }
 
 const MAX_LIMIT: u32 = 30;
 const DEFAULT_LIMIT: u32 = 10;
-pub fn read_vesting_infos<'a, S: ReadonlyStorage>(
-    storage: &'a S,
+pub fn read_vesting_infos<'a>(
+    storage: &'a dyn Storage,
     start_after: Option<CanonicalAddr>,
     limit: Option<u32>,
     order_by: Option<OrderBy>,
@@ -54,8 +50,8 @@ pub fn read_vesting_infos<'a, S: ReadonlyStorage>(
         _ => (None, calc_range_end_addr(start_after), OrderBy::Desc),
     };
 
-    let vesting_accounts: ReadonlyBucket<'a, S, VestingInfo> =
-        ReadonlyBucket::new(PREFIX_KEY_VESTING_INFO, storage);
+    let vesting_accounts: ReadonlyBucket<'a, VestingInfo> =
+        ReadonlyBucket::new(storage, PREFIX_KEY_VESTING_INFO);
 
     vesting_accounts
         .range(start.as_deref(), end.as_deref(), order_by.into())

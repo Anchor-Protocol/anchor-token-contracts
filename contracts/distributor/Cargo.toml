@@ -1,6 +1,6 @@
 [package]
 name = "anchor-distributor"
-version = "1.0.0"
+version = "0.0.0"
 authors = ["Terraform Labs, PTE."]
 edition = "2018"
 description = "A Faucet contract for Anchor Protocol - provides claim interface only from the whitelisted contract"
@@ -34,13 +34,13 @@ overflow-checks = true
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cw20 = "0.2"
-cosmwasm-std = { version = "0.10.1" }
-cosmwasm-storage = { version = "0.10.1" }
-anchor-token = { version = "0.1.0", path = "../../packages/anchor_token" }
-schemars = "0.7"
+cw20 = { version = "0.8.0" } 
+cosmwasm-std = { version = "0.16.0" }
+cosmwasm-storage = { version = "0.16.0" }
+anchor-token = { version = "0.2.0", path = "../../packages/anchor_token" }
+schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
-cosmwasm-schema = "0.10.1"
-terra-cosmwasm = "1.2.2"
+cosmwasm-schema = "0.16.0"
+terra-cosmwasm = "2.2.0"

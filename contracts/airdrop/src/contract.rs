@@ -1,134 +1,130 @@
-use cosmwasm_std::{
-    log, to_binary, Api, Binary, CosmosMsg, Env, Extern, HandleResponse, HandleResult, HumanAddr,
-    InitResponse, InitResult, MigrateResponse, MigrateResult, Querier, StdError, StdResult,
-    Storage, Uint128, WasmMsg,
-};
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 
+use crate::error::ContractError;
 use crate::state::{
     read_claimed, read_config, read_latest_stage, read_merkle_root, store_claimed, store_config,
     store_latest_stage, store_merkle_root, Config,
 };
 
 use anchor_token::airdrop::{
-    ConfigResponse, HandleMsg, InitMsg, IsClaimedResponse, LatestStageResponse, MerkleRootResponse,
-    MigrateMsg, QueryMsg,
+    ConfigResponse, ExecuteMsg, InstantiateMsg, IsClaimedResponse, LatestStageResponse,
+    MerkleRootResponse, MigrateMsg, QueryMsg,
 };
-
-use cw20::Cw20HandleMsg;
-use hex;
+use cosmwasm_std::{
+    to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128,
+    WasmMsg,
+};
+use cw20::Cw20ExecuteMsg;
 use sha3::Digest;
 use std::convert::TryInto;
 
-pub fn init<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
+    deps: DepsMut,
     _env: Env,
-    msg: InitMsg,
-) -> InitResult {
+    _info: MessageInfo,
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
     store_config(
-        &mut deps.storage,
+        deps.storage,
         &Config {
-            owner: deps.api.canonical_address(&msg.owner)?,
-            anchor_token: deps.api.canonical_address(&msg.anchor_token)?,
+            owner: deps.api.addr_canonicalize(&msg.owner)?,
+            anchor_token: deps.api.addr_canonicalize(&msg.anchor_token)?,
         },
     )?;
 
     let stage: u8 = 0;
-    store_latest_stage(&mut deps.storage, stage)?;
+    store_latest_stage(deps.storage, stage)?;
 
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
-pub fn handle<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    msg: HandleMsg,
-) -> HandleResult {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::UpdateConfig { owner } => update_config(deps, env, owner),
-        HandleMsg::RegisterMerkleRoot { merkle_root } => {
-            register_merkle_root(deps, env, merkle_root)
+        ExecuteMsg::UpdateConfig { owner } => update_config(deps, info, owner),
+        ExecuteMsg::RegisterMerkleRoot { merkle_root } => {
+            register_merkle_root(deps, info, merkle_root)
         }
-        HandleMsg::Claim {
+        ExecuteMsg::Claim {
             stage,
             amount,
             proof,
-        } => claim(deps, env, stage, amount, proof),
+        } => claim(deps, info, stage, amount, proof),
     }
 }
 
-pub fn update_config<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    owner: Option<HumanAddr>,
-) -> StdResult<HandleResponse> {
-    let mut config: Config = read_config(&deps.storage)?;
-    if deps.api.canonical_address(&env.message.sender)? != config.owner {
-        return Err(StdError::unauthorized());
+pub fn update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    owner: Option<String>,
+) -> Result<Response, ContractError> {
+    let mut config: Config = read_config(deps.storage)?;
+    if deps.api.addr_canonicalize(info.sender.as_str())? != config.owner {
+        return Err(ContractError::Unauthorized {});
     }
 
     if let Some(owner) = owner {
-        config.owner = deps.api.canonical_address(&owner)?;
+        config.owner = deps.api.addr_canonicalize(&owner)?;
     }
 
-    store_config(&mut deps.storage, &config)?;
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![log("action", "update_config")],
-        data: None,
-    })
+    store_config(deps.storage, &config)?;
+    Ok(Response::new().add_attributes(vec![("action", "update_config")]))
 }
 
-pub fn register_merkle_root<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
+pub fn register_merkle_root(
+    deps: DepsMut,
+    info: MessageInfo,
     merkle_root: String,
-) -> StdResult<HandleResponse> {
-    let config: Config = read_config(&deps.storage)?;
-    if deps.api.canonical_address(&env.message.sender)? != config.owner {
-        return Err(StdError::unauthorized());
+) -> Result<Response, ContractError> {
+    let config: Config = read_config(deps.storage)?;
+    if deps.api.addr_canonicalize(info.sender.as_str())? != config.owner {
+        return Err(ContractError::Unauthorized {});
     }
 
     let mut root_buf: [u8; 32] = [0; 32];
     match hex::decode_to_slice(merkle_root.to_string(), &mut root_buf) {
         Ok(()) => {}
-        _ => return Err(StdError::generic_err("Invalid hex encoded merkle root")),
+        _ => return Err(ContractError::InvalidHexMerkle {}),
     }
 
-    let latest_stage: u8 = read_latest_stage(&deps.storage)?;
+    let latest_stage: u8 = read_latest_stage(deps.storage)?;
     let stage = latest_stage + 1;
 
-    store_merkle_root(&mut deps.storage, stage, merkle_root.to_string())?;
-    store_latest_stage(&mut deps.storage, stage)?;
+    store_merkle_root(deps.storage, stage, merkle_root.to_string())?;
+    store_latest_stage(deps.storage, stage)?;
 
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![
-            log("action", "register_merkle_root"),
-            log("stage", stage),
-            log("merkle_root", merkle_root),
-        ],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![
+        ("action", "register_merkle_root"),
+        ("stage", &stage.to_string()),
+        ("merkle_root", &merkle_root),
+    ]))
 }
 
-pub fn claim<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
+pub fn claim(
+    deps: DepsMut,
+    info: MessageInfo,
     stage: u8,
     amount: Uint128,
     proof: Vec<String>,
-) -> StdResult<HandleResponse> {
-    let config: Config = read_config(&deps.storage)?;
-    let merkle_root: String = read_merkle_root(&deps.storage, stage)?;
+) -> Result<Response, ContractError> {
+    let config: Config = read_config(deps.storage)?;
+    let merkle_root: String = read_merkle_root(deps.storage, stage)?;
 
-    let user_raw = deps.api.canonical_address(&env.message.sender)?;
+    let user_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
 
     // If user claimed target stage, return err
-    if read_claimed(&deps.storage, &user_raw, stage)? {
-        return Err(StdError::generic_err("Already claimed"));
+    if read_claimed(deps.storage, &user_raw, stage)? {
+        return Err(ContractError::AlreadyClaimed {});
     }
 
-    let user_input: String = env.message.sender.to_string() + &amount.to_string();
+    let user_input: String = info.sender.to_string() + &amount.to_string();
     let mut hash: [u8; 32] = sha3::Keccak256::digest(user_input.as_bytes())
         .as_slice()
         .try_into()
@@ -138,7 +134,7 @@ pub fn claim<S: Storage, A: Api, Q: Querier>(
         let mut proof_buf: [u8; 32] = [0; 32];
         match hex::decode_to_slice(p, &mut proof_buf) {
             Ok(()) => {}
-            _ => return Err(StdError::generic_err("Invalid hex encoded proof")),
+            _ => return Err(ContractError::InvalidHexProof {}),
         }
 
         hash = if bytes_cmp(hash, proof_buf) == std::cmp::Ordering::Less {
@@ -157,50 +153,44 @@ pub fn claim<S: Storage, A: Api, Q: Querier>(
     let mut root_buf: [u8; 32] = [0; 32];
     hex::decode_to_slice(merkle_root, &mut root_buf).unwrap();
     if root_buf != hash {
-        return Err(StdError::generic_err("Verification is failed"));
+        return Err(ContractError::MerkleVerification {});
     }
 
     // Update claim index to the current stage
-    store_claimed(&mut deps.storage, &user_raw, stage)?;
+    store_claimed(deps.storage, &user_raw, stage)?;
 
-    Ok(HandleResponse {
-        messages: vec![CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.human_address(&config.anchor_token)?,
-            send: vec![],
-            msg: to_binary(&Cw20HandleMsg::Transfer {
-                recipient: env.message.sender.clone(),
+    Ok(Response::new()
+        .add_messages(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
+            funds: vec![],
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: info.sender.to_string(),
                 amount,
             })?,
-        })],
-        log: vec![
-            log("action", "claim"),
-            log("stage", stage),
-            log("address", env.message.sender),
-            log("amount", amount),
-        ],
-        data: None,
-    })
+        })])
+        .add_attributes(vec![
+            ("action", "claim"),
+            ("stage", &stage.to_string()),
+            ("address", info.sender.as_str()),
+            ("amount", &amount.to_string()),
+        ]))
 }
 
 fn bytes_cmp(a: [u8; 32], b: [u8; 32]) -> std::cmp::Ordering {
     let mut i = 0;
     while i < 32 {
-        if a[i] > b[i] {
-            return std::cmp::Ordering::Greater;
-        } else if a[i] < b[i] {
-            return std::cmp::Ordering::Less;
+        match a[i].cmp(&b[i]) {
+            std::cmp::Ordering::Greater => return std::cmp::Ordering::Greater,
+            std::cmp::Ordering::Less => return std::cmp::Ordering::Less,
+            _ => i += 1,
         }
-
-        i += 1;
     }
 
-    return std::cmp::Ordering::Equal;
+    std::cmp::Ordering::Equal
 }
 
-pub fn query<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    msg: QueryMsg,
-) -> StdResult<Binary> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::MerkleRoot { stage } => to_binary(&query_merkle_root(deps, stage)?),
@@ -211,57 +201,40 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-pub fn query_config<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-) -> StdResult<ConfigResponse> {
-    let state = read_config(&deps.storage)?;
+pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+    let state = read_config(deps.storage)?;
     let resp = ConfigResponse {
-        owner: deps.api.human_address(&state.owner)?,
-        anchor_token: deps.api.human_address(&state.anchor_token)?,
+        owner: deps.api.addr_humanize(&state.owner)?.to_string(),
+        anchor_token: deps.api.addr_humanize(&state.anchor_token)?.to_string(),
     };
 
     Ok(resp)
 }
 
-pub fn query_merkle_root<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    stage: u8,
-) -> StdResult<MerkleRootResponse> {
-    let merkle_root = read_merkle_root(&deps.storage, stage)?;
-    let resp = MerkleRootResponse {
-        stage: stage,
-        merkle_root: merkle_root,
-    };
+pub fn query_merkle_root(deps: Deps, stage: u8) -> StdResult<MerkleRootResponse> {
+    let merkle_root = read_merkle_root(deps.storage, stage)?;
+    let resp = MerkleRootResponse { stage, merkle_root };
 
     Ok(resp)
 }
 
-pub fn query_latest_stage<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-) -> StdResult<LatestStageResponse> {
-    let latest_stage = read_latest_stage(&deps.storage)?;
+pub fn query_latest_stage(deps: Deps) -> StdResult<LatestStageResponse> {
+    let latest_stage = read_latest_stage(deps.storage)?;
     let resp = LatestStageResponse { latest_stage };
 
     Ok(resp)
 }
 
-pub fn query_is_claimed<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    stage: u8,
-    address: HumanAddr,
-) -> StdResult<IsClaimedResponse> {
-    let user_raw = deps.api.canonical_address(&address)?;
+pub fn query_is_claimed(deps: Deps, stage: u8, address: String) -> StdResult<IsClaimedResponse> {
+    let user_raw = deps.api.addr_canonicalize(&address)?;
     let resp = IsClaimedResponse {
-        is_claimed: read_claimed(&deps.storage, &user_raw, stage)?,
+        is_claimed: read_claimed(deps.storage, &user_raw, stage)?,
     };
 
     Ok(resp)
 }
 
-pub fn migrate<S: Storage, A: Api, Q: Querier>(
-    _deps: &mut Extern<S, A, Q>,
-    _env: Env,
-    _msg: MigrateMsg,
-) -> MigrateResult {
-    Ok(MigrateResponse::default())
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    Ok(Response::default())
 }

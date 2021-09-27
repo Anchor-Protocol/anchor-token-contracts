@@ -9,7 +9,7 @@
   ],
   "properties": {
     "anchor_token": {
-      "$ref": "#/definitions/HumanAddr"
+      "type": "string"
     },
     "genesis_time": {
       "type": "integer",
@@ -17,11 +17,6 @@
       "minimum": 0.0
     },
     "owner": {
-      "$ref": "#/definitions/HumanAddr"
-    }
-  },
-  "definitions": {
-    "HumanAddr": {
       "type": "string"
     }
   }
