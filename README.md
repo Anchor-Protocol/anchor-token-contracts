@@ -1,3 +1,5 @@
+[![codecov](https://codecov.io/gh/Anchor-Protocol/anchor-token-contracts/branch/master/graph/badge.svg?token=NK4H00P3KH)](https://codecov.io/gh/Anchor-Protocol/anchor-token-contracts)
+
 # Anchor Token (ANC) Contracts
 This monorepository contains the source code for the Money Market smart contracts implementing Anchor Protocol on the [Terra](https://terra.money) blockchain.
 
