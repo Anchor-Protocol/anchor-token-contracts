@@ -17,9 +17,9 @@ use terraswap::querier::query_token_balance;
 
 use anchor_token::common::OrderBy;
 use anchor_token::gov::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, PollExecuteMsg, PollResponse,
-    PollStatus, PollsResponse, QueryMsg, StateResponse, VoteOption, VoterInfo, VotersResponse,
-    VotersResponseItem,
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PollExecuteMsg,
+    PollResponse, PollStatus, PollsResponse, QueryMsg, StateResponse, VoteOption, VoterInfo,
+    VotersResponse, VotersResponseItem,
 };
 
 const MIN_TITLE_LENGTH: usize = 4;
@@ -328,7 +328,7 @@ pub fn create_poll(
         status: PollStatus::InProgress,
         yes_votes: Uint128::zero(),
         no_votes: Uint128::zero(),
-        end_height: env.block.height + config.voting_period,
+        end_time: env.block.time.seconds() + config.voting_period,
         title,
         description,
         link,
@@ -354,7 +354,7 @@ pub fn create_poll(
                 .as_str(),
         ),
         ("poll_id", &poll_id.to_string()),
-        ("end_height", new_poll.end_height.to_string().as_str()),
+        ("end_time", new_poll.end_time.to_string().as_str()),
     ]))
 }
 
@@ -368,7 +368,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, Contr
         return Err(ContractError::PollNotInProgress {});
     }
 
-    if a_poll.end_height > env.block.height {
+    if a_poll.end_time > env.block.time.seconds() {
         return Err(ContractError::PollVotingPeriod {});
     }
 
@@ -465,7 +465,7 @@ pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, C
         return Err(ContractError::PollNotPassed {});
     }
 
-    if a_poll.end_height + config.timelock_period > env.block.height {
+    if a_poll.end_time + config.timelock_period > env.block.time.seconds() {
         return Err(ContractError::TimelockNotExpired {});
     }
 
@@ -548,10 +548,10 @@ pub fn snapshot_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, 
         return Err(ContractError::PollNotInProgress {});
     }
 
-    let time_to_end = a_poll.end_height - env.block.height;
+    let time_to_end = a_poll.end_time - env.block.time.seconds();
 
     if time_to_end > config.snapshot_period {
-        return Err(ContractError::SnapshotHeight {});
+        return Err(ContractError::SnapshotTime {});
     }
 
     if a_poll.staked_amount.is_some() {
@@ -595,7 +595,7 @@ pub fn cast_vote(
     }
 
     let mut a_poll: Poll = poll_store(deps.storage).load(&poll_id.to_be_bytes())?;
-    if a_poll.status != PollStatus::InProgress || env.block.height > a_poll.end_height {
+    if a_poll.status != PollStatus::InProgress || env.block.time.seconds() > a_poll.end_time {
         return Err(ContractError::PollNotInProgress {});
     }
 
@@ -647,7 +647,7 @@ pub fn cast_vote(
     poll_voter_store(deps.storage, poll_id).save(sender_address_raw.as_slice(), &vote_info)?;
 
     // processing snapshot
-    let time_to_end = a_poll.end_height - env.block.height;
+    let time_to_end = a_poll.end_time - env.block.time.seconds();
 
     if time_to_end < config.snapshot_period && a_poll.staked_amount.is_none() {
         a_poll.staked_amount = Some(total_balance);
@@ -734,7 +734,7 @@ fn query_poll(deps: Deps, poll_id: u64) -> Result<PollResponse, ContractError> {
         id: poll.id,
         creator: deps.api.addr_humanize(&poll.creator)?.to_string(),
         status: poll.status,
-        end_height: poll.end_height,
+        end_time: poll.end_time,
         title: poll.title,
         description: poll.description,
         link: poll.link,
@@ -775,7 +775,7 @@ fn query_polls(
                 id: poll.id,
                 creator: deps.api.addr_humanize(&poll.creator)?.to_string(),
                 status: poll.status.clone(),
-                end_height: poll.end_height,
+                end_time: poll.end_time,
                 title: poll.title.to_string(),
                 description: poll.description.to_string(),
                 link: poll.link.clone(),
@@ -849,4 +849,60 @@ fn query_voters(
     Ok(VotersResponse {
         voters: voters_response?,
     })
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+    // read and store the new config values
+    let mut config: Config = config_read(deps.storage).load().unwrap();
+    config.voting_period = msg.voting_period;
+    config.timelock_period = msg.timelock_period;
+    config.snapshot_period = msg.snapshot_period;
+
+    config_store(deps.storage).save(&config)?;
+
+    Ok(Response::default())
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+
+    #[test]
+    fn proper_migrate() {
+        let mut deps = mock_dependencies(&[]);
+
+        // init the contract
+        let init_msg = InstantiateMsg {
+            quorum: Default::default(),
+            threshold: Default::default(),
+            voting_period: 0,
+            timelock_period: 0,
+            proposal_deposit: Default::default(),
+            snapshot_period: 0,
+        };
+
+        let info = mock_info("sender", &[]);
+        let res = instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
+        assert_eq!(0, res.messages.len());
+
+        let voting_period = 100u64;
+        let timelock_period = 10u64;
+        let snapshot_period = 10u64;
+
+        // migrate
+        let migrate_msg = MigrateMsg {
+            voting_period,
+            timelock_period,
+            snapshot_period,
+        };
+        let res = migrate(deps.as_mut(), mock_env(), migrate_msg).unwrap();
+        assert_eq!(res, Response::default());
+
+        let config = config_read(&deps.storage).load().unwrap();
+        assert_eq!(config.voting_period, voting_period);
+        assert_eq!(config.timelock_period, timelock_period);
+        assert_eq!(config.snapshot_period, snapshot_period);
+    }
 }

@@ -126,7 +126,7 @@ pub struct PollResponse {
     pub id: u64,
     pub creator: String,
     pub status: PollStatus,
-    pub end_height: u64,
+    pub end_time: u64,
     pub title: String,
     pub description: String,
     pub link: Option<String>,
@@ -205,4 +205,13 @@ impl fmt::Display for VoteOption {
             write!(f, "no")
         }
     }
+}
+
+// struct for migration
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {
+    // change to the time-based value
+    pub voting_period: u64,
+    pub timelock_period: u64,
+    pub snapshot_period: u64,
 }
