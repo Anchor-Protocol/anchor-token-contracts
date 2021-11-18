@@ -33,20 +33,23 @@ pub enum Cw20HookMsg {
     Bond {},
 }
 
-/// We currently take no arguments for migrations
+/// migrate struct for distribution schedule
+/// block-based schedule to a time-based schedule
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub distribution_schedule: Vec<(u64, u64, Uint128)>,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     Config {},
     State {
-        block_height: Option<u64>,
+        block_time: Option<u64>,
     },
     StakerInfo {
         staker: String,
-        block_height: Option<u64>,
+        block_time: Option<u64>,
     },
 }
 
