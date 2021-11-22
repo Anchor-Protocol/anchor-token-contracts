@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{CanonicalAddr, StdResult, Storage};
 use cosmwasm_storage::{singleton, singleton_read, Bucket, ReadonlyBucket};
 
-static KEY_CONFIG: &[u8] = b"config";
+pub static KEY_CONFIG: &[u8] = b"config";
 static KEY_LATEST_STAGE: &[u8] = b"latest_stage";
 
 static PREFIX_MERKLE_ROOT: &[u8] = b"merkle_root";
@@ -14,6 +14,7 @@ static PREFIX_CLAIM_INDEX: &[u8] = b"claim_index";
 pub struct Config {
     pub owner: CanonicalAddr,
     pub anchor_token: CanonicalAddr,
+    pub gov_contract: CanonicalAddr,
 }
 
 pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
