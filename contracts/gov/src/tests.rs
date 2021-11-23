@@ -9,8 +9,8 @@ use crate::state::{
 use anchor_token::common::OrderBy;
 use anchor_token::gov::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, PollExecuteMsg, PollResponse,
-    PollStatus, PollsResponse, QueryMsg, StakerResponse, VoteOption, VoterInfo, VotersResponse,
-    VotersResponseItem,
+    PollStatus, PollsResponse, QueryMsg, StakerResponse, StakersResponse, VoteOption, VoterInfo,
+    VotersResponse, VotersResponseItem,
 };
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
@@ -25,6 +25,7 @@ const TEST_CREATOR: &str = "creator";
 const TEST_VOTER: &str = "voter1";
 const TEST_VOTER_2: &str = "voter2";
 const TEST_VOTER_3: &str = "voter3";
+const TEST_VOTER_4: &str = "voter4";
 const DEFAULT_QUORUM: u64 = 30u64;
 const DEFAULT_THRESHOLD: u64 = 50u64;
 const DEFAULT_VOTING_PERIOD: u64 = 20000u64;
@@ -940,6 +941,7 @@ fn happy_days_end_poll() {
     assert_eq!(
         response,
         StakerResponse {
+            staker: TEST_VOTER.to_string(),
             balance: Uint128::from(stake_amount),
             share: Uint128::from(stake_amount),
             locked_balance: vec![]
@@ -1655,6 +1657,7 @@ fn happy_days_cast_vote() {
     assert_eq!(
         response,
         StakerResponse {
+            staker: TEST_VOTER.to_string(),
             balance: Uint128::from(22u128),
             share: Uint128::from(11u128),
             locked_balance: vec![(
@@ -2294,6 +2297,118 @@ fn share_calculation() {
     assert_eq!(stake_info.share, Uint128::new(100));
     assert_eq!(stake_info.balance, Uint128::new(200));
     assert_eq!(stake_info.locked_balance, vec![]);
+}
+
+#[test]
+fn query_stakers() {
+    let mut deps = mock_dependencies(&[]);
+
+    // initialize the store
+    mock_instantiate(deps.as_mut());
+    mock_register_voting_token(deps.as_mut());
+
+    // create 100 share
+    deps.querier.with_token_balances(&[(
+        &VOTING_TOKEN.to_string(),
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(100u128))],
+    )]);
+
+    // staker number one
+    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender: TEST_VOTER.to_string(),
+        amount: Uint128::from(100u128),
+        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+    });
+
+    let info = mock_info(VOTING_TOKEN, &[]);
+    let _res = execute(deps.as_mut(), mock_env(), info, msg);
+
+    // staker number two
+    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender: TEST_VOTER_2.to_string(),
+        amount: Uint128::from(100u128),
+        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+    });
+
+    let info = mock_info(VOTING_TOKEN, &[]);
+    let _res = execute(deps.as_mut(), mock_env(), info, msg);
+
+    // staker number three
+    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender: TEST_VOTER_3.to_string(),
+        amount: Uint128::from(100u128),
+        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+    });
+
+    let info = mock_info(VOTING_TOKEN, &[]);
+    let _res = execute(deps.as_mut(), mock_env(), info, msg);
+
+    // staker number four
+    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender: TEST_VOTER_4.to_string(),
+        amount: Uint128::from(100u128),
+        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+    });
+
+    let info = mock_info(VOTING_TOKEN, &[]);
+    let _res = execute(deps.as_mut(), mock_env(), info, msg);
+
+    // add more balance(100) to make share:balance = 1:2
+    deps.querier.with_token_balances(&[(
+        &VOTING_TOKEN.to_string(),
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(400u128))],
+    )]);
+
+    // with start
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::Stakers {
+            start_after: None,
+            limit: None,
+            order_by: None,
+        },
+    )
+    .unwrap();
+    let stake_infos: StakersResponse = from_binary(&res).unwrap();
+    assert_eq!(stake_infos.stakers[0].staker, TEST_VOTER);
+    assert_eq!(stake_infos.stakers[0].share, Uint128::new(100));
+    assert_eq!(stake_infos.stakers[0].balance, Uint128::new(100));
+    assert_eq!(stake_infos.stakers[0].locked_balance, vec![]);
+
+    // with start
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::Stakers {
+            start_after: Some(TEST_VOTER.to_string()),
+            limit: None,
+            order_by: None,
+        },
+    )
+    .unwrap();
+    // canonical address is not sorted as it should be due to cosmwasm mock api
+    // therefore voter3 is before voter2
+    let stake_infos: StakersResponse = from_binary(&res).unwrap();
+    assert_eq!(stake_infos.stakers[0].staker, TEST_VOTER_3);
+    assert_eq!(stake_infos.stakers[0].share, Uint128::new(100));
+    assert_eq!(stake_infos.stakers[0].balance, Uint128::new(100));
+    assert_eq!(stake_infos.stakers[0].locked_balance, vec![]);
+
+    // with start
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::Stakers {
+            start_after: Some(TEST_VOTER.to_string()),
+            limit: Some(2u32),
+            order_by: None,
+        },
+    )
+    .unwrap();
+
+    let stake_infos: StakersResponse = from_binary(&res).unwrap();
+    assert_eq!(stake_infos.stakers.len(), 2);
 }
 
 // helper to confirm the expected create_poll response

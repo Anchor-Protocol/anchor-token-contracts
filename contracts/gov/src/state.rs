@@ -215,6 +215,28 @@ pub fn bank_read(storage: &dyn Storage) -> ReadonlyBucket<TokenManager> {
     bucket_read(storage, PREFIX_BANK)
 }
 
+pub fn read_stakers(
+    storage: &dyn Storage,
+    start_after: Option<CanonicalAddr>,
+    limit: Option<u32>,
+    order_by: Option<OrderBy>,
+) -> StdResult<Vec<(CanonicalAddr, TokenManager)>> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let (start, end, order_by) = match order_by {
+        Some(OrderBy::Asc) => (calc_range_start_addr(start_after), None, OrderBy::Asc),
+        _ => (None, calc_range_end_addr(start_after), OrderBy::Desc),
+    };
+
+    bank_read(storage)
+        .range(start.as_deref(), end.as_deref(), order_by.into())
+        .take(limit)
+        .map(|item| {
+            let (k, v) = item?;
+            Ok((CanonicalAddr::from(k), v))
+        })
+        .collect()
+}
+
 // this will set the first key after the provided key, by appending a 1 byte
 fn calc_range_start(start_after: Option<u64>) -> Option<Vec<u8>> {
     start_after.map(|id| {
@@ -230,7 +252,7 @@ fn calc_range_end(start_after: Option<u64>) -> Option<Vec<u8>> {
 }
 
 // this will set the first key after the provided key, by appending a 1 byte
-fn calc_range_start_addr(start_after: Option<CanonicalAddr>) -> Option<Vec<u8>> {
+pub(crate) fn calc_range_start_addr(start_after: Option<CanonicalAddr>) -> Option<Vec<u8>> {
     start_after.map(|addr| {
         let mut v = addr.as_slice().to_vec();
         v.push(1);
@@ -239,6 +261,6 @@ fn calc_range_start_addr(start_after: Option<CanonicalAddr>) -> Option<Vec<u8>> 
 }
 
 // this will set the first key after the provided key, by appending a 1 byte
-fn calc_range_end_addr(start_after: Option<CanonicalAddr>) -> Option<Vec<u8>> {
+pub(crate) fn calc_range_end_addr(start_after: Option<CanonicalAddr>) -> Option<Vec<u8>> {
     start_after.map(|addr| addr.as_slice().to_vec())
 }

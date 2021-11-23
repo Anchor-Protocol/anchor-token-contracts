@@ -1,5 +1,5 @@
 use crate::error::ContractError;
-use crate::staking::{query_staker, stake_voting_tokens, withdraw_voting_tokens};
+use crate::staking::{query_staker, query_stakers, stake_voting_tokens, withdraw_voting_tokens};
 use crate::state::{
     bank_read, bank_store, config_read, config_store, poll_indexer_store, poll_read, poll_store,
     poll_voter_read, poll_voter_store, read_poll_voters, read_polls, read_tmp_poll_id, state_read,
@@ -670,6 +670,16 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
         QueryMsg::State {} => Ok(to_binary(&query_state(deps)?)?),
         QueryMsg::Staker { address } => Ok(to_binary(&query_staker(deps, address)?)?),
+        QueryMsg::Stakers {
+            start_after,
+            limit,
+            order_by,
+        } => Ok(to_binary(&query_stakers(
+            deps,
+            start_after,
+            limit,
+            order_by,
+        )?)?),
         QueryMsg::Poll { poll_id } => Ok(to_binary(&query_poll(deps, poll_id)?)?),
         QueryMsg::Polls {
             filter,

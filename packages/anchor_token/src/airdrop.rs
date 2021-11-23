@@ -7,7 +7,7 @@ use cosmwasm_std::Uint128;
 pub struct InstantiateMsg {
     pub owner: String,
     pub anchor_token: String,
-    pub gov_contract: String
+    pub gov_contract: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -27,13 +27,13 @@ pub enum ExecuteMsg {
     Withdraw {
         recipient: String,
         amount: Uint128,
-    }
+    },
 }
 
 /// We currently take no arguments for migrations
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {
-    pub gov_contract: String
+    pub gov_contract: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -258,12 +258,12 @@ fn proper_withdraw() {
 
     let info = mock_info("addr0000", &[]);
     let _res = instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
-    
+
     // withdraw
     let amount = Uint128::new(1000000);
     let withdraw_msg = ExecuteMsg::Withdraw {
         recipient: "community".to_string(),
-        amount
+        amount,
     };
 
     //failed execution
@@ -284,9 +284,8 @@ fn proper_withdraw() {
                 recipient: "community".to_string(),
                 amount,
             })
-                .unwrap(),
+            .unwrap(),
             funds: vec![]
         }))]
     );
-
 }

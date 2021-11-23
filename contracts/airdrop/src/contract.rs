@@ -7,6 +7,7 @@ use crate::state::{
     store_latest_stage, store_merkle_root, Config,
 };
 
+use crate::migration::migrate_config;
 use anchor_token::airdrop::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, IsClaimedResponse, LatestStageResponse,
     MerkleRootResponse, MigrateMsg, QueryMsg,
@@ -18,7 +19,6 @@ use cosmwasm_std::{
 use cw20::Cw20ExecuteMsg;
 use sha3::Digest;
 use std::convert::TryInto;
-use crate::migration::migrate_config;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -32,7 +32,7 @@ pub fn instantiate(
         &Config {
             owner: deps.api.addr_canonicalize(&msg.owner)?,
             anchor_token: deps.api.addr_canonicalize(&msg.anchor_token)?,
-            gov_contract: deps.api.addr_canonicalize(&msg.gov_contract)?
+            gov_contract: deps.api.addr_canonicalize(&msg.gov_contract)?,
         },
     )?;
 
@@ -59,10 +59,7 @@ pub fn execute(
             amount,
             proof,
         } => claim(deps, info, stage, amount, proof),
-        ExecuteMsg::Withdraw {
-            recipient,
-            amount,
-        } => withdraw(deps, info, recipient, amount)
+        ExecuteMsg::Withdraw { recipient, amount } => withdraw(deps, info, recipient, amount),
     }
 }
 
@@ -190,7 +187,7 @@ pub fn withdraw(
 ) -> Result<Response, ContractError> {
     //check the sender
     let config = read_config(deps.storage)?;
-    if  deps.api.addr_canonicalize(info.sender.as_str()).unwrap() != config.gov_contract {
+    if deps.api.addr_canonicalize(info.sender.as_str()).unwrap() != config.gov_contract {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -270,8 +267,13 @@ pub fn query_is_claimed(deps: Deps, stage: u8, address: String) -> StdResult<IsC
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
-    //migrate the config 
-    migrate_config(deps.storage, deps.api.addr_canonicalize(msg.gov_contract.as_str()).unwrap())?;
-    
+    //migrate the config
+    migrate_config(
+        deps.storage,
+        deps.api
+            .addr_canonicalize(msg.gov_contract.as_str())
+            .unwrap(),
+    )?;
+
     Ok(Response::default())
 }
