@@ -160,14 +160,11 @@ pub fn distribute(deps: DepsMut, env: Env) -> StdResult<Response> {
         }));
     }
 
+    // burn the left amount
     if !left_amount.is_zero() {
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: deps
-                    .api
-                    .addr_humanize(&config.distributor_contract)?
-                    .to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Burn {
                 amount: left_amount,
             })?,
             funds: vec![],
