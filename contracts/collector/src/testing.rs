@@ -179,8 +179,7 @@ fn test_distribute() {
             })),
             SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: "tokenANC".to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: "distributor".to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Burn {
                     amount: Uint128::from(10u128),
                 })
                 .unwrap(),
