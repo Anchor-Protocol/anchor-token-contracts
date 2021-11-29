@@ -9,7 +9,7 @@ use crate::state::{
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    attr, from_binary, to_binary, Binary, CanonicalAddr, CosmosMsg, Deps, DepsMut, Env,
     MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -21,6 +21,7 @@ use anchor_token::gov::{
     PollResponse, PollStatus, PollsResponse, QueryMsg, StateResponse, VoteOption, VoterInfo,
     VotersResponse, VotersResponseItem,
 };
+use cosmwasm_bignumber::Decimal256;
 
 const MIN_TITLE_LENGTH: usize = 4;
 const MAX_TITLE_LENGTH: usize = 64;
@@ -172,8 +173,8 @@ pub fn update_config(
     deps: DepsMut,
     info: MessageInfo,
     owner: Option<String>,
-    quorum: Option<Decimal>,
-    threshold: Option<Decimal>,
+    quorum: Option<Decimal256>,
+    threshold: Option<Decimal256>,
     voting_period: Option<u64>,
     timelock_period: Option<u64>,
     proposal_deposit: Option<Uint128>,
@@ -258,8 +259,8 @@ fn validate_link(link: &Option<String>) -> StdResult<()> {
 
 /// validate_quorum returns an error if the quorum is invalid
 /// (we require 0-1)
-fn validate_quorum(quorum: Decimal) -> StdResult<()> {
-    if quorum > Decimal::one() {
+fn validate_quorum(quorum: Decimal256) -> StdResult<()> {
+    if quorum > Decimal256::one() {
         Err(StdError::generic_err("quorum must be 0 to 1"))
     } else {
         Ok(())
@@ -268,8 +269,8 @@ fn validate_quorum(quorum: Decimal) -> StdResult<()> {
 
 /// validate_threshold returns an error if the threshold is invalid
 /// (we require 0-1)
-fn validate_threshold(threshold: Decimal) -> StdResult<()> {
-    if threshold > Decimal::one() {
+fn validate_threshold(threshold: Decimal256) -> StdResult<()> {
+    if threshold > Decimal256::one() {
         Err(StdError::generic_err("threshold must be 0 to 1"))
     } else {
         Ok(())
@@ -386,10 +387,10 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, Contr
     let mut state: State = state_read(deps.storage).load()?;
 
     let (quorum, staked_weight) = if state.total_share.u128() == 0 {
-        (Decimal::zero(), Uint128::zero())
+        (Decimal256::zero(), Uint128::zero())
     } else if let Some(staked_amount) = a_poll.staked_amount {
         (
-            Decimal::from_ratio(tallied_weight, staked_amount),
+            Decimal256::from_ratio(tallied_weight as u64, staked_amount.u128() as u64),
             staked_amount,
         )
     } else {
@@ -401,7 +402,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, Contr
         .checked_sub(state.total_deposit)?;
 
         (
-            Decimal::from_ratio(tallied_weight, staked_weight),
+            Decimal256::from_ratio(tallied_weight as u64, staked_weight.u128() as u64),
             staked_weight,
         )
     };
@@ -411,7 +412,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, Contr
         // period need to have participated in the vote.
         rejected_reason = "Quorum not reached";
     } else {
-        if Decimal::from_ratio(yes, tallied_weight) > config.threshold {
+        if Decimal256::from_ratio(yes as u64, tallied_weight as u64) > config.threshold {
             //Threshold: More than 50% of the tokens that participated in the vote
             // (after excluding “Abstain” votes) need to have voted in favor of the proposal (“Yes”).
             poll_status = PollStatus::Passed;

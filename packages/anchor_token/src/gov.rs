@@ -1,15 +1,16 @@
-use cosmwasm_std::{Binary, Decimal, Uint128};
+use cosmwasm_std::{Binary, Uint128};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use crate::common::OrderBy;
+use cosmwasm_bignumber::Decimal256;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub quorum: Decimal,
-    pub threshold: Decimal,
+    pub quorum: Decimal256,
+    pub threshold: Decimal256,
     pub voting_period: u64,
     pub timelock_period: u64,
     pub proposal_deposit: Uint128,
@@ -28,8 +29,8 @@ pub enum ExecuteMsg {
     },
     UpdateConfig {
         owner: Option<String>,
-        quorum: Option<Decimal>,
-        threshold: Option<Decimal>,
+        quorum: Option<Decimal256>,
+        threshold: Option<Decimal256>,
         voting_period: Option<u64>,
         timelock_period: Option<u64>,
         proposal_deposit: Option<Uint128>,
@@ -111,8 +112,8 @@ pub enum QueryMsg {
 pub struct ConfigResponse {
     pub owner: String,
     pub anchor_token: String,
-    pub quorum: Decimal,
-    pub threshold: Decimal,
+    pub quorum: Decimal256,
+    pub threshold: Decimal256,
     pub voting_period: u64,
     pub timelock_period: u64,
     pub proposal_deposit: Uint128,

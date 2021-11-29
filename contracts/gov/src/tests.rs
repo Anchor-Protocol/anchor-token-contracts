@@ -12,10 +12,11 @@ use anchor_token::gov::{
     PollStatus, PollsResponse, QueryMsg, StakerResponse, StakersResponse, VoteOption, VoterInfo,
     VotersResponse, VotersResponseItem,
 };
+use cosmwasm_bignumber::Decimal256;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    attr, coins, from_binary, to_binary, Addr, Api, CanonicalAddr, ContractResult, CosmosMsg,
-    Decimal, Deps, DepsMut, Env, Reply, Response, StdError, SubMsg, Timestamp, Uint128, WasmMsg,
+    attr, coins, from_binary, to_binary, Addr, Api, CanonicalAddr, ContractResult, CosmosMsg, Deps,
+    DepsMut, Env, Reply, Response, StdError, SubMsg, Timestamp, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use terraswap::querier::query_token_balance;
@@ -35,8 +36,8 @@ const DEFAULT_PROPOSAL_DEPOSIT: u128 = 10000000000u128;
 
 fn mock_instantiate(deps: DepsMut) {
     let msg = InstantiateMsg {
-        quorum: Decimal::percent(DEFAULT_QUORUM),
-        threshold: Decimal::percent(DEFAULT_THRESHOLD),
+        quorum: Decimal256::percent(DEFAULT_QUORUM),
+        threshold: Decimal256::percent(DEFAULT_THRESHOLD),
         voting_period: DEFAULT_VOTING_PERIOD,
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
         proposal_deposit: Uint128::from(DEFAULT_PROPOSAL_DEPOSIT),
@@ -66,8 +67,8 @@ fn mock_env_time(height: u64, time: u64) -> Env {
 
 fn instantiate_msg() -> InstantiateMsg {
     InstantiateMsg {
-        quorum: Decimal::percent(DEFAULT_QUORUM),
-        threshold: Decimal::percent(DEFAULT_THRESHOLD),
+        quorum: Decimal256::percent(DEFAULT_QUORUM),
+        threshold: Decimal256::percent(DEFAULT_THRESHOLD),
         voting_period: DEFAULT_VOTING_PERIOD,
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
         proposal_deposit: Uint128::from(DEFAULT_PROPOSAL_DEPOSIT),
@@ -90,8 +91,8 @@ fn proper_initialization() {
         Config {
             anchor_token: CanonicalAddr::from(vec![]),
             owner: deps.api.addr_canonicalize(TEST_CREATOR).unwrap(),
-            quorum: Decimal::percent(DEFAULT_QUORUM),
-            threshold: Decimal::percent(DEFAULT_THRESHOLD),
+            quorum: Decimal256::percent(DEFAULT_QUORUM),
+            threshold: Decimal256::percent(DEFAULT_THRESHOLD),
             voting_period: DEFAULT_VOTING_PERIOD,
             timelock_period: DEFAULT_TIMELOCK_PERIOD,
             expiration_period: 0u64, // Deprecated
@@ -142,8 +143,8 @@ fn fails_init_invalid_quorum() {
     let mut deps = mock_dependencies(&[]);
     let info = mock_info("voter", &coins(11, VOTING_TOKEN));
     let msg = InstantiateMsg {
-        quorum: Decimal::percent(101),
-        threshold: Decimal::percent(DEFAULT_THRESHOLD),
+        quorum: Decimal256::percent(101),
+        threshold: Decimal256::percent(DEFAULT_THRESHOLD),
         voting_period: DEFAULT_VOTING_PERIOD,
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
         proposal_deposit: Uint128::from(DEFAULT_PROPOSAL_DEPOSIT),
@@ -166,8 +167,8 @@ fn fails_init_invalid_threshold() {
     let mut deps = mock_dependencies(&[]);
     let info = mock_info("voter", &coins(11, VOTING_TOKEN));
     let msg = InstantiateMsg {
-        quorum: Decimal::percent(DEFAULT_QUORUM),
-        threshold: Decimal::percent(101),
+        quorum: Decimal256::percent(DEFAULT_QUORUM),
+        threshold: Decimal256::percent(101),
         voting_period: DEFAULT_VOTING_PERIOD,
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
         proposal_deposit: Uint128::from(DEFAULT_PROPOSAL_DEPOSIT),
@@ -190,8 +191,8 @@ fn fails_contract_already_registered() {
     let mut deps = mock_dependencies(&[]);
     let info = mock_info("voter", &coins(11, VOTING_TOKEN));
     let msg = InstantiateMsg {
-        quorum: Decimal::percent(DEFAULT_QUORUM),
-        threshold: Decimal::percent(DEFAULT_THRESHOLD),
+        quorum: Decimal256::percent(DEFAULT_QUORUM),
+        threshold: Decimal256::percent(DEFAULT_THRESHOLD),
         voting_period: DEFAULT_VOTING_PERIOD,
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
         proposal_deposit: Uint128::from(DEFAULT_PROPOSAL_DEPOSIT),
@@ -2511,8 +2512,8 @@ fn update_config() {
     let res = query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap();
     let config: ConfigResponse = from_binary(&res).unwrap();
     assert_eq!("addr0001", config.owner.as_str());
-    assert_eq!(Decimal::percent(DEFAULT_QUORUM), config.quorum);
-    assert_eq!(Decimal::percent(DEFAULT_THRESHOLD), config.threshold);
+    assert_eq!(Decimal256::percent(DEFAULT_QUORUM), config.quorum);
+    assert_eq!(Decimal256::percent(DEFAULT_THRESHOLD), config.threshold);
     assert_eq!(DEFAULT_VOTING_PERIOD, config.voting_period);
     assert_eq!(DEFAULT_TIMELOCK_PERIOD, config.timelock_period);
     assert_eq!(DEFAULT_PROPOSAL_DEPOSIT, config.proposal_deposit.u128());
@@ -2521,8 +2522,8 @@ fn update_config() {
     let info = mock_info("addr0001", &[]);
     let msg = ExecuteMsg::UpdateConfig {
         owner: None,
-        quorum: Some(Decimal::percent(20)),
-        threshold: Some(Decimal::percent(75)),
+        quorum: Some(Decimal256::percent(20)),
+        threshold: Some(Decimal256::percent(75)),
         voting_period: Some(20000u64),
         timelock_period: Some(20000u64),
         proposal_deposit: Some(Uint128::from(123u128)),
@@ -2536,8 +2537,8 @@ fn update_config() {
     let res = query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap();
     let config: ConfigResponse = from_binary(&res).unwrap();
     assert_eq!("addr0001", config.owner.as_str());
-    assert_eq!(Decimal::percent(20), config.quorum);
-    assert_eq!(Decimal::percent(75), config.threshold);
+    assert_eq!(Decimal256::percent(20), config.quorum);
+    assert_eq!(Decimal256::percent(75), config.threshold);
     assert_eq!(20000u64, config.voting_period);
     assert_eq!(20000u64, config.timelock_period);
     assert_eq!(123u128, config.proposal_deposit.u128());
