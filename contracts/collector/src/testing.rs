@@ -19,7 +19,6 @@ fn proper_initialization() {
         terraswap_factory: "terraswapfactory".to_string(),
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
-        distributor_contract: "distributor".to_string(),
         reward_factor: Decimal256::percent(90),
     };
 
@@ -41,7 +40,6 @@ fn update_config() {
         terraswap_factory: "terraswapfactory".to_string(),
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
-        distributor_contract: "distributor".to_string(),
         reward_factor: Decimal256::percent(90),
     };
 
@@ -93,7 +91,6 @@ fn test_sweep() {
         terraswap_factory: "terraswapfactory".to_string(),
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
-        distributor_contract: "distributor".to_string(),
         reward_factor: Decimal256::percent(90),
     };
 
@@ -150,7 +147,6 @@ fn test_distribute() {
         terraswap_factory: "terraswapfactory".to_string(),
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
-        distributor_contract: "distributor".to_string(),
         reward_factor: Decimal256::percent(90),
     };
 

@@ -8,7 +8,6 @@ pub struct InstantiateMsg {
     pub gov_contract: String, // collected rewards receiver
     pub terraswap_factory: String,
     pub anchor_token: String,
-    pub distributor_contract: String,
     pub reward_factor: Decimal256,
 }
 
@@ -36,7 +35,6 @@ pub struct ConfigResponse {
     pub gov_contract: String, // collected rewards receiver
     pub terraswap_factory: String,
     pub anchor_token: String,
-    pub distributor_contract: String,
     pub reward_factor: Decimal256,
 }
 

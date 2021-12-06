@@ -5,14 +5,13 @@ use cosmwasm_bignumber::Decimal256;
 use cosmwasm_std::{CanonicalAddr, StdResult, Storage};
 use cosmwasm_storage::{singleton, singleton_read};
 
-static KEY_CONFIG: &[u8] = b"config";
+pub static KEY_CONFIG: &[u8] = b"config";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    pub gov_contract: CanonicalAddr,         // collected rewards receiver
-    pub terraswap_factory: CanonicalAddr,    // terraswap factory contract
-    pub anchor_token: CanonicalAddr,         // anchor token address
-    pub distributor_contract: CanonicalAddr, // distributor contract to sent back rewards
+    pub gov_contract: CanonicalAddr,      // collected rewards receiver
+    pub terraswap_factory: CanonicalAddr, // terraswap factory contract
+    pub anchor_token: CanonicalAddr,      // anchor token address
     pub reward_factor: Decimal256, // reward distribution rate to gov contract, left rewards sent back to distributor contract
 }
 

@@ -8,6 +8,7 @@ use cosmwasm_std::{
 
 use crate::state::{read_config, store_config, Config};
 
+use crate::migration::migrate_config;
 use anchor_token::collector::{ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use cw20::Cw20ExecuteMsg;
@@ -29,7 +30,6 @@ pub fn instantiate(
             gov_contract: deps.api.addr_canonicalize(&msg.gov_contract)?,
             terraswap_factory: deps.api.addr_canonicalize(&msg.terraswap_factory)?,
             anchor_token: deps.api.addr_canonicalize(&msg.anchor_token)?,
-            distributor_contract: deps.api.addr_canonicalize(&msg.distributor_contract)?,
             reward_factor: msg.reward_factor,
         },
     )?;
@@ -200,10 +200,6 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
             .addr_humanize(&state.terraswap_factory)?
             .to_string(),
         anchor_token: deps.api.addr_humanize(&state.anchor_token)?.to_string(),
-        distributor_contract: deps
-            .api
-            .addr_humanize(&state.distributor_contract)?
-            .to_string(),
         reward_factor: state.reward_factor,
     };
 
@@ -211,6 +207,52 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    // migrate the legacy config
+    migrate_config(deps.storage)?;
     Ok(Response::default())
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::Api;
+
+    #[test]
+    fn proper_migrate() {
+        let mut deps = mock_dependencies(&[]);
+
+        // init the contract
+        let init_msg = InstantiateMsg {
+            gov_contract: "gov".to_string(),
+            terraswap_factory: "factory".to_string(),
+            anchor_token: "token".to_string(),
+            reward_factor: Default::default(),
+        };
+
+        let info = mock_info("sender", &[Coin::new(1000000, "uusd")]);
+        let res = instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
+        assert_eq!(0, res.messages.len());
+
+        // migrate
+        let migrate_msg = MigrateMsg {};
+        let res = migrate(deps.as_mut(), mock_env(), migrate_msg).unwrap();
+        assert_eq!(res, Response::default());
+
+        let config = read_config(&deps.storage).unwrap();
+        assert_eq!(
+            deps.api.addr_humanize(&config.gov_contract).unwrap(),
+            "gov".to_string()
+        );
+        assert_eq!(
+            deps.api.addr_humanize(&config.terraswap_factory).unwrap(),
+            "factory".to_string()
+        );
+        assert_eq!(
+            deps.api.addr_humanize(&config.anchor_token).unwrap(),
+            "token".to_string()
+        );
+        assert_eq!(config.reward_factor, Default::default());
+    }
 }
