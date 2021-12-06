@@ -1,15 +1,16 @@
-use cosmwasm_std::{Binary, Decimal, Uint128};
+use cosmwasm_std::{Binary, Uint128};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use crate::common::OrderBy;
+use cosmwasm_bignumber::Decimal256;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub quorum: Decimal,
-    pub threshold: Decimal,
+    pub quorum: Decimal256,
+    pub threshold: Decimal256,
     pub voting_period: u64,
     pub timelock_period: u64,
     pub proposal_deposit: Uint128,
@@ -28,8 +29,8 @@ pub enum ExecuteMsg {
     },
     UpdateConfig {
         owner: Option<String>,
-        quorum: Option<Decimal>,
-        threshold: Option<Decimal>,
+        quorum: Option<Decimal256>,
+        threshold: Option<Decimal256>,
         voting_period: Option<u64>,
         timelock_period: Option<u64>,
         proposal_deposit: Option<Uint128>,
@@ -85,6 +86,11 @@ pub enum QueryMsg {
     Staker {
         address: String,
     },
+    Stakers {
+        start_after: Option<String>,
+        limit: Option<u32>,
+        order_by: Option<OrderBy>,
+    },
     Poll {
         poll_id: u64,
     },
@@ -106,8 +112,8 @@ pub enum QueryMsg {
 pub struct ConfigResponse {
     pub owner: String,
     pub anchor_token: String,
-    pub quorum: Decimal,
-    pub threshold: Decimal,
+    pub quorum: Decimal256,
+    pub threshold: Decimal256,
     pub voting_period: u64,
     pub timelock_period: u64,
     pub proposal_deposit: Uint128,
@@ -126,7 +132,7 @@ pub struct PollResponse {
     pub id: u64,
     pub creator: String,
     pub status: PollStatus,
-    pub end_height: u64,
+    pub end_time: u64,
     pub title: String,
     pub description: String,
     pub link: Option<String>,
@@ -150,9 +156,15 @@ pub struct PollCountResponse {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct StakerResponse {
+    pub staker: String,
     pub balance: Uint128,
     pub share: Uint128,
     pub locked_balance: Vec<(u64, VoterInfo)>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+pub struct StakersResponse {
+    pub stakers: Vec<StakerResponse>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -205,4 +217,13 @@ impl fmt::Display for VoteOption {
             write!(f, "no")
         }
     }
+}
+
+// struct for migration
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {
+    // change to the time-based value
+    pub voting_period: u64,
+    pub timelock_period: u64,
+    pub snapshot_period: u64,
 }

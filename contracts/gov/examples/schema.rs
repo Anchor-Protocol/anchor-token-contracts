@@ -3,7 +3,8 @@ use std::env::current_dir;
 use std::fs::create_dir_all;
 
 use anchor_token::gov::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, PollResponse, QueryMsg, StakerResponse,
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, PollResponse, QueryMsg,
+    StakerResponse, StakersResponse,
 };
 
 fn main() {
@@ -17,6 +18,7 @@ fn main() {
     export_schema(&schema_for!(Cw20HookMsg), &out_dir);
     export_schema(&schema_for!(QueryMsg), &out_dir);
     export_schema(&schema_for!(StakerResponse), &out_dir);
+    export_schema(&schema_for!(StakersResponse), &out_dir);
     export_schema(&schema_for!(ConfigResponse), &out_dir);
     export_schema(&schema_for!(PollResponse), &out_dir);
 }

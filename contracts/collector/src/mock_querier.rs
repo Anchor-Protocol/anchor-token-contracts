@@ -10,6 +10,7 @@ use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20QueryMsg};
 
 use std::collections::HashMap;
 
+use cosmwasm_bignumber::Decimal256;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
 use terraswap::asset::{AssetInfo, PairInfo};
 
@@ -237,8 +238,8 @@ impl WasmMockQuerier {
     }
 
     // configure the token owner mock querier
-    pub fn with_tax(&mut self, rate: Decimal, caps: &[(&String, &Uint128)]) {
-        self.tax_querier = TaxQuerier::new(rate, caps);
+    pub fn with_tax(&mut self, rate: Decimal256, caps: &[(&String, &Uint128)]) {
+        self.tax_querier = TaxQuerier::new(rate.into(), caps);
     }
 
     // configure the terraswap pair

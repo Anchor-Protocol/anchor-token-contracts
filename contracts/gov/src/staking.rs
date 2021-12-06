@@ -1,10 +1,11 @@
 use crate::error::ContractError;
 use crate::state::{
-    bank_read, bank_store, config_read, config_store, poll_read, poll_voter_store, state_read,
-    state_store, Config, Poll, State, TokenManager,
+    bank_read, bank_store, config_read, config_store, poll_read, poll_voter_store, read_stakers,
+    state_read, state_store, Config, Poll, State, TokenManager,
 };
 
-use anchor_token::gov::{PollStatus, StakerResponse};
+use anchor_token::common::OrderBy;
+use anchor_token::gov::{PollStatus, StakerResponse, StakersResponse};
 use cosmwasm_std::{
     to_binary, Addr, CanonicalAddr, CosmosMsg, Deps, DepsMut, MessageInfo, Response, StdResult,
     Storage, Uint128, WasmMsg,
@@ -192,6 +193,7 @@ pub fn query_staker(deps: Deps, address: String) -> StdResult<StakerResponse> {
     .checked_sub(state.total_deposit)?;
 
     Ok(StakerResponse {
+        staker: address,
         balance: if !state.total_share.is_zero() {
             token_manager
                 .share
@@ -201,5 +203,72 @@ pub fn query_staker(deps: Deps, address: String) -> StdResult<StakerResponse> {
         },
         share: token_manager.share,
         locked_balance: token_manager.locked_balance,
+    })
+}
+
+pub fn query_stakers(
+    deps: Deps,
+    start_after: Option<String>,
+    limit: Option<u32>,
+    order_by: Option<OrderBy>,
+) -> StdResult<StakersResponse> {
+    let config: Config = config_read(deps.storage).load()?;
+    let state: State = state_read(deps.storage).load()?;
+
+    let token_managers = if let Some(start_after) = start_after {
+        read_stakers(
+            deps.storage,
+            Some(deps.api.addr_canonicalize(&start_after)?),
+            limit,
+            order_by,
+        )?
+    } else {
+        read_stakers(deps.storage, None, limit, order_by)?
+    };
+    // filter out not in-progress polls
+    let stakers_response: StdResult<Vec<StakerResponse>> = token_managers
+        .iter()
+        .map(|token_manager| {
+            token_manager
+                .clone()
+                .1
+                .locked_balance
+                .retain(|(poll_id, _)| {
+                    let poll: Poll = poll_read(deps.storage)
+                        .load(&poll_id.to_be_bytes())
+                        .unwrap();
+
+                    poll.status == PollStatus::InProgress
+                });
+
+            let total_balance = query_token_balance(
+                &deps.querier,
+                deps.api.addr_humanize(&config.anchor_token)?,
+                deps.api.addr_humanize(&state.contract_addr)?,
+            )?
+            .checked_sub(state.total_deposit)?;
+
+            Ok(StakerResponse {
+                staker: deps
+                    .api
+                    .addr_humanize(&token_manager.0)
+                    .unwrap()
+                    .into_string(),
+                balance: if !state.total_share.is_zero() {
+                    token_manager
+                        .1
+                        .share
+                        .multiply_ratio(total_balance, state.total_share)
+                } else {
+                    Uint128::zero()
+                },
+                share: token_manager.1.share,
+                locked_balance: token_manager.clone().1.locked_balance,
+            })
+        })
+        .collect();
+
+    Ok(StakersResponse {
+        stakers: stakers_response?,
     })
 }

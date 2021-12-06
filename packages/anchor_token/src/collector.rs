@@ -1,15 +1,14 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::Decimal;
+use cosmwasm_bignumber::Decimal256;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub gov_contract: String, // collected rewards receiver
     pub terraswap_factory: String,
     pub anchor_token: String,
-    pub distributor_contract: String,
-    pub reward_factor: Decimal,
+    pub reward_factor: Decimal256,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -17,7 +16,7 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     /// Update config interface
     /// to enable reward_factor update
-    UpdateConfig { reward_factor: Option<Decimal> },
+    UpdateConfig { reward_factor: Option<Decimal256> },
     /// Public Message
     /// Sweep all given denom balance to ANC token
     /// and execute Distribute message
@@ -36,8 +35,7 @@ pub struct ConfigResponse {
     pub gov_contract: String, // collected rewards receiver
     pub terraswap_factory: String,
     pub anchor_token: String,
-    pub distributor_contract: String,
-    pub reward_factor: Decimal,
+    pub reward_factor: Decimal256,
 }
 
 /// We currently take no arguments for migrations

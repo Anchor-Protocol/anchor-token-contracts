@@ -1,5 +1,5 @@
 use crate::error::ContractError;
-use crate::staking::{query_staker, stake_voting_tokens, withdraw_voting_tokens};
+use crate::staking::{query_staker, query_stakers, stake_voting_tokens, withdraw_voting_tokens};
 use crate::state::{
     bank_read, bank_store, config_read, config_store, poll_indexer_store, poll_read, poll_store,
     poll_voter_read, poll_voter_store, read_poll_voters, read_polls, read_tmp_poll_id, state_read,
@@ -9,7 +9,7 @@ use crate::state::{
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    attr, from_binary, to_binary, Binary, CanonicalAddr, CosmosMsg, Deps, DepsMut, Env,
     MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -17,10 +17,11 @@ use terraswap::querier::query_token_balance;
 
 use anchor_token::common::OrderBy;
 use anchor_token::gov::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, PollExecuteMsg, PollResponse,
-    PollStatus, PollsResponse, QueryMsg, StateResponse, VoteOption, VoterInfo, VotersResponse,
-    VotersResponseItem,
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PollExecuteMsg,
+    PollResponse, PollStatus, PollsResponse, QueryMsg, StateResponse, VoteOption, VoterInfo,
+    VotersResponse, VotersResponseItem,
 };
+use cosmwasm_bignumber::Decimal256;
 
 const MIN_TITLE_LENGTH: usize = 4;
 const MAX_TITLE_LENGTH: usize = 64;
@@ -172,8 +173,8 @@ pub fn update_config(
     deps: DepsMut,
     info: MessageInfo,
     owner: Option<String>,
-    quorum: Option<Decimal>,
-    threshold: Option<Decimal>,
+    quorum: Option<Decimal256>,
+    threshold: Option<Decimal256>,
     voting_period: Option<u64>,
     timelock_period: Option<u64>,
     proposal_deposit: Option<Uint128>,
@@ -258,8 +259,8 @@ fn validate_link(link: &Option<String>) -> StdResult<()> {
 
 /// validate_quorum returns an error if the quorum is invalid
 /// (we require 0-1)
-fn validate_quorum(quorum: Decimal) -> StdResult<()> {
-    if quorum > Decimal::one() {
+fn validate_quorum(quorum: Decimal256) -> StdResult<()> {
+    if quorum > Decimal256::one() {
         Err(StdError::generic_err("quorum must be 0 to 1"))
     } else {
         Ok(())
@@ -268,8 +269,8 @@ fn validate_quorum(quorum: Decimal) -> StdResult<()> {
 
 /// validate_threshold returns an error if the threshold is invalid
 /// (we require 0-1)
-fn validate_threshold(threshold: Decimal) -> StdResult<()> {
-    if threshold > Decimal::one() {
+fn validate_threshold(threshold: Decimal256) -> StdResult<()> {
+    if threshold > Decimal256::one() {
         Err(StdError::generic_err("threshold must be 0 to 1"))
     } else {
         Ok(())
@@ -328,7 +329,7 @@ pub fn create_poll(
         status: PollStatus::InProgress,
         yes_votes: Uint128::zero(),
         no_votes: Uint128::zero(),
-        end_height: env.block.height + config.voting_period,
+        end_time: env.block.time.seconds() + config.voting_period,
         title,
         description,
         link,
@@ -354,7 +355,7 @@ pub fn create_poll(
                 .as_str(),
         ),
         ("poll_id", &poll_id.to_string()),
-        ("end_height", new_poll.end_height.to_string().as_str()),
+        ("end_time", new_poll.end_time.to_string().as_str()),
     ]))
 }
 
@@ -368,7 +369,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, Contr
         return Err(ContractError::PollNotInProgress {});
     }
 
-    if a_poll.end_height > env.block.height {
+    if a_poll.end_time > env.block.time.seconds() {
         return Err(ContractError::PollVotingPeriod {});
     }
 
@@ -386,10 +387,10 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, Contr
     let mut state: State = state_read(deps.storage).load()?;
 
     let (quorum, staked_weight) = if state.total_share.u128() == 0 {
-        (Decimal::zero(), Uint128::zero())
+        (Decimal256::zero(), Uint128::zero())
     } else if let Some(staked_amount) = a_poll.staked_amount {
         (
-            Decimal::from_ratio(tallied_weight, staked_amount),
+            Decimal256::from_ratio(tallied_weight as u64, staked_amount.u128() as u64),
             staked_amount,
         )
     } else {
@@ -401,7 +402,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, Contr
         .checked_sub(state.total_deposit)?;
 
         (
-            Decimal::from_ratio(tallied_weight, staked_weight),
+            Decimal256::from_ratio(tallied_weight as u64, staked_weight.u128() as u64),
             staked_weight,
         )
     };
@@ -411,7 +412,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, Contr
         // period need to have participated in the vote.
         rejected_reason = "Quorum not reached";
     } else {
-        if Decimal::from_ratio(yes, tallied_weight) > config.threshold {
+        if Decimal256::from_ratio(yes as u64, tallied_weight as u64) > config.threshold {
             //Threshold: More than 50% of the tokens that participated in the vote
             // (after excluding “Abstain” votes) need to have voted in favor of the proposal (“Yes”).
             poll_status = PollStatus::Passed;
@@ -465,7 +466,7 @@ pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, C
         return Err(ContractError::PollNotPassed {});
     }
 
-    if a_poll.end_height + config.timelock_period > env.block.height {
+    if a_poll.end_time + config.timelock_period > env.block.time.seconds() {
         return Err(ContractError::TimelockNotExpired {});
     }
 
@@ -548,10 +549,10 @@ pub fn snapshot_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, 
         return Err(ContractError::PollNotInProgress {});
     }
 
-    let time_to_end = a_poll.end_height - env.block.height;
+    let time_to_end = a_poll.end_time - env.block.time.seconds();
 
     if time_to_end > config.snapshot_period {
-        return Err(ContractError::SnapshotHeight {});
+        return Err(ContractError::SnapshotTime {});
     }
 
     if a_poll.staked_amount.is_some() {
@@ -595,7 +596,7 @@ pub fn cast_vote(
     }
 
     let mut a_poll: Poll = poll_store(deps.storage).load(&poll_id.to_be_bytes())?;
-    if a_poll.status != PollStatus::InProgress || env.block.height > a_poll.end_height {
+    if a_poll.status != PollStatus::InProgress || env.block.time.seconds() > a_poll.end_time {
         return Err(ContractError::PollNotInProgress {});
     }
 
@@ -647,7 +648,7 @@ pub fn cast_vote(
     poll_voter_store(deps.storage, poll_id).save(sender_address_raw.as_slice(), &vote_info)?;
 
     // processing snapshot
-    let time_to_end = a_poll.end_height - env.block.height;
+    let time_to_end = a_poll.end_time - env.block.time.seconds();
 
     if time_to_end < config.snapshot_period && a_poll.staked_amount.is_none() {
         a_poll.staked_amount = Some(total_balance);
@@ -670,6 +671,16 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
         QueryMsg::State {} => Ok(to_binary(&query_state(deps)?)?),
         QueryMsg::Staker { address } => Ok(to_binary(&query_staker(deps, address)?)?),
+        QueryMsg::Stakers {
+            start_after,
+            limit,
+            order_by,
+        } => Ok(to_binary(&query_stakers(
+            deps,
+            start_after,
+            limit,
+            order_by,
+        )?)?),
         QueryMsg::Poll { poll_id } => Ok(to_binary(&query_poll(deps, poll_id)?)?),
         QueryMsg::Polls {
             filter,
@@ -734,7 +745,7 @@ fn query_poll(deps: Deps, poll_id: u64) -> Result<PollResponse, ContractError> {
         id: poll.id,
         creator: deps.api.addr_humanize(&poll.creator)?.to_string(),
         status: poll.status,
-        end_height: poll.end_height,
+        end_time: poll.end_time,
         title: poll.title,
         description: poll.description,
         link: poll.link,
@@ -775,7 +786,7 @@ fn query_polls(
                 id: poll.id,
                 creator: deps.api.addr_humanize(&poll.creator)?.to_string(),
                 status: poll.status.clone(),
-                end_height: poll.end_height,
+                end_time: poll.end_time,
                 title: poll.title.to_string(),
                 description: poll.description.to_string(),
                 link: poll.link.clone(),
@@ -849,4 +860,60 @@ fn query_voters(
     Ok(VotersResponse {
         voters: voters_response?,
     })
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+    // read and store the new config values
+    let mut config: Config = config_read(deps.storage).load().unwrap();
+    config.voting_period = msg.voting_period;
+    config.timelock_period = msg.timelock_period;
+    config.snapshot_period = msg.snapshot_period;
+
+    config_store(deps.storage).save(&config)?;
+
+    Ok(Response::default())
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+
+    #[test]
+    fn proper_migrate() {
+        let mut deps = mock_dependencies(&[]);
+
+        // init the contract
+        let init_msg = InstantiateMsg {
+            quorum: Default::default(),
+            threshold: Default::default(),
+            voting_period: 0,
+            timelock_period: 0,
+            proposal_deposit: Default::default(),
+            snapshot_period: 0,
+        };
+
+        let info = mock_info("sender", &[]);
+        let res = instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
+        assert_eq!(0, res.messages.len());
+
+        let voting_period = 100u64;
+        let timelock_period = 10u64;
+        let snapshot_period = 10u64;
+
+        // migrate
+        let migrate_msg = MigrateMsg {
+            voting_period,
+            timelock_period,
+            snapshot_period,
+        };
+        let res = migrate(deps.as_mut(), mock_env(), migrate_msg).unwrap();
+        assert_eq!(res, Response::default());
+
+        let config = config_read(&deps.storage).load().unwrap();
+        assert_eq!(config.voting_period, voting_period);
+        assert_eq!(config.timelock_period, timelock_period);
+        assert_eq!(config.snapshot_period, snapshot_period);
+    }
 }

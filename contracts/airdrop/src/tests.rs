@@ -15,6 +15,7 @@ fn proper_initialization() {
     let msg = InstantiateMsg {
         owner: "owner0000".to_string(),
         anchor_token: "anchor0000".to_string(),
+        gov_contract: "gov_contract".to_string(),
     };
 
     let info = mock_info("addr0000", &[]);
@@ -40,6 +41,7 @@ fn update_config() {
     let msg = InstantiateMsg {
         owner: "owner0000".to_string(),
         anchor_token: "anchor0000".to_string(),
+        gov_contract: "gov_contract".to_string(),
     };
 
     let info = mock_info("addr0000", &[]);
@@ -77,6 +79,7 @@ fn register_merkle_root() {
     let msg = InstantiateMsg {
         owner: "owner0000".to_string(),
         anchor_token: "anchor0000".to_string(),
+        gov_contract: "gov_contract".to_string(),
     };
 
     let info = mock_info("addr0000", &[]);
@@ -127,6 +130,7 @@ fn claim() {
     let msg = InstantiateMsg {
         owner: "owner0000".to_string(),
         anchor_token: "anchor0000".to_string(),
+        gov_contract: "gov_contract".to_string(),
     };
 
     let info = mock_info("addr0000", &[]);
@@ -239,5 +243,49 @@ fn claim() {
             attr("address", "terra1qfqa2eu9wp272ha93lj4yhcenrc6ymng079nu8"),
             attr("amount", "2000001")
         ]
+    );
+}
+
+#[test]
+fn proper_withdraw() {
+    let mut deps = mock_dependencies(&[]);
+
+    let msg = InstantiateMsg {
+        owner: "owner0000".to_string(),
+        anchor_token: "anchor0000".to_string(),
+        gov_contract: "gov_contract".to_string(),
+    };
+
+    let info = mock_info("addr0000", &[]);
+    let _res = instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+
+    // withdraw
+    let amount = Uint128::new(1000000);
+    let withdraw_msg = ExecuteMsg::Withdraw {
+        recipient: "community".to_string(),
+        amount,
+    };
+
+    //failed execution
+    let res = execute(deps.as_mut(), mock_env(), info, withdraw_msg.clone());
+    match res {
+        Err(ContractError::Unauthorized {}) => {}
+        _ => panic!("Must return unauthorized error"),
+    }
+
+    let info = mock_info("gov_contract", &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, withdraw_msg).unwrap();
+    assert_eq!(res.messages.len(), 1);
+    assert_eq!(
+        res.messages,
+        vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: "anchor0000".to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: "community".to_string(),
+                amount,
+            })
+            .unwrap(),
+            funds: vec![]
+        }))]
     );
 }

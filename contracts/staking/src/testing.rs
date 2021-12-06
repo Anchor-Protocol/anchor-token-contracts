@@ -40,14 +40,14 @@ fn proper_initialization() {
     let res = query(
         deps.as_ref(),
         mock_env(),
-        QueryMsg::State { block_height: None },
+        QueryMsg::State { block_time: None },
     )
     .unwrap();
     let state: StateResponse = from_binary(&res).unwrap();
     assert_eq!(
         state,
         StateResponse {
-            last_distributed: 12345,
+            last_distributed: mock_env().block.time.seconds(),
             total_bond_amount: Uint128::zero(),
             global_reward_index: Decimal::zero(),
         }
@@ -62,8 +62,16 @@ fn test_bond_tokens() {
         anchor_token: "reward0000".to_string(),
         staking_token: "staking0000".to_string(),
         distribution_schedule: vec![
-            (12345, 12345 + 100, Uint128::from(1000000u128)),
-            (12345 + 100, 12345 + 200, Uint128::from(10000000u128)),
+            (
+                mock_env().block.time.seconds(),
+                mock_env().block.time.seconds() + 100,
+                Uint128::from(1000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 100,
+                mock_env().block.time.seconds() + 200,
+                Uint128::from(10000000u128),
+            ),
         ],
     };
 
@@ -87,7 +95,7 @@ fn test_bond_tokens() {
                 mock_env(),
                 QueryMsg::StakerInfo {
                     staker: "addr0000".to_string(),
-                    block_height: None,
+                    block_time: None,
                 },
             )
             .unwrap(),
@@ -106,7 +114,7 @@ fn test_bond_tokens() {
             &query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::State { block_height: None }
+                QueryMsg::State { block_time: None }
             )
             .unwrap()
         )
@@ -114,7 +122,7 @@ fn test_bond_tokens() {
         StateResponse {
             total_bond_amount: Uint128::from(100u128),
             global_reward_index: Decimal::zero(),
-            last_distributed: 12345,
+            last_distributed: mock_env().block.time.seconds(),
         }
     );
 
@@ -124,7 +132,7 @@ fn test_bond_tokens() {
         amount: Uint128::from(100u128),
         msg: to_binary(&Cw20HookMsg::Bond {}).unwrap(),
     });
-    env.block.height += 10;
+    env.block.time = env.block.time.plus_seconds(10);
 
     let _res = execute(deps.as_mut(), env, info, msg).unwrap();
 
@@ -135,7 +143,7 @@ fn test_bond_tokens() {
                 mock_env(),
                 QueryMsg::StakerInfo {
                     staker: "addr0000".to_string(),
-                    block_height: None,
+                    block_time: None,
                 },
             )
             .unwrap(),
@@ -154,7 +162,7 @@ fn test_bond_tokens() {
             &query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::State { block_height: None }
+                QueryMsg::State { block_time: None }
             )
             .unwrap()
         )
@@ -162,7 +170,7 @@ fn test_bond_tokens() {
         StateResponse {
             total_bond_amount: Uint128::from(200u128),
             global_reward_index: Decimal::from_ratio(1000u128, 1u128),
-            last_distributed: 12345 + 10,
+            last_distributed: mock_env().block.time.seconds() + 10,
         }
     );
 
@@ -249,8 +257,16 @@ fn test_compute_reward() {
         anchor_token: "reward0000".to_string(),
         staking_token: "staking0000".to_string(),
         distribution_schedule: vec![
-            (12345, 12345 + 100, Uint128::from(1000000u128)),
-            (12345 + 100, 12345 + 200, Uint128::from(10000000u128)),
+            (
+                mock_env().block.time.seconds(),
+                mock_env().block.time.seconds() + 100,
+                Uint128::from(1000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 100,
+                mock_env().block.time.seconds() + 200,
+                Uint128::from(10000000u128),
+            ),
         ],
     };
 
@@ -267,9 +283,9 @@ fn test_compute_reward() {
     let mut env = mock_env();
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
-    // 100 blocks passed
+    // 100 seconds passed
     // 1,000,000 rewards distributed
-    env.block.height += 100;
+    env.block.time = env.block.time.plus_seconds(100);
 
     // bond 100 more tokens
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
@@ -286,7 +302,7 @@ fn test_compute_reward() {
                 mock_env(),
                 QueryMsg::StakerInfo {
                     staker: "addr0000".to_string(),
-                    block_height: None,
+                    block_time: None,
                 },
             )
             .unwrap()
@@ -300,9 +316,9 @@ fn test_compute_reward() {
         }
     );
 
-    // 100 blocks passed
+    // 100 seconds passed
     // 1,000,000 rewards distributed
-    env.block.height += 10;
+    env.block.time = env.block.time.plus_seconds(10);
     let info = mock_info("addr0000", &[]);
 
     // unbond
@@ -317,7 +333,7 @@ fn test_compute_reward() {
                 mock_env(),
                 QueryMsg::StakerInfo {
                     staker: "addr0000".to_string(),
-                    block_height: None,
+                    block_time: None,
                 },
             )
             .unwrap()
@@ -339,7 +355,7 @@ fn test_compute_reward() {
                 mock_env(),
                 QueryMsg::StakerInfo {
                     staker: "addr0000".to_string(),
-                    block_height: Some(12345 + 120),
+                    block_time: Some(mock_env().block.time.plus_seconds(120).seconds()),
                 },
             )
             .unwrap()
@@ -362,8 +378,16 @@ fn test_withdraw() {
         anchor_token: "reward0000".to_string(),
         staking_token: "staking0000".to_string(),
         distribution_schedule: vec![
-            (12345, 12345 + 100, Uint128::from(1000000u128)),
-            (12345 + 100, 12345 + 200, Uint128::from(10000000u128)),
+            (
+                mock_env().block.time.seconds(),
+                mock_env().block.time.seconds() + 100,
+                Uint128::from(1000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 100,
+                mock_env().block.time.seconds() + 200,
+                Uint128::from(10000000u128),
+            ),
         ],
     };
 
@@ -380,9 +404,10 @@ fn test_withdraw() {
     let mut env = mock_env();
     let _res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
-    // 100 blocks passed
+    // 100 seconds passed
     // 1,000,000 rewards distributed
-    env.block.height += 100;
+    env.block.time = env.block.time.plus_seconds(100);
+
     let info = mock_info("addr0000", &[]);
 
     let msg = ExecuteMsg::Withdraw {};
@@ -410,8 +435,16 @@ fn test_migrate_staking() {
         anchor_token: "reward0000".to_string(),
         staking_token: "staking0000".to_string(),
         distribution_schedule: vec![
-            (12345, 12345 + 100, Uint128::from(1000000u128)),
-            (12345 + 100, 12345 + 200, Uint128::from(10000000u128)),
+            (
+                mock_env().block.time.seconds(),
+                mock_env().block.time.seconds() + 100,
+                Uint128::from(1000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 100,
+                mock_env().block.time.seconds() + 200,
+                Uint128::from(10000000u128),
+            ),
         ],
     };
 
@@ -428,9 +461,9 @@ fn test_migrate_staking() {
     let mut env = mock_env();
     let _res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
-    // 100 blocks passed
+    // 100 seconds is passed
     // 1,000,000 rewards distributed
-    env.block.height += 100;
+    env.block.time = env.block.time.plus_seconds(100);
     let info = mock_info("addr0000", &[]);
 
     let msg = ExecuteMsg::Withdraw {};
@@ -449,8 +482,8 @@ fn test_migrate_staking() {
         }))]
     );
 
-    // execute migration after 50 blocks
-    env.block.height += 50;
+    // execute migration after 50 seconds
+    env.block.time = env.block.time.plus_seconds(50);
 
     deps.querier.with_anc_minter("gov0000".to_string());
 
@@ -501,8 +534,16 @@ fn test_migrate_staking() {
             anchor_token: "reward0000".to_string(),
             staking_token: "staking0000".to_string(),
             distribution_schedule: vec![
-                (12345, 12345 + 100, Uint128::from(1000000u128)),
-                (12345 + 100, 12345 + 150, Uint128::from(5000000u128)), // slot was modified
+                (
+                    mock_env().block.time.seconds(),
+                    mock_env().block.time.seconds() + 100,
+                    Uint128::from(1000000u128)
+                ),
+                (
+                    mock_env().block.time.seconds() + 100,
+                    mock_env().block.time.seconds() + 150,
+                    Uint128::from(5000000u128)
+                ), // slot was modified
             ]
         }
     );

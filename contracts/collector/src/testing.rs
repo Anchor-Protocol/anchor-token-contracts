@@ -1,9 +1,10 @@
 use crate::contract::{execute, instantiate, query_config, reply};
 use crate::mock_querier::mock_dependencies;
 use anchor_token::collector::{ConfigResponse, ExecuteMsg, InstantiateMsg};
+use cosmwasm_bignumber::Decimal256;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    to_binary, Coin, ContractResult, CosmosMsg, Decimal, Reply, ReplyOn, StdError, SubMsg,
+    to_binary, Coin, ContractResult, CosmosMsg, Reply, ReplyOn, StdError, SubMsg,
     SubMsgExecutionResponse, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
@@ -18,8 +19,7 @@ fn proper_initialization() {
         terraswap_factory: "terraswapfactory".to_string(),
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
-        distributor_contract: "distributor".to_string(),
-        reward_factor: Decimal::percent(90),
+        reward_factor: Decimal256::percent(90),
     };
 
     let info = mock_info("addr0000", &[]);
@@ -40,8 +40,7 @@ fn update_config() {
         terraswap_factory: "terraswapfactory".to_string(),
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
-        distributor_contract: "distributor".to_string(),
-        reward_factor: Decimal::percent(90),
+        reward_factor: Decimal256::percent(90),
     };
 
     let info = mock_info("addr0000", &[]);
@@ -50,7 +49,7 @@ fn update_config() {
     // update reward_factor
     let info = mock_info("gov", &[]);
     let msg = ExecuteMsg::UpdateConfig {
-        reward_factor: Some(Decimal::percent(80)),
+        reward_factor: Some(Decimal256::percent(80)),
     };
 
     let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -58,7 +57,7 @@ fn update_config() {
 
     // it worked, let's query the state
     let value = query_config(deps.as_ref()).unwrap();
-    assert_eq!(Decimal::percent(80), value.reward_factor);
+    assert_eq!(Decimal256::percent(80), value.reward_factor);
 
     // Unauthorized err
     let info = mock_info("addr0000", &[]);
@@ -81,7 +80,7 @@ fn test_sweep() {
     }]);
 
     deps.querier.with_tax(
-        Decimal::percent(1),
+        Decimal256::percent(1),
         &[(&"uusd".to_string(), &Uint128::from(1000000u128))],
     );
 
@@ -92,8 +91,7 @@ fn test_sweep() {
         terraswap_factory: "terraswapfactory".to_string(),
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
-        distributor_contract: "distributor".to_string(),
-        reward_factor: Decimal::percent(90),
+        reward_factor: Decimal256::percent(90),
     };
 
     let info = mock_info("addr0000", &[]);
@@ -149,8 +147,7 @@ fn test_distribute() {
         terraswap_factory: "terraswapfactory".to_string(),
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
-        distributor_contract: "distributor".to_string(),
-        reward_factor: Decimal::percent(90),
+        reward_factor: Decimal256::percent(90),
     };
 
     let info = mock_info("addr0000", &[]);
@@ -179,8 +176,7 @@ fn test_distribute() {
             })),
             SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: "tokenANC".to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: "distributor".to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Burn {
                     amount: Uint128::from(10u128),
                 })
                 .unwrap(),

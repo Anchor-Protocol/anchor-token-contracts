@@ -1,15 +1,20 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
-use crate::state::{read_config, store_config, Config};
+use crate::state::{read_config, read_state, store_config, store_state, Config, State};
 
 use cosmwasm_std::{
     to_binary, Binary, CanonicalAddr, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response,
     StdError, StdResult, Uint128, WasmMsg,
 };
 
-use anchor_token::distributor::{ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use anchor_token::distributor::{
+    ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, StateResponse,
+    TotalRewardsResponse,
+};
 
+use anchor_token::querier::query_token_balance;
+use cosmwasm_bignumber::Uint256;
 use cw20::Cw20ExecuteMsg;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -32,6 +37,13 @@ pub fn instantiate(
             anchor_token: deps.api.addr_canonicalize(&msg.anchor_token)?,
             whitelist,
             spend_limit: msg.spend_limit,
+        },
+    )?;
+
+    store_state(
+        deps.storage,
+        &State {
+            paid_rewards: Uint256::zero(),
         },
     )?;
 
@@ -144,6 +156,7 @@ pub fn spend(
     amount: Uint128,
 ) -> StdResult<Response> {
     let config: Config = read_config(deps.storage)?;
+    let mut state: State = read_state(deps.storage)?;
     let sender_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
 
     if !config.whitelist.into_iter().any(|w| w == sender_raw) {
@@ -153,6 +166,9 @@ pub fn spend(
     if config.spend_limit < amount {
         return Err(StdError::generic_err("Cannot spend more than spend_limit"));
     }
+
+    state.paid_rewards += amount.into();
+    store_state(deps.storage, &state)?;
 
     let anchor_token = deps.api.addr_humanize(&config.anchor_token)?.to_string();
     Ok(Response::new()
@@ -172,9 +188,11 @@ pub fn spend(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::State {} => to_binary(&query_state(deps)?),
+        QueryMsg::TotalRewards {} => to_binary(&query_initial_balance(deps, env)?),
     }
 }
 
@@ -197,7 +215,36 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     Ok(resp)
 }
 
+pub fn query_state(deps: Deps) -> StdResult<StateResponse> {
+    let state = read_state(deps.storage)?;
+    let res = StateResponse {
+        paid_rewards: state.paid_rewards,
+    };
+    Ok(res)
+}
+
+pub fn query_initial_balance(deps: Deps, env: Env) -> StdResult<TotalRewardsResponse> {
+    let state = read_state(deps.storage)?;
+    let config = read_config(deps.storage)?;
+    let balance = query_token_balance(
+        deps,
+        deps.api.addr_humanize(&config.anchor_token)?,
+        env.contract.address,
+    )?;
+
+    let res = TotalRewardsResponse {
+        total_rewards: state.paid_rewards + balance,
+    };
+    Ok(res)
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+    store_state(
+        deps.storage,
+        &State {
+            paid_rewards: msg.paid_rewards,
+        },
+    )?;
     Ok(Response::default())
 }
