@@ -58,6 +58,9 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::MigrateStaking {
             new_staking_contract,
         } => migrate_staking(deps, env, info, new_staking_contract),
+        ExecuteMsg::UpdateConfig {
+            distribution_schedule,
+        } => update_config(deps, env, info, distribution_schedule),
     }
 }
 
@@ -193,6 +196,66 @@ pub fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
             ("owner", info.sender.as_str()),
             ("amount", amount.to_string().as_str()),
         ]))
+}
+
+pub fn update_config(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    distribution_schedule: (u64, u64, Uint128),
+) -> StdResult<Response> {
+    // get gov address by querying anc token minter
+    let config: Config = read_config(deps.storage)?;
+    let state: State = read_state(deps.storage)?;
+
+    let sender_addr_raw: CanonicalAddr = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let anc_token: Addr = deps.api.addr_humanize(&config.anchor_token)?;
+    let gov_addr_raw: CanonicalAddr = deps
+        .api
+        .addr_canonicalize(&query_anc_minter(&deps.querier, anc_token)?)?;
+    if sender_addr_raw != gov_addr_raw {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    let mut new_distribution: Vec<(u64, u64, Uint128)> = vec![];
+    for s in config.distribution_schedule {
+        if distribution_schedule.0 > s.0 && distribution_schedule.1 < s.1 {
+            return Err(StdError::generic_err(
+                "cannot update the overlapped distribution",
+            ));
+        }
+        if s.0 == distribution_schedule.0 && distribution_schedule.1 != s.1 {
+            return Err(StdError::generic_err(
+                "cannot update the overlapped distribution",
+            ));
+        }
+        if s.0 != distribution_schedule.0 && distribution_schedule.1 == s.1 {
+            return Err(StdError::generic_err(
+                "cannot update the overlapped distribution",
+            ));
+        }
+        if distribution_schedule.0 <= state.last_distributed && state.last_distributed <= s.1 {
+            return Err(StdError::generic_err("cannot update the ongoing schedule"));
+        }
+        if distribution_schedule.0 <= state.last_distributed && state.last_distributed >= s.1 {
+            return Err(StdError::generic_err("cannot update a previous schedule"));
+        }
+        if s.0 == distribution_schedule.0 && distribution_schedule.1 == s.1 {
+            new_distribution.push(distribution_schedule);
+            continue;
+        }
+
+        new_distribution.push(s)
+    }
+
+    let new_config = Config {
+        anchor_token: config.anchor_token,
+        staking_token: config.staking_token,
+        distribution_schedule: new_distribution,
+    };
+    store_config(deps.storage, &new_config)?;
+
+    Ok(Response::new().add_attributes(vec![("action", "update_config")]))
 }
 
 pub fn migrate_staking(

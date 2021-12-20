@@ -25,6 +25,9 @@ pub enum ExecuteMsg {
     MigrateStaking {
         new_staking_contract: String,
     },
+    UpdateConfig {
+        distribution_schedule: (u64, u64, Uint128),
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

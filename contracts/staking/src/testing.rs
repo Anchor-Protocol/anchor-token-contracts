@@ -1,5 +1,6 @@
 use crate::contract::{execute, instantiate, query};
 use crate::mock_querier::mock_dependencies;
+use anchor_token::staking::ExecuteMsg::UpdateConfig;
 use anchor_token::staking::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, StakerInfoResponse,
     StateResponse,
@@ -546,5 +547,290 @@ fn test_migrate_staking() {
                 ), // slot was modified
             ]
         }
+    );
+}
+
+#[test]
+fn test_update_global_index() {
+    let mut deps = mock_dependencies(&[]);
+
+    let msg = InstantiateMsg {
+        anchor_token: "reward0000".to_string(),
+        staking_token: "staking0000".to_string(),
+        distribution_schedule: vec![
+            (
+                mock_env().block.time.seconds(),
+                mock_env().block.time.seconds() + 100,
+                Uint128::from(1000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 100,
+                mock_env().block.time.seconds() + 200,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 200,
+                mock_env().block.time.seconds() + 300,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 300,
+                mock_env().block.time.seconds() + 400,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 400,
+                mock_env().block.time.seconds() + 500,
+                Uint128::from(10000000u128),
+            ),
+        ],
+    };
+
+    let info = mock_info("addr0000", &[]);
+    let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+    let update_config = UpdateConfig {
+        distribution_schedule: (
+            mock_env().block.time.seconds() + 300,
+            mock_env().block.time.seconds() + 400,
+            Uint128::from(10000000u128),
+        ),
+    };
+
+    deps.querier.with_anc_minter("gov0000".to_string());
+
+    let info = mock_info("notgov", &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, update_config);
+    match res {
+        Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "unauthorized"),
+        _ => panic!("Must return unauthorized error"),
+    }
+
+    //update the overlapped schedule
+    let update_config = UpdateConfig {
+        distribution_schedule: (
+            mock_env().block.time.seconds() + 250,
+            mock_env().block.time.seconds() + 300,
+            Uint128::from(10000000u128),
+        ),
+    };
+
+    deps.querier.with_anc_minter("gov0000".to_string());
+
+    let info = mock_info("gov0000", &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, update_config);
+    match res {
+        Err(StdError::GenericErr { msg, .. }) => {
+            assert_eq!(msg, "cannot update the overlapped distribution")
+        }
+        _ => panic!("Must return unauthorized error"),
+    }
+
+    //update the overlapped schedule
+    let update_config = UpdateConfig {
+        distribution_schedule: (
+            mock_env().block.time.seconds() + 250,
+            mock_env().block.time.seconds() + 299,
+            Uint128::from(10000000u128),
+        ),
+    };
+
+    deps.querier.with_anc_minter("gov0000".to_string());
+
+    let info = mock_info("gov0000", &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, update_config);
+    match res {
+        Err(StdError::GenericErr { msg, .. }) => {
+            assert_eq!(msg, "cannot update the overlapped distribution")
+        }
+        _ => panic!("Must return unauthorized error"),
+    }
+    // do some bond and update rewards
+    // bond 100 tokens
+    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender: "addr0000".to_string(),
+        amount: Uint128::from(100u128),
+        msg: to_binary(&Cw20HookMsg::Bond {}).unwrap(),
+    });
+    let info = mock_info("staking0000", &[]);
+    let mut env = mock_env();
+    let _res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
+
+    // 100 seconds is passed
+    // 1,000,000 rewards distributed
+    env.block.time = env.block.time.plus_seconds(100);
+    let info = mock_info("addr0000", &[]);
+
+    let msg = ExecuteMsg::Withdraw {};
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
+    assert_eq!(
+        res.messages,
+        vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: "reward0000".to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: "addr0000".to_string(),
+                amount: Uint128::from(1000000u128),
+            })
+            .unwrap(),
+            funds: vec![],
+        }))]
+    );
+
+    let update_config = UpdateConfig {
+        distribution_schedule: (
+            mock_env().block.time.seconds(),
+            mock_env().block.time.seconds() + 100,
+            Uint128::from(10000000u128),
+        ),
+    };
+
+    deps.querier.with_anc_minter("gov0000".to_string());
+
+    let info = mock_info("gov0000", &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, update_config);
+    match res {
+        Err(StdError::GenericErr { msg, .. }) => {
+            assert_eq!(msg, "cannot update the ongoing schedule")
+        }
+        _ => panic!("Must return unauthorized error"),
+    }
+
+    // do some bond and update rewards
+    // bond 100 tokens
+    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender: "addr0000".to_string(),
+        amount: Uint128::from(100u128),
+        msg: to_binary(&Cw20HookMsg::Bond {}).unwrap(),
+    });
+    let info = mock_info("staking0000", &[]);
+    let _res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
+
+    // 100 seconds is passed
+    // 1,000,000 rewards distributed
+    env.block.time = env.block.time.plus_seconds(100);
+
+    let info = mock_info("addr0000", &[]);
+
+    let msg = ExecuteMsg::Withdraw {};
+    let _res = execute(deps.as_mut(), env, info, msg).unwrap();
+
+    //cannot update previous scehdule
+    let update_config = UpdateConfig {
+        distribution_schedule: (
+            mock_env().block.time.seconds(),
+            mock_env().block.time.seconds() + 100,
+            Uint128::from(10000000u128),
+        ),
+    };
+
+    deps.querier.with_anc_minter("gov0000".to_string());
+
+    let info = mock_info("gov0000", &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, update_config);
+    match res {
+        Err(StdError::GenericErr { msg, .. }) => {
+            assert_eq!(msg, "cannot update a previous schedule")
+        }
+        _ => panic!("Must return unauthorized error"),
+    }
+
+    //successful one
+    let update_config = UpdateConfig {
+        distribution_schedule: (
+            mock_env().block.time.seconds() + 300,
+            mock_env().block.time.seconds() + 400,
+            Uint128::from(20000000u128),
+        ),
+    };
+
+    deps.querier.with_anc_minter("gov0000".to_string());
+
+    let info = mock_info("gov0000", &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, update_config).unwrap();
+
+    assert_eq!(res.attributes, vec![("action", "update_config")]);
+
+    // query config
+    let res = query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap();
+    let config: ConfigResponse = from_binary(&res).unwrap();
+    assert_eq!(
+        config.distribution_schedule,
+        vec![
+            (
+                mock_env().block.time.seconds(),
+                mock_env().block.time.seconds() + 100,
+                Uint128::from(1000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 100,
+                mock_env().block.time.seconds() + 200,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 200,
+                mock_env().block.time.seconds() + 300,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 300,
+                mock_env().block.time.seconds() + 400,
+                Uint128::from(20000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 400,
+                mock_env().block.time.seconds() + 500,
+                Uint128::from(10000000u128),
+            ),
+        ]
+    );
+
+    //successful one
+    let update_config = UpdateConfig {
+        distribution_schedule: (
+            mock_env().block.time.seconds() + 400,
+            mock_env().block.time.seconds() + 500,
+            Uint128::from(50000000u128),
+        ),
+    };
+
+    deps.querier.with_anc_minter("gov0000".to_string());
+
+    let info = mock_info("gov0000", &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, update_config).unwrap();
+
+    assert_eq!(res.attributes, vec![("action", "update_config")]);
+
+    // query config
+    let res = query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap();
+    let config: ConfigResponse = from_binary(&res).unwrap();
+    assert_eq!(
+        config.distribution_schedule,
+        vec![
+            (
+                mock_env().block.time.seconds(),
+                mock_env().block.time.seconds() + 100,
+                Uint128::from(1000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 100,
+                mock_env().block.time.seconds() + 200,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 200,
+                mock_env().block.time.seconds() + 300,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 300,
+                mock_env().block.time.seconds() + 400,
+                Uint128::from(20000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 400,
+                mock_env().block.time.seconds() + 500,
+                Uint128::from(50000000u128),
+            ),
+        ]
     );
 }
