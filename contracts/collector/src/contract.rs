@@ -38,7 +38,19 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
-        ExecuteMsg::UpdateConfig { reward_factor } => update_config(deps, info, reward_factor),
+        ExecuteMsg::UpdateConfig {
+            reward_factor,
+            gov_contract,
+            terraswap_factory,
+            distributor_contract,
+        } => update_config(
+            deps,
+            info,
+            reward_factor,
+            gov_contract,
+            terraswap_factory,
+            distributor_contract,
+        ),
         ExecuteMsg::Sweep { denom } => sweep(deps, env, denom),
     }
 }
@@ -47,6 +59,9 @@ pub fn update_config(
     deps: DepsMut,
     info: MessageInfo,
     reward_factor: Option<Decimal>,
+    gov_contract: Option<String>,
+    terraswap_factory: Option<String>,
+    distributor_contract: Option<String>,
 ) -> StdResult<Response> {
     let mut config: Config = read_config(deps.storage)?;
     if deps.api.addr_canonicalize(info.sender.as_str())? != config.gov_contract {
@@ -55,6 +70,16 @@ pub fn update_config(
 
     if let Some(reward_factor) = reward_factor {
         config.reward_factor = reward_factor;
+    }
+
+    if let Some(gov_contract) = gov_contract {
+        config.gov_contract = deps.api.addr_canonicalize(gov_contract.as_str())?;
+    }
+    if let Some(distributor_contract) = distributor_contract {
+        config.distributor_contract = deps.api.addr_canonicalize(distributor_contract.as_str())?;
+    }
+    if let Some(terraswap_factory) = terraswap_factory {
+        config.terraswap_factory = deps.api.addr_canonicalize(terraswap_factory.as_str())?;
     }
 
     store_config(deps.storage, &config)?;

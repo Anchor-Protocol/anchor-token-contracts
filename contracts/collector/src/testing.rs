@@ -51,6 +51,9 @@ fn update_config() {
     let info = mock_info("gov", &[]);
     let msg = ExecuteMsg::UpdateConfig {
         reward_factor: Some(Decimal::percent(80)),
+        gov_contract: Some("new_gov".to_string()),
+        terraswap_factory: Some("new_terraswap_factory".to_string()),
+        distributor_contract: Some("new_distributor_contract".to_string()),
     };
 
     let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -59,11 +62,20 @@ fn update_config() {
     // it worked, let's query the state
     let value = query_config(deps.as_ref()).unwrap();
     assert_eq!(Decimal::percent(80), value.reward_factor);
+    assert_eq!(value.terraswap_factory, "new_terraswap_factory".to_string());
+    assert_eq!(value.gov_contract, "new_gov".to_string());
+    assert_eq!(
+        value.distributor_contract,
+        "new_distributor_contract".to_string()
+    );
 
     // Unauthorized err
     let info = mock_info("addr0000", &[]);
     let msg = ExecuteMsg::UpdateConfig {
         reward_factor: None,
+        gov_contract: Some("new_gov".to_string()),
+        terraswap_factory: Some("new_terraswap_factory".to_string()),
+        distributor_contract: Some("new_distributor_contract".to_string()),
     };
 
     let res = execute(deps.as_mut(), mock_env(), info, msg);

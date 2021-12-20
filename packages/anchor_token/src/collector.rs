@@ -17,7 +17,12 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     /// Update config interface
     /// to enable reward_factor update
-    UpdateConfig { reward_factor: Option<Decimal> },
+    UpdateConfig {
+        reward_factor: Option<Decimal>,
+        gov_contract: Option<String>,
+        terraswap_factory: Option<String>,
+        distributor_contract: Option<String>,
+    },
     /// Public Message
     /// Sweep all given denom balance to ANC token
     /// and execute Distribute message
