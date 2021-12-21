@@ -54,13 +54,13 @@ pub enum ContractError {
     #[error("Poll is not in passed status")]
     PollNotPassed {},
 
-    #[error("Cannot snapshot at this height")]
-    SnapshotHeight {},
+    #[error("Cannot snapshot at this time")]
+    SnapshotTime {},
 
     #[error("User has already voted")]
     AlreadyVoted {},
 
-    #[error("Expire height has not been reached")]
+    #[error("Expire time has not been reached")]
     PollNotExpired {},
 
     #[error("Voting period has not expired")]

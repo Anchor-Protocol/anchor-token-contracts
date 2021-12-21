@@ -3,13 +3,16 @@ use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{
     attr, to_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Reply,
-    Response, StdError, StdResult, SubMsg, WasmMsg,
+    Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 
 use crate::state::{read_config, store_config, Config};
 
+use crate::migration::migrate_config;
 use anchor_token::collector::{ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use cosmwasm_bignumber::{Decimal256, Uint256};
 use cw20::Cw20ExecuteMsg;
+use std::str::FromStr;
 use terraswap::asset::{Asset, AssetInfo, PairInfo};
 use terraswap::pair::ExecuteMsg as TerraswapExecuteMsg;
 use terraswap::querier::{query_balance, query_pair_info, query_token_balance};
@@ -27,7 +30,6 @@ pub fn instantiate(
             gov_contract: deps.api.addr_canonicalize(&msg.gov_contract)?,
             terraswap_factory: deps.api.addr_canonicalize(&msg.terraswap_factory)?,
             anchor_token: deps.api.addr_canonicalize(&msg.anchor_token)?,
-            distributor_contract: deps.api.addr_canonicalize(&msg.distributor_contract)?,
             reward_factor: msg.reward_factor,
         },
     )?;
@@ -46,7 +48,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
 pub fn update_config(
     deps: DepsMut,
     info: MessageInfo,
-    reward_factor: Option<Decimal>,
+    reward_factor: Option<Decimal256>,
 ) -> StdResult<Response> {
     let mut config: Config = read_config(deps.storage)?;
     if deps.api.addr_canonicalize(info.sender.as_str())? != config.gov_contract {
@@ -144,8 +146,12 @@ pub fn distribute(deps: DepsMut, env: Env) -> StdResult<Response> {
         env.contract.address,
     )?;
 
-    let distribute_amount = amount * config.reward_factor;
-    let left_amount = amount.checked_sub(distribute_amount)?;
+    // make decimal256 multiplication work
+    let decimal_amount: Decimal256 = Decimal::from_ratio(amount, Uint128::new(1u128)).into();
+    let distributed_amount_decimals: Decimal256 = decimal_amount * config.reward_factor;
+    let distribute_amount = Uint256::from_str(&distributed_amount_decimals.to_string()).unwrap();
+
+    let left_amount = amount.checked_sub(distribute_amount.into())?;
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
@@ -154,20 +160,17 @@ pub fn distribute(deps: DepsMut, env: Env) -> StdResult<Response> {
             contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: deps.api.addr_humanize(&config.gov_contract)?.to_string(),
-                amount: distribute_amount,
+                amount: distribute_amount.into(),
             })?,
             funds: vec![],
         }));
     }
 
+    // burn the left amount
     if !left_amount.is_zero() {
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: deps
-                    .api
-                    .addr_humanize(&config.distributor_contract)?
-                    .to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Burn {
                 amount: left_amount,
             })?,
             funds: vec![],
@@ -197,10 +200,6 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
             .addr_humanize(&state.terraswap_factory)?
             .to_string(),
         anchor_token: deps.api.addr_humanize(&state.anchor_token)?.to_string(),
-        distributor_contract: deps
-            .api
-            .addr_humanize(&state.distributor_contract)?
-            .to_string(),
         reward_factor: state.reward_factor,
     };
 
@@ -208,6 +207,52 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    // migrate the legacy config
+    migrate_config(deps.storage)?;
     Ok(Response::default())
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::Api;
+
+    #[test]
+    fn proper_migrate() {
+        let mut deps = mock_dependencies(&[]);
+
+        // init the contract
+        let init_msg = InstantiateMsg {
+            gov_contract: "gov".to_string(),
+            terraswap_factory: "factory".to_string(),
+            anchor_token: "token".to_string(),
+            reward_factor: Default::default(),
+        };
+
+        let info = mock_info("sender", &[Coin::new(1000000, "uusd")]);
+        let res = instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
+        assert_eq!(0, res.messages.len());
+
+        // migrate
+        let migrate_msg = MigrateMsg {};
+        let res = migrate(deps.as_mut(), mock_env(), migrate_msg).unwrap();
+        assert_eq!(res, Response::default());
+
+        let config = read_config(&deps.storage).unwrap();
+        assert_eq!(
+            deps.api.addr_humanize(&config.gov_contract).unwrap(),
+            "gov".to_string()
+        );
+        assert_eq!(
+            deps.api.addr_humanize(&config.terraswap_factory).unwrap(),
+            "factory".to_string()
+        );
+        assert_eq!(
+            deps.api.addr_humanize(&config.anchor_token).unwrap(),
+            "token".to_string()
+        );
+        assert_eq!(config.reward_factor, Default::default());
+    }
 }
