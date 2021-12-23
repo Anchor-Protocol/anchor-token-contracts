@@ -8,6 +8,7 @@ use cosmwasm_std::{
 
 use crate::state::{read_config, store_config, Config};
 
+use crate::migration::migrate_config;
 use anchor_token::collector::{ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::pair::ExecuteMsg as AstroportExecuteMsg;
@@ -230,6 +231,9 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+    //migrate config
+    migrate_config(deps.storage, deps.api.addr_canonicalize(&msg.astroport_factory)?)?;
+
     Ok(Response::default())
 }
