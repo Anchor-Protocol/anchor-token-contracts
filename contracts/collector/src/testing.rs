@@ -15,7 +15,7 @@ fn proper_initialization() {
     let mut deps = mock_dependencies(&[]);
 
     let msg = InstantiateMsg {
-        terraswap_factory: "terraswapfactory".to_string(),
+        astroport_factory: "astroportfactory".to_string(),
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
         distributor_contract: "distributor".to_string(),
@@ -29,7 +29,7 @@ fn proper_initialization() {
 
     // it worked, let's query the state
     let config: ConfigResponse = query_config(deps.as_ref()).unwrap();
-    assert_eq!("terraswapfactory", config.terraswap_factory.as_str());
+    assert_eq!("astroportfactory", config.astroport_factory.as_str());
 }
 
 #[test]
@@ -37,7 +37,7 @@ fn update_config() {
     let mut deps = mock_dependencies(&[]);
 
     let msg = InstantiateMsg {
-        terraswap_factory: "terraswapfactory".to_string(),
+        astroport_factory: "astroportfactory".to_string(),
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
         distributor_contract: "distributor".to_string(),
@@ -52,7 +52,7 @@ fn update_config() {
     let msg = ExecuteMsg::UpdateConfig {
         reward_factor: Some(Decimal::percent(80)),
         gov_contract: Some("new_gov".to_string()),
-        terraswap_factory: Some("new_terraswap_factory".to_string()),
+        astroport_factory: Some("new_astroport_factory".to_string()),
         distributor_contract: Some("new_distributor_contract".to_string()),
     };
 
@@ -62,7 +62,7 @@ fn update_config() {
     // it worked, let's query the state
     let value = query_config(deps.as_ref()).unwrap();
     assert_eq!(Decimal::percent(80), value.reward_factor);
-    assert_eq!(value.terraswap_factory, "new_terraswap_factory".to_string());
+    assert_eq!(value.astroport_factory, "new_astroport_factory".to_string());
     assert_eq!(value.gov_contract, "new_gov".to_string());
     assert_eq!(
         value.distributor_contract,
@@ -74,7 +74,7 @@ fn update_config() {
     let msg = ExecuteMsg::UpdateConfig {
         reward_factor: None,
         gov_contract: Some("new_gov".to_string()),
-        terraswap_factory: Some("new_terraswap_factory".to_string()),
+        astroport_factory: Some("new_astroport_factory".to_string()),
         distributor_contract: Some("new_distributor_contract".to_string()),
     };
 
@@ -98,10 +98,10 @@ fn test_sweep() {
     );
 
     deps.querier
-        .with_terraswap_pairs(&[(&"uusdtokenANC".to_string(), &"pairANC".to_string())]);
+        .with_astroport_pairs(&[(&"uusdtokenANC".to_string(), &"pairANC".to_string())]);
 
     let msg = InstantiateMsg {
-        terraswap_factory: "terraswapfactory".to_string(),
+        astroport_factory: "astroportfactory".to_string(),
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
         distributor_contract: "distributor".to_string(),
@@ -158,7 +158,7 @@ fn test_distribute() {
     )]);
 
     let msg = InstantiateMsg {
-        terraswap_factory: "terraswapfactory".to_string(),
+        astroport_factory: "astroportfactory".to_string(),
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
         distributor_contract: "distributor".to_string(),

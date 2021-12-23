@@ -25,7 +25,7 @@ pub fn instantiate(
         deps.storage,
         &Config {
             gov_contract: deps.api.addr_canonicalize(&msg.gov_contract)?,
-            terraswap_factory: deps.api.addr_canonicalize(&msg.terraswap_factory)?,
+            astroport_factory: deps.api.addr_canonicalize(&msg.astroport_factory)?,
             anchor_token: deps.api.addr_canonicalize(&msg.anchor_token)?,
             distributor_contract: deps.api.addr_canonicalize(&msg.distributor_contract)?,
             reward_factor: msg.reward_factor,
@@ -41,14 +41,14 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::UpdateConfig {
             reward_factor,
             gov_contract,
-            terraswap_factory,
+            astroport_factory,
             distributor_contract,
         } => update_config(
             deps,
             info,
             reward_factor,
             gov_contract,
-            terraswap_factory,
+            astroport_factory,
             distributor_contract,
         ),
         ExecuteMsg::Sweep { denom } => sweep(deps, env, denom),
@@ -60,7 +60,7 @@ pub fn update_config(
     info: MessageInfo,
     reward_factor: Option<Decimal>,
     gov_contract: Option<String>,
-    terraswap_factory: Option<String>,
+    astroport_factory: Option<String>,
     distributor_contract: Option<String>,
 ) -> StdResult<Response> {
     let mut config: Config = read_config(deps.storage)?;
@@ -78,8 +78,8 @@ pub fn update_config(
     if let Some(distributor_contract) = distributor_contract {
         config.distributor_contract = deps.api.addr_canonicalize(distributor_contract.as_str())?;
     }
-    if let Some(terraswap_factory) = terraswap_factory {
-        config.terraswap_factory = deps.api.addr_canonicalize(terraswap_factory.as_str())?;
+    if let Some(astroport_factory) = astroport_factory {
+        config.astroport_factory = deps.api.addr_canonicalize(astroport_factory.as_str())?;
     }
 
     store_config(deps.storage, &config)?;
@@ -95,11 +95,11 @@ const SWEEP_REPLY_ID: u64 = 1;
 pub fn sweep(deps: DepsMut, env: Env, denom: String) -> StdResult<Response> {
     let config: Config = read_config(deps.storage)?;
     let anchor_token = deps.api.addr_humanize(&config.anchor_token)?;
-    let terraswap_factory_addr = deps.api.addr_humanize(&config.terraswap_factory)?;
+    let astroport_factory_addr = deps.api.addr_humanize(&config.astroport_factory)?;
 
     let pair_info: PairInfo = query_pair_info(
         &deps.querier,
-        terraswap_factory_addr,
+        astroport_factory_addr,
         &[
             AssetInfo::NativeToken {
                 denom: denom.to_string(),
@@ -214,9 +214,9 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let state = read_config(deps.storage)?;
     let resp = ConfigResponse {
         gov_contract: deps.api.addr_humanize(&state.gov_contract)?.to_string(),
-        terraswap_factory: deps
+        astroport_factory: deps
             .api
-            .addr_humanize(&state.terraswap_factory)?
+            .addr_humanize(&state.astroport_factory)?
             .to_string(),
         anchor_token: deps.api.addr_humanize(&state.anchor_token)?.to_string(),
         distributor_contract: deps
