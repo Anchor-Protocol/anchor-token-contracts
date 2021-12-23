@@ -3,15 +3,16 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_binary, from_slice, to_binary, Coin, ContractResult, Decimal, OwnedDeps, Querier,
+    from_binary, from_slice, to_binary, Addr, Coin, ContractResult, Decimal, OwnedDeps, Querier,
     QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
 use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20QueryMsg};
 
 use std::collections::HashMap;
 
+use astroport::asset::{AssetInfo, PairInfo};
+use astroport::factory::PairType;
 use terra_cosmwasm::{TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute};
-use terraswap::asset::{AssetInfo, PairInfo};
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -164,8 +165,8 @@ impl WasmMockQuerier {
                     let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
                     match self.astroport_factory_querier.pairs.get(&key) {
                         Some(v) => SystemResult::Ok(ContractResult::from(to_binary(&PairInfo {
-                            contract_addr: v.to_string(),
-                            liquidity_token: "liquidity".to_string(),
+                            contract_addr: Addr::unchecked(v.to_string()),
+                            liquidity_token: Addr::unchecked("liquidity".to_string()),
                             asset_infos: [
                                 AssetInfo::NativeToken {
                                     denom: "uusd".to_string(),
@@ -174,6 +175,7 @@ impl WasmMockQuerier {
                                     denom: "uusd".to_string(),
                                 },
                             ],
+                            pair_type: PairType::Stable {},
                         }))),
                         None => SystemResult::Err(SystemError::InvalidRequest {
                             error: "No pair info exists".to_string(),

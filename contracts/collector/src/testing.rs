@@ -1,14 +1,14 @@
 use crate::contract::{execute, instantiate, query_config, reply};
 use crate::mock_querier::mock_dependencies;
 use anchor_token::collector::{ConfigResponse, ExecuteMsg, InstantiateMsg};
+use astroport::asset::{Asset, AssetInfo};
+use astroport::pair::ExecuteMsg as AstroportExecuteMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     to_binary, Coin, ContractResult, CosmosMsg, Decimal, Reply, ReplyOn, StdError, SubMsg,
     SubMsgExecutionResponse, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
-use terraswap::asset::{Asset, AssetInfo};
-use terraswap::pair::ExecuteMsg as TerraswapExecuteMsg;
 
 #[test]
 fn proper_initialization() {
@@ -123,7 +123,7 @@ fn test_sweep() {
         vec![SubMsg {
             msg: WasmMsg::Execute {
                 contract_addr: "pairANC".to_string(),
-                msg: to_binary(&TerraswapExecuteMsg::Swap {
+                msg: to_binary(&AstroportExecuteMsg::Swap {
                     offer_asset: Asset {
                         info: AssetInfo::NativeToken {
                             denom: "uusd".to_string()

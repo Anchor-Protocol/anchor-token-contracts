@@ -6,6 +6,7 @@ use crate::state::{
     state_store, store_tmp_poll_id, Config, ExecuteData, Poll, State,
 };
 
+use astroport::querier::query_token_balance;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -13,7 +14,6 @@ use cosmwasm_std::{
     MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use terraswap::querier::query_token_balance;
 
 use anchor_token::common::OrderBy;
 use anchor_token::gov::{

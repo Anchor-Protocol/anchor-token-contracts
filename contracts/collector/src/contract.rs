@@ -2,17 +2,17 @@
 use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{
-    attr, to_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Reply,
-    Response, StdError, StdResult, SubMsg, WasmMsg,
+    attr, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
 };
 
 use crate::state::{read_config, store_config, Config};
 
 use anchor_token::collector::{ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::pair::ExecuteMsg as AstroportExecuteMsg;
+use astroport::querier::{query_balance, query_pair_info, query_token_balance};
 use cw20::Cw20ExecuteMsg;
-use terraswap::asset::{Asset, AssetInfo, PairInfo};
-use terraswap::pair::ExecuteMsg as TerraswapExecuteMsg;
-use terraswap::querier::{query_balance, query_pair_info, query_token_balance};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -105,7 +105,7 @@ pub fn sweep(deps: DepsMut, env: Env, denom: String) -> StdResult<Response> {
                 denom: denom.to_string(),
             },
             AssetInfo::Token {
-                contract_addr: anchor_token.to_string(),
+                contract_addr: Addr::unchecked(anchor_token),
             },
         ],
     )?;
@@ -124,8 +124,8 @@ pub fn sweep(deps: DepsMut, env: Env, denom: String) -> StdResult<Response> {
     Ok(Response::new()
         .add_submessage(SubMsg::reply_on_success(
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: pair_info.contract_addr,
-                msg: to_binary(&TerraswapExecuteMsg::Swap {
+                contract_addr: pair_info.contract_addr.into_string(),
+                msg: to_binary(&AstroportExecuteMsg::Swap {
                     offer_asset: Asset {
                         amount,
                         ..swap_asset

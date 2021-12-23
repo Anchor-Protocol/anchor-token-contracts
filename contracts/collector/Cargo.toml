@@ -39,7 +39,7 @@ cosmwasm-std = { version = "0.16.0" }
 cosmwasm-storage = { version = "0.16.0" }
 anchor-token = { version = "0.2.0", path = "../../packages/anchor_token" }
 terra-cosmwasm = "2.2.0"
-terraswap = { version = "2.4.0" }
+astroport = "0.3.1"
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 
