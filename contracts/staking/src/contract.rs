@@ -202,7 +202,7 @@ pub fn update_config(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    distribution_schedule: (u64, u64, Uint128),
+    distribution_schedule: Vec<(u64, u64, Uint128)>,
 ) -> StdResult<Response> {
     // get gov address by querying anc token minter
     let config: Config = read_config(deps.storage)?;
@@ -218,34 +218,56 @@ pub fn update_config(
     }
 
     let mut new_distribution: Vec<(u64, u64, Uint128)> = vec![];
-    for s in config.distribution_schedule {
-        if distribution_schedule.0 > s.0 && distribution_schedule.1 < s.1 {
-            return Err(StdError::generic_err(
-                "cannot update the overlapped distribution",
-            ));
-        }
-        if s.0 == distribution_schedule.0 && distribution_schedule.1 != s.1 {
-            return Err(StdError::generic_err(
-                "cannot update the overlapped distribution",
-            ));
-        }
-        if s.0 != distribution_schedule.0 && distribution_schedule.1 == s.1 {
-            return Err(StdError::generic_err(
-                "cannot update the overlapped distribution",
-            ));
-        }
-        if distribution_schedule.0 <= state.last_distributed && state.last_distributed <= s.1 {
-            return Err(StdError::generic_err("cannot update the ongoing schedule"));
-        }
-        if distribution_schedule.0 <= state.last_distributed && state.last_distributed >= s.1 {
-            return Err(StdError::generic_err("cannot update a previous schedule"));
-        }
-        if s.0 == distribution_schedule.0 && distribution_schedule.1 == s.1 {
-            new_distribution.push(distribution_schedule);
-            continue;
-        }
 
-        new_distribution.push(s)
+    for s in config.distribution_schedule.clone().into_iter() {
+        let mut found = false;
+        for distribution in distribution_schedule.clone().into_iter() {
+            if distribution.0 > s.0 && distribution.1 < s.1 {
+                return Err(StdError::generic_err(
+                    "cannot update the overlapped distribution",
+                ));
+            }
+            if s.0 == distribution.0 && distribution.1 != s.1 {
+                return Err(StdError::generic_err(
+                    "cannot update the overlapped distribution",
+                ));
+            }
+            if s.0 != distribution.0 && distribution.1 == s.1 {
+                return Err(StdError::generic_err(
+                    "cannot update the overlapped distribution",
+                ));
+            }
+            if distribution.0 <= state.last_distributed && state.last_distributed <= distribution.1
+            {
+                return Err(StdError::generic_err("cannot update the ongoing schedule"));
+            }
+            if distribution.0 <= state.last_distributed && state.last_distributed >= distribution.1
+            {
+                return Err(StdError::generic_err("cannot update a previous schedule"));
+            }
+            if s.0 == distribution.0 && distribution.1 == s.1 {
+                found = true;
+                new_distribution.push(distribution);
+                continue;
+            }
+        }
+        if !found {
+            new_distribution.push(s);
+        }
+    }
+
+    for distribution in distribution_schedule {
+        let mut bigger = false;
+        for s in config.distribution_schedule.clone().into_iter() {
+            if distribution.0 >= s.1 {
+                bigger = true;
+            } else {
+                bigger = false;
+            }
+        }
+        if bigger {
+            new_distribution.push(distribution)
+        }
     }
 
     let new_config = Config {
