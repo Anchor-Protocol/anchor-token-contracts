@@ -1,21 +1,21 @@
 use crate::contract::{execute, instantiate, query_config, reply};
 use crate::mock_querier::mock_dependencies;
 use anchor_token::collector::{ConfigResponse, ExecuteMsg, InstantiateMsg};
+use astroport::asset::{Asset, AssetInfo};
+use astroport::pair::ExecuteMsg as AstroportExecuteMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     to_binary, Coin, ContractResult, CosmosMsg, Decimal, Reply, ReplyOn, StdError, SubMsg,
     SubMsgExecutionResponse, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
-use terraswap::asset::{Asset, AssetInfo};
-use terraswap::pair::ExecuteMsg as TerraswapExecuteMsg;
 
 #[test]
 fn proper_initialization() {
     let mut deps = mock_dependencies(&[]);
 
     let msg = InstantiateMsg {
-        terraswap_factory: "terraswapfactory".to_string(),
+        astroport_factory: "astroportfactory".to_string(),
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
         distributor_contract: "distributor".to_string(),
@@ -29,7 +29,7 @@ fn proper_initialization() {
 
     // it worked, let's query the state
     let config: ConfigResponse = query_config(deps.as_ref()).unwrap();
-    assert_eq!("terraswapfactory", config.terraswap_factory.as_str());
+    assert_eq!("astroportfactory", config.astroport_factory.as_str());
 }
 
 #[test]
@@ -37,7 +37,7 @@ fn update_config() {
     let mut deps = mock_dependencies(&[]);
 
     let msg = InstantiateMsg {
-        terraswap_factory: "terraswapfactory".to_string(),
+        astroport_factory: "astroportfactory".to_string(),
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
         distributor_contract: "distributor".to_string(),
@@ -51,6 +51,9 @@ fn update_config() {
     let info = mock_info("gov", &[]);
     let msg = ExecuteMsg::UpdateConfig {
         reward_factor: Some(Decimal::percent(80)),
+        gov_contract: Some("new_gov".to_string()),
+        astroport_factory: Some("new_astroport_factory".to_string()),
+        distributor_contract: Some("new_distributor_contract".to_string()),
     };
 
     let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -59,11 +62,20 @@ fn update_config() {
     // it worked, let's query the state
     let value = query_config(deps.as_ref()).unwrap();
     assert_eq!(Decimal::percent(80), value.reward_factor);
+    assert_eq!(value.astroport_factory, "new_astroport_factory".to_string());
+    assert_eq!(value.gov_contract, "new_gov".to_string());
+    assert_eq!(
+        value.distributor_contract,
+        "new_distributor_contract".to_string()
+    );
 
     // Unauthorized err
     let info = mock_info("addr0000", &[]);
     let msg = ExecuteMsg::UpdateConfig {
         reward_factor: None,
+        gov_contract: Some("new_gov".to_string()),
+        astroport_factory: Some("new_astroport_factory".to_string()),
+        distributor_contract: Some("new_distributor_contract".to_string()),
     };
 
     let res = execute(deps.as_mut(), mock_env(), info, msg);
@@ -86,10 +98,10 @@ fn test_sweep() {
     );
 
     deps.querier
-        .with_terraswap_pairs(&[(&"uusdtokenANC".to_string(), &"pairANC".to_string())]);
+        .with_astroport_pairs(&[(&"uusdtokenANC".to_string(), &"pairANC".to_string())]);
 
     let msg = InstantiateMsg {
-        terraswap_factory: "terraswapfactory".to_string(),
+        astroport_factory: "astroportfactory".to_string(),
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
         distributor_contract: "distributor".to_string(),
@@ -111,7 +123,7 @@ fn test_sweep() {
         vec![SubMsg {
             msg: WasmMsg::Execute {
                 contract_addr: "pairANC".to_string(),
-                msg: to_binary(&TerraswapExecuteMsg::Swap {
+                msg: to_binary(&AstroportExecuteMsg::Swap {
                     offer_asset: Asset {
                         info: AssetInfo::NativeToken {
                             denom: "uusd".to_string()
@@ -146,7 +158,7 @@ fn test_distribute() {
     )]);
 
     let msg = InstantiateMsg {
-        terraswap_factory: "terraswapfactory".to_string(),
+        astroport_factory: "astroportfactory".to_string(),
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
         distributor_contract: "distributor".to_string(),
@@ -179,8 +191,7 @@ fn test_distribute() {
             })),
             SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: "tokenANC".to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: "distributor".to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Burn {
                     amount: Uint128::from(10u128),
                 })
                 .unwrap(),

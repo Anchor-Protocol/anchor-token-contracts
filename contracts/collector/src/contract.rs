@@ -2,17 +2,18 @@
 use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{
-    attr, to_binary, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Reply,
-    Response, StdError, StdResult, SubMsg, WasmMsg,
+    attr, to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Reply, Response, StdError, StdResult, SubMsg, WasmMsg,
 };
 
 use crate::state::{read_config, store_config, Config};
 
+use crate::migration::migrate_config;
 use anchor_token::collector::{ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::pair::ExecuteMsg as AstroportExecuteMsg;
+use astroport::querier::{query_balance, query_pair_info, query_token_balance};
 use cw20::Cw20ExecuteMsg;
-use terraswap::asset::{Asset, AssetInfo, PairInfo};
-use terraswap::pair::ExecuteMsg as TerraswapExecuteMsg;
-use terraswap::querier::{query_balance, query_pair_info, query_token_balance};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -25,7 +26,7 @@ pub fn instantiate(
         deps.storage,
         &Config {
             gov_contract: deps.api.addr_canonicalize(&msg.gov_contract)?,
-            terraswap_factory: deps.api.addr_canonicalize(&msg.terraswap_factory)?,
+            astroport_factory: deps.api.addr_canonicalize(&msg.astroport_factory)?,
             anchor_token: deps.api.addr_canonicalize(&msg.anchor_token)?,
             distributor_contract: deps.api.addr_canonicalize(&msg.distributor_contract)?,
             reward_factor: msg.reward_factor,
@@ -38,7 +39,19 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
-        ExecuteMsg::UpdateConfig { reward_factor } => update_config(deps, info, reward_factor),
+        ExecuteMsg::UpdateConfig {
+            reward_factor,
+            gov_contract,
+            astroport_factory,
+            distributor_contract,
+        } => update_config(
+            deps,
+            info,
+            reward_factor,
+            gov_contract,
+            astroport_factory,
+            distributor_contract,
+        ),
         ExecuteMsg::Sweep { denom } => sweep(deps, env, denom),
     }
 }
@@ -47,6 +60,9 @@ pub fn update_config(
     deps: DepsMut,
     info: MessageInfo,
     reward_factor: Option<Decimal>,
+    gov_contract: Option<String>,
+    astroport_factory: Option<String>,
+    distributor_contract: Option<String>,
 ) -> StdResult<Response> {
     let mut config: Config = read_config(deps.storage)?;
     if deps.api.addr_canonicalize(info.sender.as_str())? != config.gov_contract {
@@ -55,6 +71,16 @@ pub fn update_config(
 
     if let Some(reward_factor) = reward_factor {
         config.reward_factor = reward_factor;
+    }
+
+    if let Some(gov_contract) = gov_contract {
+        config.gov_contract = deps.api.addr_canonicalize(gov_contract.as_str())?;
+    }
+    if let Some(distributor_contract) = distributor_contract {
+        config.distributor_contract = deps.api.addr_canonicalize(distributor_contract.as_str())?;
+    }
+    if let Some(astroport_factory) = astroport_factory {
+        config.astroport_factory = deps.api.addr_canonicalize(astroport_factory.as_str())?;
     }
 
     store_config(deps.storage, &config)?;
@@ -70,17 +96,17 @@ const SWEEP_REPLY_ID: u64 = 1;
 pub fn sweep(deps: DepsMut, env: Env, denom: String) -> StdResult<Response> {
     let config: Config = read_config(deps.storage)?;
     let anchor_token = deps.api.addr_humanize(&config.anchor_token)?;
-    let terraswap_factory_addr = deps.api.addr_humanize(&config.terraswap_factory)?;
+    let astroport_factory_addr = deps.api.addr_humanize(&config.astroport_factory)?;
 
     let pair_info: PairInfo = query_pair_info(
         &deps.querier,
-        terraswap_factory_addr,
+        astroport_factory_addr,
         &[
             AssetInfo::NativeToken {
                 denom: denom.to_string(),
             },
             AssetInfo::Token {
-                contract_addr: anchor_token.to_string(),
+                contract_addr: Addr::unchecked(anchor_token),
             },
         ],
     )?;
@@ -99,8 +125,8 @@ pub fn sweep(deps: DepsMut, env: Env, denom: String) -> StdResult<Response> {
     Ok(Response::new()
         .add_submessage(SubMsg::reply_on_success(
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: pair_info.contract_addr,
-                msg: to_binary(&TerraswapExecuteMsg::Swap {
+                contract_addr: pair_info.contract_addr.into_string(),
+                msg: to_binary(&AstroportExecuteMsg::Swap {
                     offer_asset: Asset {
                         amount,
                         ..swap_asset
@@ -160,14 +186,11 @@ pub fn distribute(deps: DepsMut, env: Env) -> StdResult<Response> {
         }));
     }
 
+    // burn the left amount
     if !left_amount.is_zero() {
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: deps
-                    .api
-                    .addr_humanize(&config.distributor_contract)?
-                    .to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Burn {
                 amount: left_amount,
             })?,
             funds: vec![],
@@ -192,9 +215,9 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let state = read_config(deps.storage)?;
     let resp = ConfigResponse {
         gov_contract: deps.api.addr_humanize(&state.gov_contract)?.to_string(),
-        terraswap_factory: deps
+        astroport_factory: deps
             .api
-            .addr_humanize(&state.terraswap_factory)?
+            .addr_humanize(&state.astroport_factory)?
             .to_string(),
         anchor_token: deps.api.addr_humanize(&state.anchor_token)?.to_string(),
         distributor_contract: deps
@@ -208,6 +231,12 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+    //migrate config
+    migrate_config(
+        deps.storage,
+        deps.api.addr_canonicalize(&msg.astroport_factory)?,
+    )?;
+
     Ok(Response::default())
 }
