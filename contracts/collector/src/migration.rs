@@ -18,7 +18,10 @@ fn read_legacy_config(storage: &dyn Storage) -> StdResult<LegacyConfig> {
     ReadonlySingleton::new(storage, KEY_CONFIG).load()
 }
 
-pub fn migrate_config(storage: &mut dyn Storage, astroport_factory: CanonicalAddr) -> StdResult<()> {
+pub fn migrate_config(
+    storage: &mut dyn Storage,
+    astroport_factory: CanonicalAddr,
+) -> StdResult<()> {
     let legacy_config: LegacyConfig = read_legacy_config(storage)?;
 
     store_config(

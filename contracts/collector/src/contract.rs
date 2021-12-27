@@ -233,7 +233,10 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
     //migrate config
-    migrate_config(deps.storage, deps.api.addr_canonicalize(&msg.astroport_factory)?)?;
+    migrate_config(
+        deps.storage,
+        deps.api.addr_canonicalize(&msg.astroport_factory)?,
+    )?;
 
     Ok(Response::default())
 }
