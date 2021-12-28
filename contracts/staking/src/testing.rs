@@ -551,7 +551,7 @@ fn test_migrate_staking() {
 }
 
 #[test]
-fn test_update_global_index() {
+fn test_update_config() {
     let mut deps = mock_dependencies(&[]);
 
     let msg = InstantiateMsg {
@@ -608,11 +608,33 @@ fn test_update_global_index() {
 
     //update the overlapped schedule
     let update_config = UpdateConfig {
-        distribution_schedule: vec![(
-            mock_env().block.time.seconds() + 250,
-            mock_env().block.time.seconds() + 300,
-            Uint128::from(10000000u128),
-        )],
+        distribution_schedule: vec![
+            (
+                mock_env().block.time.seconds(),
+                mock_env().block.time.seconds() + 100,
+                Uint128::from(1000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 100,
+                mock_env().block.time.seconds() + 200,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 250,
+                mock_env().block.time.seconds() + 300,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 300,
+                mock_env().block.time.seconds() + 400,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 400,
+                mock_env().block.time.seconds() + 500,
+                Uint128::from(10000000u128),
+            ),
+        ],
     };
 
     deps.querier.with_anc_minter("gov0000".to_string());
@@ -628,11 +650,33 @@ fn test_update_global_index() {
 
     //update the overlapped schedule
     let update_config = UpdateConfig {
-        distribution_schedule: vec![(
-            mock_env().block.time.seconds() + 250,
-            mock_env().block.time.seconds() + 299,
-            Uint128::from(10000000u128),
-        )],
+        distribution_schedule: vec![
+            (
+                mock_env().block.time.seconds(),
+                mock_env().block.time.seconds() + 100,
+                Uint128::from(1000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 100,
+                mock_env().block.time.seconds() + 200,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 250,
+                mock_env().block.time.seconds() + 299,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 300,
+                mock_env().block.time.seconds() + 400,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 400,
+                mock_env().block.time.seconds() + 500,
+                Uint128::from(10000000u128),
+            ),
+        ],
     };
 
     deps.querier.with_anc_minter("gov0000".to_string());
@@ -677,11 +721,33 @@ fn test_update_global_index() {
     );
 
     let update_config = UpdateConfig {
-        distribution_schedule: vec![(
-            mock_env().block.time.seconds(),
-            mock_env().block.time.seconds() + 100,
-            Uint128::from(10000000u128),
-        )],
+        distribution_schedule: vec![
+            (
+                mock_env().block.time.seconds(),
+                mock_env().block.time.seconds() + 100,
+                Uint128::from(5000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 100,
+                mock_env().block.time.seconds() + 200,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 200,
+                mock_env().block.time.seconds() + 300,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 300,
+                mock_env().block.time.seconds() + 400,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 400,
+                mock_env().block.time.seconds() + 500,
+                Uint128::from(10000000u128),
+            ),
+        ],
     };
 
     deps.querier.with_anc_minter("gov0000".to_string());
@@ -716,11 +782,33 @@ fn test_update_global_index() {
 
     //cannot update previous scehdule
     let update_config = UpdateConfig {
-        distribution_schedule: vec![(
-            mock_env().block.time.seconds(),
-            mock_env().block.time.seconds() + 100,
-            Uint128::from(10000000u128),
-        )],
+        distribution_schedule: vec![
+            (
+                mock_env().block.time.seconds(),
+                mock_env().block.time.seconds() + 100,
+                Uint128::from(5000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 100,
+                mock_env().block.time.seconds() + 200,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 200,
+                mock_env().block.time.seconds() + 300,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 300,
+                mock_env().block.time.seconds() + 400,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 400,
+                mock_env().block.time.seconds() + 500,
+                Uint128::from(10000000u128),
+            ),
+        ],
     };
 
     deps.querier.with_anc_minter("gov0000".to_string());
@@ -736,11 +824,33 @@ fn test_update_global_index() {
 
     //successful one
     let update_config = UpdateConfig {
-        distribution_schedule: vec![(
-            mock_env().block.time.seconds() + 300,
-            mock_env().block.time.seconds() + 400,
-            Uint128::from(20000000u128),
-        )],
+        distribution_schedule: vec![
+            (
+                mock_env().block.time.seconds(),
+                mock_env().block.time.seconds() + 100,
+                Uint128::from(1000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 100,
+                mock_env().block.time.seconds() + 200,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 200,
+                mock_env().block.time.seconds() + 300,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 300,
+                mock_env().block.time.seconds() + 400,
+                Uint128::from(20000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 400,
+                mock_env().block.time.seconds() + 500,
+                Uint128::from(10000000u128),
+            ),
+        ],
     };
 
     deps.querier.with_anc_minter("gov0000".to_string());
@@ -786,11 +896,33 @@ fn test_update_global_index() {
 
     //successful one
     let update_config = UpdateConfig {
-        distribution_schedule: vec![(
-            mock_env().block.time.seconds() + 400,
-            mock_env().block.time.seconds() + 500,
-            Uint128::from(50000000u128),
-        )],
+        distribution_schedule: vec![
+            (
+                mock_env().block.time.seconds(),
+                mock_env().block.time.seconds() + 100,
+                Uint128::from(1000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 100,
+                mock_env().block.time.seconds() + 200,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 200,
+                mock_env().block.time.seconds() + 300,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 300,
+                mock_env().block.time.seconds() + 400,
+                Uint128::from(20000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 400,
+                mock_env().block.time.seconds() + 500,
+                Uint128::from(50000000u128),
+            ),
+        ],
     };
 
     deps.querier.with_anc_minter("gov0000".to_string());
@@ -836,6 +968,21 @@ fn test_update_global_index() {
 
     let update_config = UpdateConfig {
         distribution_schedule: vec![
+            (
+                mock_env().block.time.seconds(),
+                mock_env().block.time.seconds() + 100,
+                Uint128::from(1000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 100,
+                mock_env().block.time.seconds() + 200,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 200,
+                mock_env().block.time.seconds() + 300,
+                Uint128::from(10000000u128),
+            ),
             (
                 mock_env().block.time.seconds() + 300,
                 mock_env().block.time.seconds() + 400,
@@ -892,6 +1039,21 @@ fn test_update_global_index() {
 
     let update_config = UpdateConfig {
         distribution_schedule: vec![
+            (
+                mock_env().block.time.seconds(),
+                mock_env().block.time.seconds() + 100,
+                Uint128::from(1000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 100,
+                mock_env().block.time.seconds() + 200,
+                Uint128::from(10000000u128),
+            ),
+            (
+                mock_env().block.time.seconds() + 200,
+                mock_env().block.time.seconds() + 300,
+                Uint128::from(10000000u128),
+            ),
             (
                 mock_env().block.time.seconds() + 300,
                 mock_env().block.time.seconds() + 400,

@@ -217,63 +217,12 @@ pub fn update_config(
         return Err(StdError::generic_err("unauthorized"));
     }
 
-    let mut new_distribution: Vec<(u64, u64, Uint128)> = vec![];
-
-    for s in config.distribution_schedule.clone().into_iter() {
-        let mut found = false;
-        for distribution in distribution_schedule.clone().into_iter() {
-            if distribution.0 > s.0 && distribution.1 < s.1 {
-                return Err(StdError::generic_err(
-                    "cannot update the overlapped distribution",
-                ));
-            }
-            if s.0 == distribution.0 && distribution.1 != s.1 {
-                return Err(StdError::generic_err(
-                    "cannot update the overlapped distribution",
-                ));
-            }
-            if s.0 != distribution.0 && distribution.1 == s.1 {
-                return Err(StdError::generic_err(
-                    "cannot update the overlapped distribution",
-                ));
-            }
-            if distribution.0 <= state.last_distributed && state.last_distributed <= distribution.1
-            {
-                return Err(StdError::generic_err("cannot update the ongoing schedule"));
-            }
-            if distribution.0 <= state.last_distributed && state.last_distributed >= distribution.1
-            {
-                return Err(StdError::generic_err("cannot update a previous schedule"));
-            }
-            if s.0 == distribution.0 && distribution.1 == s.1 {
-                found = true;
-                new_distribution.push(distribution);
-                continue;
-            }
-        }
-        if !found {
-            new_distribution.push(s);
-        }
-    }
-
-    for distribution in distribution_schedule {
-        let mut bigger = false;
-        for s in config.distribution_schedule.clone().into_iter() {
-            if distribution.0 >= s.1 {
-                bigger = true;
-            } else {
-                bigger = false;
-            }
-        }
-        if bigger {
-            new_distribution.push(distribution)
-        }
-    }
+    assert_new_schedules(&config, &state, distribution_schedule.clone())?;
 
     let new_config = Config {
         anchor_token: config.anchor_token,
         staking_token: config.staking_token,
-        distribution_schedule: new_distribution,
+        distribution_schedule,
     };
     store_config(deps.storage, &new_config)?;
 
@@ -467,45 +416,43 @@ pub fn query_staker_info(
     })
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
-    let mut config = read_config(deps.storage)?;
-    config.distribution_schedule = msg.distribution_schedule;
-    store_config(deps.storage, &config)?;
-
-    Ok(Response::default())
+pub fn assert_new_schedules(
+    config: &Config,
+    state: &State,
+    distribution_schedule: Vec<(u64, u64, Uint128)>,
+) -> StdResult<()> {
+    if distribution_schedule.len() < config.distribution_schedule.len() {
+        return Err(StdError::generic_err(
+            "cannot update; the new schedule must support all of the previous schedule",
+        ));
+    }
+    for schedule in distribution_schedule {
+        for s in config.distribution_schedule.clone() {
+            if schedule.0 > s.0 && schedule.1 < s.1 {
+                return Err(StdError::generic_err(
+                    "cannot update the overlapped distribution",
+                ));
+            }
+            if (s.0 == schedule.0 && schedule.1 != s.1) || (s.0 != schedule.0 && schedule.1 == s.1)
+            {
+                return Err(StdError::generic_err(
+                    "cannot update the overlapped distribution",
+                ));
+            }
+            if schedule.0 == s.0 && schedule.1 == s.1 && schedule.2 != s.2 {
+                if schedule.0 <= state.last_distributed && state.last_distributed <= schedule.1 {
+                    return Err(StdError::generic_err("cannot update the ongoing schedule"));
+                }
+                if schedule.0 <= state.last_distributed && state.last_distributed >= schedule.1 {
+                    return Err(StdError::generic_err("cannot update a previous schedule"));
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
-#[cfg(test)]
-mod test {
-    use super::*;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-
-    #[test]
-    fn proper_migrate() {
-        let mut deps = mock_dependencies(&[]);
-
-        // init the contract
-        let init_msg = InstantiateMsg {
-            anchor_token: "anchor_token".to_string(),
-            staking_token: "staking".to_string(),
-            distribution_schedule: vec![(50, 1000, Uint128::new(50000000u128))],
-        };
-
-        let info = mock_info("sender", &[]);
-        let res = instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
-        assert_eq!(0, res.messages.len());
-
-        let distribution_schedule = vec![(300000, 800000, Uint128::new(50000000u128))];
-
-        // migrate
-        let migrate_msg = MigrateMsg {
-            distribution_schedule: distribution_schedule.clone(),
-        };
-        let res = migrate(deps.as_mut(), mock_env(), migrate_msg).unwrap();
-        assert_eq!(res, Response::default());
-
-        let config = read_config(&deps.storage).unwrap();
-        assert_eq!(config.distribution_schedule, distribution_schedule);
-    }
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }
