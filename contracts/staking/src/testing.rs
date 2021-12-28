@@ -606,89 +606,6 @@ fn test_update_config() {
         _ => panic!("Must return unauthorized error"),
     }
 
-    //update the overlapped schedule
-    let update_config = UpdateConfig {
-        distribution_schedule: vec![
-            (
-                mock_env().block.time.seconds(),
-                mock_env().block.time.seconds() + 100,
-                Uint128::from(1000000u128),
-            ),
-            (
-                mock_env().block.time.seconds() + 100,
-                mock_env().block.time.seconds() + 200,
-                Uint128::from(10000000u128),
-            ),
-            (
-                mock_env().block.time.seconds() + 250,
-                mock_env().block.time.seconds() + 300,
-                Uint128::from(10000000u128),
-            ),
-            (
-                mock_env().block.time.seconds() + 300,
-                mock_env().block.time.seconds() + 400,
-                Uint128::from(10000000u128),
-            ),
-            (
-                mock_env().block.time.seconds() + 400,
-                mock_env().block.time.seconds() + 500,
-                Uint128::from(10000000u128),
-            ),
-        ],
-    };
-
-    deps.querier.with_anc_minter("gov0000".to_string());
-
-    let info = mock_info("gov0000", &[]);
-    let res = execute(deps.as_mut(), mock_env(), info, update_config);
-    match res {
-        Err(StdError::GenericErr { msg, .. }) => {
-            assert_eq!(msg, "cannot update the overlapped distribution")
-        }
-        _ => panic!("Must return unauthorized error"),
-    }
-
-    //update the overlapped schedule
-    let update_config = UpdateConfig {
-        distribution_schedule: vec![
-            (
-                mock_env().block.time.seconds(),
-                mock_env().block.time.seconds() + 100,
-                Uint128::from(1000000u128),
-            ),
-            (
-                mock_env().block.time.seconds() + 100,
-                mock_env().block.time.seconds() + 200,
-                Uint128::from(10000000u128),
-            ),
-            (
-                mock_env().block.time.seconds() + 250,
-                mock_env().block.time.seconds() + 299,
-                Uint128::from(10000000u128),
-            ),
-            (
-                mock_env().block.time.seconds() + 300,
-                mock_env().block.time.seconds() + 400,
-                Uint128::from(10000000u128),
-            ),
-            (
-                mock_env().block.time.seconds() + 400,
-                mock_env().block.time.seconds() + 500,
-                Uint128::from(10000000u128),
-            ),
-        ],
-    };
-
-    deps.querier.with_anc_minter("gov0000".to_string());
-
-    let info = mock_info("gov0000", &[]);
-    let res = execute(deps.as_mut(), mock_env(), info, update_config);
-    match res {
-        Err(StdError::GenericErr { msg, .. }) => {
-            assert_eq!(msg, "cannot update the overlapped distribution")
-        }
-        _ => panic!("Must return unauthorized error"),
-    }
     // do some bond and update rewards
     // bond 100 tokens
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
@@ -756,7 +673,7 @@ fn test_update_config() {
     let res = execute(deps.as_mut(), mock_env(), info, update_config);
     match res {
         Err(StdError::GenericErr { msg, .. }) => {
-            assert_eq!(msg, "cannot update the ongoing schedule")
+            assert_eq!(msg, "new schedule removes already started distribution")
         }
         _ => panic!("Must return unauthorized error"),
     }
@@ -817,7 +734,7 @@ fn test_update_config() {
     let res = execute(deps.as_mut(), mock_env(), info, update_config);
     match res {
         Err(StdError::GenericErr { msg, .. }) => {
-            assert_eq!(msg, "cannot update a previous schedule")
+            assert_eq!(msg, "new schedule removes already started distribution")
         }
         _ => panic!("Must return unauthorized error"),
     }
