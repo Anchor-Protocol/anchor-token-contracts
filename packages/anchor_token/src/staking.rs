@@ -39,9 +39,7 @@ pub enum Cw20HookMsg {
 /// migrate struct for distribution schedule
 /// block-based schedule to a time-based schedule
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {
-    pub distribution_schedule: Vec<(u64, u64, Uint128)>,
-}
+pub struct MigrateMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
