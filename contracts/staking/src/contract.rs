@@ -20,6 +20,7 @@ use crate::{
 };
 
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use std::collections::BTreeMap;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -426,27 +427,37 @@ pub fn assert_new_schedules(
             "cannot update; the new schedule must support all of the previous schedule",
         ));
     }
-    for schedule in distribution_schedule {
-        for s in config.distribution_schedule.clone() {
-            if schedule.0 > s.0 && schedule.1 < s.1 {
+
+    let mut existing_counts: BTreeMap<(u64, u64, Uint128), u32> = BTreeMap::new();
+    for schedule in config.distribution_schedule.clone() {
+        let counter = existing_counts.entry(schedule).or_insert(0);
+        *counter += 1;
+    }
+
+    let mut new_counts: BTreeMap<(u64, u64, Uint128), u32> = BTreeMap::new();
+    for schedule in distribution_schedule.clone() {
+        let counter = new_counts.entry(schedule).or_insert(0);
+        *counter += 1;
+    }
+
+    for (schedule, count) in existing_counts.into_iter() {
+        // if began ensure its in the new schedule
+        if schedule.0 <= state.last_distributed {
+            if count > *new_counts.get(&schedule).unwrap_or(&0u32) {
                 return Err(StdError::generic_err(
-                    "cannot update the overlapped distribution",
+                    "new schedule removes already started distribution",
                 ));
             }
-            if (s.0 == schedule.0 && schedule.1 != s.1) || (s.0 != schedule.0 && schedule.1 == s.1)
-            {
-                return Err(StdError::generic_err(
-                    "cannot update the overlapped distribution",
-                ));
-            }
-            if schedule.0 == s.0 && schedule.1 == s.1 && schedule.2 != s.2 {
-                if schedule.0 <= state.last_distributed && state.last_distributed <= schedule.1 {
-                    return Err(StdError::generic_err("cannot update the ongoing schedule"));
-                }
-                if schedule.0 <= state.last_distributed && state.last_distributed >= schedule.1 {
-                    return Err(StdError::generic_err("cannot update a previous schedule"));
-                }
-            }
+            // after this new_counts will only contain the newly added schedules
+            *new_counts.get_mut(&schedule).unwrap() -= count;
+        }
+    }
+
+    for (schedule, count) in new_counts.into_iter() {
+        if count > 0 && schedule.0 <= state.last_distributed {
+            return Err(StdError::generic_err(
+                "new schedule adds an already started distribution",
+            ));
         }
     }
     Ok(())
