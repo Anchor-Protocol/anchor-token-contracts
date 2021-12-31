@@ -30,7 +30,6 @@ pub fn migrate_config(
             gov_contract: legacy_config.gov_contract,
             astroport_factory,
             anchor_token: legacy_config.anchor_token,
-            distributor_contract: legacy_config.distributor_contract,
             reward_factor: legacy_config.reward_factor,
         },
     )

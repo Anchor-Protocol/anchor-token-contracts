@@ -28,7 +28,6 @@ pub fn instantiate(
             gov_contract: deps.api.addr_canonicalize(&msg.gov_contract)?,
             astroport_factory: deps.api.addr_canonicalize(&msg.astroport_factory)?,
             anchor_token: deps.api.addr_canonicalize(&msg.anchor_token)?,
-            distributor_contract: deps.api.addr_canonicalize(&msg.distributor_contract)?,
             reward_factor: msg.reward_factor,
         },
     )?;
@@ -43,15 +42,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             reward_factor,
             gov_contract,
             astroport_factory,
-            distributor_contract,
-        } => update_config(
-            deps,
-            info,
-            reward_factor,
-            gov_contract,
-            astroport_factory,
-            distributor_contract,
-        ),
+        } => update_config(deps, info, reward_factor, gov_contract, astroport_factory),
         ExecuteMsg::Sweep { denom } => sweep(deps, env, denom),
     }
 }
@@ -62,7 +53,6 @@ pub fn update_config(
     reward_factor: Option<Decimal>,
     gov_contract: Option<String>,
     astroport_factory: Option<String>,
-    distributor_contract: Option<String>,
 ) -> StdResult<Response> {
     let mut config: Config = read_config(deps.storage)?;
     if deps.api.addr_canonicalize(info.sender.as_str())? != config.gov_contract {
@@ -75,9 +65,6 @@ pub fn update_config(
 
     if let Some(gov_contract) = gov_contract {
         config.gov_contract = deps.api.addr_canonicalize(gov_contract.as_str())?;
-    }
-    if let Some(distributor_contract) = distributor_contract {
-        config.distributor_contract = deps.api.addr_canonicalize(distributor_contract.as_str())?;
     }
     if let Some(astroport_factory) = astroport_factory {
         config.astroport_factory = deps.api.addr_canonicalize(astroport_factory.as_str())?;
@@ -220,10 +207,6 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
             .addr_humanize(&state.astroport_factory)?
             .to_string(),
         anchor_token: deps.api.addr_humanize(&state.anchor_token)?.to_string(),
-        distributor_contract: deps
-            .api
-            .addr_humanize(&state.distributor_contract)?
-            .to_string(),
         reward_factor: state.reward_factor,
     };
 

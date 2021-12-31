@@ -8,7 +8,6 @@ pub struct InstantiateMsg {
     pub gov_contract: String, // collected rewards receiver
     pub astroport_factory: String,
     pub anchor_token: String,
-    pub distributor_contract: String,
     pub reward_factor: Decimal,
 }
 
@@ -21,7 +20,6 @@ pub enum ExecuteMsg {
         reward_factor: Option<Decimal>,
         gov_contract: Option<String>,
         astroport_factory: Option<String>,
-        distributor_contract: Option<String>,
     },
     /// Public Message
     /// Sweep all given denom balance to ANC token
@@ -41,7 +39,6 @@ pub struct ConfigResponse {
     pub gov_contract: String, // collected rewards receiver
     pub astroport_factory: String,
     pub anchor_token: String,
-    pub distributor_contract: String,
     pub reward_factor: Decimal,
 }
 

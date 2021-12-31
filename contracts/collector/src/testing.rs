@@ -18,7 +18,6 @@ fn proper_initialization() {
         astroport_factory: "astroportfactory".to_string(),
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
-        distributor_contract: "distributor".to_string(),
         reward_factor: Decimal::percent(90),
     };
 
@@ -40,7 +39,6 @@ fn update_config() {
         astroport_factory: "astroportfactory".to_string(),
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
-        distributor_contract: "distributor".to_string(),
         reward_factor: Decimal::percent(90),
     };
 
@@ -53,7 +51,6 @@ fn update_config() {
         reward_factor: Some(Decimal::percent(80)),
         gov_contract: Some("new_gov".to_string()),
         astroport_factory: Some("new_astroport_factory".to_string()),
-        distributor_contract: Some("new_distributor_contract".to_string()),
     };
 
     let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -64,10 +61,6 @@ fn update_config() {
     assert_eq!(Decimal::percent(80), value.reward_factor);
     assert_eq!(value.astroport_factory, "new_astroport_factory".to_string());
     assert_eq!(value.gov_contract, "new_gov".to_string());
-    assert_eq!(
-        value.distributor_contract,
-        "new_distributor_contract".to_string()
-    );
 
     // Unauthorized err
     let info = mock_info("addr0000", &[]);
@@ -75,7 +68,6 @@ fn update_config() {
         reward_factor: None,
         gov_contract: Some("new_gov".to_string()),
         astroport_factory: Some("new_astroport_factory".to_string()),
-        distributor_contract: Some("new_distributor_contract".to_string()),
     };
 
     let res = execute(deps.as_mut(), mock_env(), info, msg);
@@ -104,7 +96,6 @@ fn test_sweep() {
         astroport_factory: "astroportfactory".to_string(),
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
-        distributor_contract: "distributor".to_string(),
         reward_factor: Decimal::percent(90),
     };
 
@@ -161,7 +152,6 @@ fn test_distribute() {
         astroport_factory: "astroportfactory".to_string(),
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
-        distributor_contract: "distributor".to_string(),
         reward_factor: Decimal::percent(90),
     };
 
