@@ -21,6 +21,7 @@ fn read_legacy_config(storage: &dyn Storage) -> StdResult<LegacyConfig> {
 pub fn migrate_config(
     storage: &mut dyn Storage,
     astroport_factory: CanonicalAddr,
+    max_spread: Decimal,
 ) -> StdResult<()> {
     let legacy_config: LegacyConfig = read_legacy_config(storage)?;
 
@@ -31,6 +32,7 @@ pub fn migrate_config(
             astroport_factory,
             anchor_token: legacy_config.anchor_token,
             reward_factor: legacy_config.reward_factor,
+            max_spread: Some(max_spread),
         },
     )
 }

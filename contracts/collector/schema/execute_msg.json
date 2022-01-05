@@ -1,9 +1,9 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "ExecuteMsg",
-  "anyOf": [
+  "oneOf": [
     {
-      "description": "Update config interface to enable reward_factor update",
+      "description": "Update config interface to enable reward_factor update ## NOTE: for updating `max spread` it should be either (true, none) or (true, \"0.1\") if we do not want to update it it should be (false, none)",
       "type": "object",
       "required": [
         "update_config"
@@ -11,7 +11,42 @@
       "properties": {
         "update_config": {
           "type": "object",
+          "required": [
+            "max_spread"
+          ],
           "properties": {
+            "astroport_factory": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "gov_contract": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "max_spread": {
+              "type": "array",
+              "items": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "anyOf": [
+                    {
+                      "$ref": "#/definitions/Decimal"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              ],
+              "maxItems": 2,
+              "minItems": 2
+            },
             "reward_factor": {
               "anyOf": [
                 {

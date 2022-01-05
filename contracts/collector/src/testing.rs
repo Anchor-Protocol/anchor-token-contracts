@@ -19,6 +19,7 @@ fn proper_initialization() {
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
         reward_factor: Decimal::percent(90),
+        max_spread: Default::default(),
     };
 
     let info = mock_info("addr0000", &[]);
@@ -40,6 +41,7 @@ fn update_config() {
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
         reward_factor: Decimal::percent(90),
+        max_spread: Default::default(),
     };
 
     let info = mock_info("addr0000", &[]);
@@ -51,6 +53,7 @@ fn update_config() {
         reward_factor: Some(Decimal::percent(80)),
         gov_contract: Some("new_gov".to_string()),
         astroport_factory: Some("new_astroport_factory".to_string()),
+        max_spread: (true, Some(Decimal::percent(10))),
     };
 
     let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -61,6 +64,26 @@ fn update_config() {
     assert_eq!(Decimal::percent(80), value.reward_factor);
     assert_eq!(value.astroport_factory, "new_astroport_factory".to_string());
     assert_eq!(value.gov_contract, "new_gov".to_string());
+    assert_eq!(value.max_spread, Some(Decimal::percent(10)));
+
+    // test max spread update
+    let info = mock_info("new_gov", &[]);
+    let msg = ExecuteMsg::UpdateConfig {
+        reward_factor: None,
+        gov_contract: None,
+        astroport_factory: None,
+        max_spread: (true, None),
+    };
+
+    let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    // it worked, let's query the state
+    let value = query_config(deps.as_ref()).unwrap();
+    assert_eq!(Decimal::percent(80), value.reward_factor);
+    assert_eq!(value.astroport_factory, "new_astroport_factory".to_string());
+    assert_eq!(value.gov_contract, "new_gov".to_string());
+    assert_eq!(value.max_spread, None);
 
     // Unauthorized err
     let info = mock_info("addr0000", &[]);
@@ -68,6 +91,7 @@ fn update_config() {
         reward_factor: None,
         gov_contract: Some("new_gov".to_string()),
         astroport_factory: Some("new_astroport_factory".to_string()),
+        max_spread: (false, None),
     };
 
     let res = execute(deps.as_mut(), mock_env(), info, msg);
@@ -97,6 +121,7 @@ fn test_sweep() {
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
         reward_factor: Decimal::percent(90),
+        max_spread: Some(Decimal::percent(10)),
     };
 
     let info = mock_info("addr0000", &[]);
@@ -121,7 +146,7 @@ fn test_sweep() {
                         },
                         amount: Uint128::from(99u128),
                     },
-                    max_spread: None,
+                    max_spread: Some(Decimal::percent(10)),
                     belief_price: None,
                     to: None,
                 })
@@ -153,6 +178,7 @@ fn test_distribute() {
         gov_contract: "gov".to_string(),
         anchor_token: "tokenANC".to_string(),
         reward_factor: Decimal::percent(90),
+        max_spread: Some(Decimal::percent(10)),
     };
 
     let info = mock_info("addr0000", &[]);

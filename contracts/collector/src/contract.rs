@@ -29,6 +29,7 @@ pub fn instantiate(
             astroport_factory: deps.api.addr_canonicalize(&msg.astroport_factory)?,
             anchor_token: deps.api.addr_canonicalize(&msg.anchor_token)?,
             reward_factor: msg.reward_factor,
+            max_spread: msg.max_spread,
         },
     )?;
 
@@ -42,7 +43,15 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             reward_factor,
             gov_contract,
             astroport_factory,
-        } => update_config(deps, info, reward_factor, gov_contract, astroport_factory),
+            max_spread,
+        } => update_config(
+            deps,
+            info,
+            reward_factor,
+            gov_contract,
+            astroport_factory,
+            max_spread,
+        ),
         ExecuteMsg::Sweep { denom } => sweep(deps, env, denom),
     }
 }
@@ -53,6 +62,7 @@ pub fn update_config(
     reward_factor: Option<Decimal>,
     gov_contract: Option<String>,
     astroport_factory: Option<String>,
+    max_spread: (bool, Option<Decimal>),
 ) -> StdResult<Response> {
     let mut config: Config = read_config(deps.storage)?;
     if deps.api.addr_canonicalize(info.sender.as_str())? != config.gov_contract {
@@ -68,6 +78,10 @@ pub fn update_config(
     }
     if let Some(astroport_factory) = astroport_factory {
         config.astroport_factory = deps.api.addr_canonicalize(astroport_factory.as_str())?;
+    }
+
+    if max_spread.0 {
+        config.max_spread = max_spread.1
     }
 
     store_config(deps.storage, &config)?;
@@ -118,7 +132,7 @@ pub fn sweep(deps: DepsMut, env: Env, denom: String) -> StdResult<Response> {
                         amount,
                         ..swap_asset
                     },
-                    max_spread: None,
+                    max_spread: config.max_spread,
                     belief_price: None,
                     to: None,
                 })?,
@@ -208,6 +222,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
             .to_string(),
         anchor_token: deps.api.addr_humanize(&state.anchor_token)?.to_string(),
         reward_factor: state.reward_factor,
+        max_spread: state.max_spread,
     };
 
     Ok(resp)
@@ -219,6 +234,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
     migrate_config(
         deps.storage,
         deps.api.addr_canonicalize(&msg.astroport_factory)?,
+        msg.max_spread,
     )?;
 
     Ok(Response::default())

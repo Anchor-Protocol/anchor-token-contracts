@@ -12,6 +12,7 @@ pub struct Config {
     pub astroport_factory: CanonicalAddr, // astroport factory contract
     pub anchor_token: CanonicalAddr,      // anchor token address
     pub reward_factor: Decimal, // reward distribution rate to gov contract, left rewards sent back to distributor contract
+    pub max_spread: Option<Decimal>, // max spread for buybacks
 }
 
 pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
