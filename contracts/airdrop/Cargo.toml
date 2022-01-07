@@ -34,7 +34,7 @@ overflow-checks = true
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-anchor-token = { version = "0.2.0", path = "../../packages/anchor_token" }
+anchor-token = { version = "0.3.0-alpha.1", path = "../../packages/anchor_token" }
 cosmwasm-std = { version = "0.16.0" }
 cosmwasm-storage = { version = "0.16.0" }
 cw20 = { version = "0.8.0" } 
