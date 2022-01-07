@@ -1,6 +1,6 @@
 [package]
 name = "anchor-token"
-version = "0.2.1"
+version = "0.3.0-alpha.1"
 authors = ["Terraform Labs, PTE."]
 edition = "2018"
 description = "Common helpers for other anchor-token specs"
