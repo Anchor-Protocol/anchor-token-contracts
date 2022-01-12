@@ -4,26 +4,32 @@
   "type": "object",
   "required": [
     "anchor_token",
-    "distributor_contract",
+    "astroport_factory",
     "gov_contract",
-    "reward_factor",
-    "terraswap_factory"
+    "reward_factor"
   ],
   "properties": {
     "anchor_token": {
       "type": "string"
     },
-    "distributor_contract": {
+    "astroport_factory": {
       "type": "string"
     },
     "gov_contract": {
       "type": "string"
     },
+    "max_spread": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Decimal"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "reward_factor": {
       "$ref": "#/definitions/Decimal"
-    },
-    "terraswap_factory": {
-      "type": "string"
     }
   },
   "definitions": {

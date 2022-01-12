@@ -12,13 +12,13 @@ use anchor_token::gov::{
     PollStatus, PollsResponse, QueryMsg, StakerResponse, VoteOption, VoterInfo, VotersResponse,
     VotersResponseItem,
 };
+use astroport::querier::query_token_balance;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     attr, coins, from_binary, to_binary, Addr, Api, CanonicalAddr, ContractResult, CosmosMsg,
     Decimal, Deps, DepsMut, Env, Reply, Response, StdError, SubMsg, Timestamp, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use terraswap::querier::query_token_balance;
 
 const VOTING_TOKEN: &str = "voting_token";
 const TEST_CREATOR: &str = "creator";
