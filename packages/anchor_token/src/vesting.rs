@@ -25,17 +25,33 @@ pub enum ExecuteMsg {
     Claim {},
 }
 
-/// CONTRACT: end_time > start_time
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccount {
     pub address: String,
-    pub schedules: Vec<(u64, u64, Uint128)>,
+    pub schedules: Vec<VestingSchedule>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingInfo {
-    pub schedules: Vec<(u64, u64, Uint128)>,
+    pub schedules: Vec<VestingSchedule>,
     pub last_claim_time: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct VestingSchedule {
+    pub start_time: u64,
+    pub end_time: u64,
+    pub amount: Uint128,
+}
+
+impl VestingSchedule {
+    pub fn new(start_time: u64, end_time: u64, amount: Uint128) -> VestingSchedule {
+        VestingSchedule {
+            start_time,
+            end_time,
+            amount,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

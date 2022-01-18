@@ -2,7 +2,7 @@ use crate::contract::{execute, instantiate, query};
 use anchor_token::common::OrderBy;
 use anchor_token::vesting::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, VestingAccount, VestingAccountResponse,
-    VestingAccountsResponse, VestingInfo,
+    VestingAccountsResponse, VestingInfo, VestingSchedule,
 };
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
@@ -115,50 +115,28 @@ fn register_vesting_accounts() {
     let info = mock_info("addr0000", &[]);
     let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 
-    let acct1 = deps
-        .api
-        .addr_humanize(&CanonicalAddr::from(vec![
-            1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        ]))
-        .unwrap()
-        .to_string();
-
-    let acct2 = deps
-        .api
-        .addr_humanize(&CanonicalAddr::from(vec![
-            1, 1, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        ]))
-        .unwrap()
-        .to_string();
-
-    let acct3 = deps
-        .api
-        .addr_humanize(&CanonicalAddr::from(vec![
-            1, 1, 1, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        ]))
-        .unwrap()
-        .to_string();
+    let acct0 = "acct0000".to_string();
+    let acct1 = "acct0001".to_string();
+    let acct2 = "acct0002".to_string();
+    let acct3 = "acct0003".to_string();
 
     let msg = ExecuteMsg::RegisterVestingAccounts {
         vesting_accounts: vec![
             VestingAccount {
                 address: acct1.clone(),
                 schedules: vec![
-                    (100u64, 101u64, Uint128::from(100u128)),
-                    (100u64, 110u64, Uint128::from(100u128)),
-                    (100u64, 200u64, Uint128::from(100u128)),
+                    VestingSchedule::new(100u64, 101u64, Uint128::new(100u128)),
+                    VestingSchedule::new(100u64, 110u64, Uint128::new(100u128)),
+                    VestingSchedule::new(100u64, 200u64, Uint128::new(100u128)),
                 ],
             },
             VestingAccount {
                 address: acct2.clone(),
-                schedules: vec![(100u64, 110u64, Uint128::from(100u128))],
+                schedules: vec![VestingSchedule::new(100u64, 110u64, Uint128::new(100u128))],
             },
             VestingAccount {
                 address: acct3.clone(),
-                schedules: vec![(100u64, 200u64, Uint128::from(100u128))],
+                schedules: vec![VestingSchedule::new(100u64, 200u64, Uint128::new(100u128))],
             },
         ],
     };
@@ -185,9 +163,9 @@ fn register_vesting_accounts() {
             info: VestingInfo {
                 last_claim_time: 100u64,
                 schedules: vec![
-                    (100u64, 101u64, Uint128::from(100u128)),
-                    (100u64, 110u64, Uint128::from(100u128)),
-                    (100u64, 200u64, Uint128::from(100u128)),
+                    VestingSchedule::new(100u64, 101u64, Uint128::new(100u128)),
+                    VestingSchedule::new(100u64, 110u64, Uint128::new(100u128)),
+                    VestingSchedule::new(100u64, 200u64, Uint128::new(100u128)),
                 ],
             }
         }
@@ -210,13 +188,13 @@ fn register_vesting_accounts() {
         VestingAccountsResponse {
             vesting_accounts: vec![
                 VestingAccountResponse {
-                    address: acct1,
+                    address: acct1.clone(),
                     info: VestingInfo {
                         last_claim_time: 100u64,
                         schedules: vec![
-                            (100u64, 101u64, Uint128::from(100u128)),
-                            (100u64, 110u64, Uint128::from(100u128)),
-                            (100u64, 200u64, Uint128::from(100u128)),
+                            VestingSchedule::new(100u64, 101u64, Uint128::new(100u128)),
+                            VestingSchedule::new(100u64, 110u64, Uint128::new(100u128)),
+                            VestingSchedule::new(100u64, 200u64, Uint128::new(100u128)),
                         ],
                     }
                 },
@@ -224,16 +202,24 @@ fn register_vesting_accounts() {
                     address: acct2,
                     info: VestingInfo {
                         last_claim_time: 100u64,
-                        schedules: vec![(100u64, 110u64, Uint128::from(100u128))],
-                    }
+                        schedules: vec![VestingSchedule::new(
+                            100u64,
+                            110u64,
+                            Uint128::new(100u128),
+                        )],
+                    },
                 },
                 VestingAccountResponse {
                     address: acct3,
                     info: VestingInfo {
                         last_claim_time: 100u64,
-                        schedules: vec![(100u64, 200u64, Uint128::from(100u128))],
-                    }
-                }
+                        schedules: vec![
+                            VestingSchedule::new(100u64, 101u64, Uint128::new(100u128)),
+                            VestingSchedule::new(100u64, 110u64, Uint128::new(100u128)),
+                            VestingSchedule::new(100u64, 200u64, Uint128::new(100u128)),
+                        ],
+                    },
+                },
             ]
         }
     );
@@ -256,9 +242,9 @@ fn claim() {
         vesting_accounts: vec![VestingAccount {
             address: "addr0000".to_string(),
             schedules: vec![
-                (100u64, 101u64, Uint128::from(100u128)),
-                (100u64, 110u64, Uint128::from(100u128)),
-                (100u64, 200u64, Uint128::from(100u128)),
+                VestingSchedule::new(100u64, 101u64, Uint128::new(100u128)),
+                VestingSchedule::new(100u64, 110u64, Uint128::new(100u128)),
+                VestingSchedule::new(100u64, 200u64, Uint128::new(100u128)),
             ],
         }],
     };
