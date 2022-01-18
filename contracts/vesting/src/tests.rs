@@ -1,16 +1,14 @@
-use crate::contract::{execute, instantiate, query};
+use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+use cosmwasm_std::{attr, from_binary, to_binary, CosmosMsg, SubMsg, Timestamp, Uint128, WasmMsg};
+use cw20::Cw20ExecuteMsg;
+
 use anchor_token::common::OrderBy;
 use anchor_token::vesting::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, VestingAccount, VestingAccountResponse,
     VestingAccountsResponse, VestingInfo, VestingSchedule,
 };
 
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{
-    attr, from_binary, to_binary, Api, CanonicalAddr, CosmosMsg, StdError, SubMsg, Timestamp,
-    Uint128, WasmMsg,
-};
-use cw20::Cw20ExecuteMsg;
+use crate::contract::{execute, instantiate, query};
 use crate::error::ContractError;
 
 #[test]
@@ -390,7 +388,7 @@ fn unclaimed() {
     let msg = ExecuteMsg::RegisterVestingAccounts {
         vesting_accounts: vec![
             VestingAccount {
-                address: acct1.clone(),
+                address: acct1,
                 schedules: vec![
                     VestingSchedule::new(100u64, 101u64, Uint128::new(100u128)),
                     VestingSchedule::new(100u64, 110u64, Uint128::new(100u128)),
@@ -398,11 +396,11 @@ fn unclaimed() {
                 ],
             },
             VestingAccount {
-                address: acct2.clone(),
+                address: acct2,
                 schedules: vec![VestingSchedule::new(100u64, 110u64, Uint128::new(100u128))],
             },
             VestingAccount {
-                address: acct3.clone(),
+                address: acct3,
                 schedules: vec![VestingSchedule::new(100u64, 200u64, Uint128::new(100u128))],
             },
         ],

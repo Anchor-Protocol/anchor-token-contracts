@@ -17,7 +17,7 @@ pub struct Config {
     pub last_claim_deadline: u64,
 }
 
-pub fn save_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
+pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
     CONFIG.save(storage, config)
 }
 
