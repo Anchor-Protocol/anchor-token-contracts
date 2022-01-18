@@ -14,6 +14,9 @@ pub enum ContractError {
     #[error("Cannot withdraw unclaimed refunds - last claim deadline not exceeded")]
     LastClaimDeadlineNotExceeded,
 
+    #[error("Cannot withdraw refunds - last claim deadline exceeded")]
+    LastClaimDeadlineExceeded,
+
     #[error("Invalid vesting schedule: {0}")]
     InvalidVestingSchedule(String),
 }

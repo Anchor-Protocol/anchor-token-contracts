@@ -70,20 +70,6 @@ pub fn read_vesting_infos(
         .collect()
 }
 
-pub fn store_vesting_infos(
-    storage: &mut dyn Storage,
-    vesting_infos: Vec<(CanonicalAddr, VestingInfo)>,
-) -> StdResult<()> {
-    for entry in vesting_infos {
-        match VESTING_INFO.save(storage, entry.0.as_slice(), &entry.1) {
-            Ok(_) => continue,
-            Err(e) => return Err(e),
-        }
-    }
-
-    Ok(())
-}
-
 // this will set the first key after the provided key, by appending a 1 byte
 fn calc_range_start_addr(start_after: Option<CanonicalAddr>) -> Option<Vec<u8>> {
     start_after.map(|addr| {

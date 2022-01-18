@@ -1,6 +1,9 @@
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{attr, from_binary, to_binary, CosmosMsg, SubMsg, Timestamp, Uint128, WasmMsg};
-use cw20::Cw20ExecuteMsg;
+use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockApi, MockStorage};
+use cosmwasm_std::{
+    attr, from_binary, to_binary, ContractResult, CosmosMsg, OwnedDeps, Querier, QuerierResult,
+    SubMsg, SystemResult, Timestamp, Uint128, WasmMsg,
+};
+use cw20::{BalanceResponse, Cw20ExecuteMsg};
 
 use anchor_token::common::OrderBy;
 use anchor_token::vesting::{
@@ -175,6 +178,7 @@ fn register_vesting_accounts() {
                     VestingSchedule::new(100u64, 200u64, Uint128::new(100u128)),
                 ],
             },
+            accrued_anc: Uint128::zero()
         }
     );
 
@@ -204,6 +208,7 @@ fn register_vesting_accounts() {
                             VestingSchedule::new(100u64, 200u64, Uint128::new(100u128)),
                         ],
                     },
+                    accrued_anc: Uint128::zero()
                 },
                 VestingAccountResponse {
                     address: acct2.clone(),
@@ -215,6 +220,7 @@ fn register_vesting_accounts() {
                             Uint128::new(100u128),
                         )],
                     },
+                    accrued_anc: Uint128::zero()
                 },
                 VestingAccountResponse {
                     address: acct3.clone(),
@@ -226,6 +232,7 @@ fn register_vesting_accounts() {
                             Uint128::new(100u128),
                         )],
                     },
+                    accrued_anc: Uint128::zero()
                 },
             ]
         }
@@ -257,6 +264,7 @@ fn register_vesting_accounts() {
                             Uint128::new(100u128),
                         )],
                     },
+                    accrued_anc: Uint128::zero()
                 },
                 VestingAccountResponse {
                     address: acct1,
@@ -268,6 +276,7 @@ fn register_vesting_accounts() {
                             VestingSchedule::new(100u64, 200u64, Uint128::new(100u128)),
                         ],
                     },
+                    accrued_anc: Uint128::zero()
                 },
             ]
         }
@@ -367,9 +376,27 @@ fn claim() {
     );
 }
 
+#[derive(Clone, Default)]
+struct CustomMockQuerier {}
+
+impl Querier for CustomMockQuerier {
+    fn raw_query(&self, _bin_request: &[u8]) -> QuerierResult {
+        SystemResult::Ok(ContractResult::Ok(
+            to_binary(&BalanceResponse {
+                balance: Uint128::from(10u8),
+            })
+            .unwrap(),
+        ))
+    }
+}
+
 #[test]
 fn unclaimed() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = OwnedDeps {
+        storage: MockStorage::default(),
+        api: MockApi::default(),
+        querier: CustomMockQuerier {},
+    };
 
     let msg = InstantiateMsg {
         owner: "owner".to_string(),
@@ -416,10 +443,9 @@ fn unclaimed() {
     assert_eq!(
         res.attributes,
         vec![
-            attr("action", "claim"),
+            attr("action", "withdraw_unclaimed"),
             attr("address", "owner"),
-            attr("claim_amount", "500"),
-            attr("last_claim_time", "400"),
+            attr("claim_amount", "10"),
         ]
     );
 }

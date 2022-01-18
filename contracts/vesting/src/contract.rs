@@ -3,21 +3,21 @@ use std::cmp::{max, min};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Api, Binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Response, StdResult, Storage, Uint128, WasmMsg,
+    to_binary, Addr, Api, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
+    StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 
 use anchor_token::common::OrderBy;
+use anchor_token::querier::query_token_balance;
 use anchor_token::vesting::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, VestingAccount, VestingAccountResponse,
-    VestingAccountsResponse, VestingInfo, VestingSchedule,
+    ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, VestingAccount,
+    VestingAccountResponse, VestingAccountsResponse, VestingInfo, VestingSchedule,
 };
 
 use crate::error::{ContractError, ContractResult};
 use crate::state::{
-    read_config, read_vesting_info, read_vesting_infos, store_config, store_vesting_info,
-    store_vesting_infos, Config,
+    read_config, read_vesting_info, read_vesting_infos, store_config, store_vesting_info, Config,
 };
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -145,8 +145,11 @@ pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> ContractResult<Respo
     let address_raw = deps.api.addr_canonicalize(&address.to_string())?;
 
     let config = read_config(deps.storage)?;
-    let mut vesting_info = read_vesting_info(deps.storage, &address_raw)?;
+    if config.last_claim_deadline <= env.block.time.seconds() {
+        return Err(ContractError::LastClaimDeadlineExceeded);
+    }
 
+    let mut vesting_info = read_vesting_info(deps.storage, &address_raw)?;
     let claim_amount = compute_claim_amount(current_time, &vesting_info);
     let messages: Vec<CosmosMsg> = if claim_amount.is_zero() {
         vec![]
@@ -190,29 +193,19 @@ fn compute_claim_amount(current_time: u64, vesting_info: &VestingInfo) -> Uint12
         .fold(Uint128::zero(), |acc, i| acc + i)
 }
 
-fn compute_claim_amounts(
-    current_time: u64,
-    vesting_infos: &[(CanonicalAddr, VestingInfo)],
-) -> Uint128 {
-    vesting_infos
-        .iter()
-        .map(|p| &p.1)
-        .map(|vi| compute_claim_amount(current_time, vi))
-        .fold(Uint128::zero(), |acc, i| acc + i)
-}
-
 pub fn withdraw_unclaimed(deps: DepsMut, env: Env, info: MessageInfo) -> ContractResult<Response> {
-    let current_time = env.block.time.seconds();
     let config = read_config(deps.storage)?;
-    let address = info.sender.to_string();
 
-    let last_claim_deadline = config.last_claim_deadline;
-    if last_claim_deadline > current_time {
+    if config.last_claim_deadline > env.block.time.seconds() {
         return Err(ContractError::LastClaimDeadlineNotExceeded);
     }
+    let anchor_token = deps.api.addr_humanize(&config.anchor_token)?.to_string();
 
-    let vesting_infos = read_vesting_infos(deps.storage, None, None, None)?;
-    let unclaimed_amount = compute_claim_amounts(current_time, &vesting_infos);
+    let unclaimed_amount = query_token_balance(
+        deps.as_ref(),
+        deps.api.addr_validate(anchor_token.as_str())?,
+        env.contract.address,
+    )?;
 
     let messages: Vec<CosmosMsg> = if unclaimed_amount.is_zero() {
         vec![]
@@ -221,35 +214,25 @@ pub fn withdraw_unclaimed(deps: DepsMut, env: Env, info: MessageInfo) -> Contrac
             contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
             funds: vec![],
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: address.clone(),
-                amount: unclaimed_amount,
+                recipient: info.sender.to_string(),
+                amount: Uint128::from(unclaimed_amount),
             })?,
         })]
     };
 
-    let claimed_infos = vesting_infos
-        .into_iter()
-        .map(|mut p| {
-            p.1.last_claim_time = current_time;
-            p
-        })
-        .collect::<Vec<(CanonicalAddr, VestingInfo)>>();
-    store_vesting_infos(deps.storage, claimed_infos)?;
-
     Ok(Response::new().add_messages(messages).add_attributes(vec![
-        ("action", "claim"),
-        ("address", &address),
+        ("action", "withdraw_unclaimed"),
+        ("address", info.sender.as_str()),
         ("claim_amount", unclaimed_amount.to_string().as_str()),
-        ("last_claim_time", current_time.to_string().as_str()),
     ]))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> ContractResult<Binary> {
     match msg {
         QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
         QueryMsg::VestingAccount { address } => {
-            Ok(to_binary(&query_vesting_account(deps, address)?)?)
+            Ok(to_binary(&query_vesting_account(deps, env, address)?)?)
         }
         QueryMsg::VestingAccounts {
             start_after,
@@ -257,6 +240,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
             order_by,
         } => Ok(to_binary(&query_vesting_accounts(
             deps,
+            env,
             start_after,
             limit,
             order_by,
@@ -278,20 +262,35 @@ pub fn query_config(deps: Deps) -> ContractResult<ConfigResponse> {
 
 pub fn query_vesting_account(
     deps: Deps,
+    env: Env,
     address: String,
 ) -> ContractResult<VestingAccountResponse> {
+    let config = read_config(deps.storage)?;
     let info = read_vesting_info(deps.storage, &deps.api.addr_canonicalize(&address)?)?;
-    let resp = VestingAccountResponse { address, info };
+    let mut accrued_anc = compute_claim_amount(env.block.time.seconds(), &info);
+
+    if env.block.time.seconds() >= config.last_claim_deadline {
+        accrued_anc = Uint128::zero();
+    }
+
+    let resp = VestingAccountResponse {
+        address,
+        info,
+        accrued_anc,
+    };
 
     Ok(resp)
 }
 
 pub fn query_vesting_accounts(
     deps: Deps,
+    env: Env,
     start_after: Option<String>,
     limit: Option<u32>,
     order_by: Option<OrderBy>,
 ) -> ContractResult<VestingAccountsResponse> {
+    let config = read_config(deps.storage)?;
+
     let vesting_infos = read_vesting_infos(
         deps.storage,
         start_after
@@ -304,9 +303,16 @@ pub fn query_vesting_accounts(
     let vesting_account_responses: StdResult<Vec<VestingAccountResponse>> = vesting_infos
         .iter()
         .map(|vesting_account| {
+            let mut accrued_anc =
+                compute_claim_amount(env.block.time.seconds(), &vesting_account.1);
+            if env.block.time.seconds() >= config.last_claim_deadline {
+                accrued_anc = Uint128::zero();
+            }
+
             Ok(VestingAccountResponse {
                 address: deps.api.addr_humanize(&vesting_account.0)?.to_string(),
                 info: vesting_account.1.clone(),
+                accrued_anc,
             })
         })
         .collect();
@@ -314,6 +320,11 @@ pub fn query_vesting_accounts(
     Ok(VestingAccountsResponse {
         vesting_accounts: vesting_account_responses?,
     })
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }
 
 #[test]

@@ -85,6 +85,7 @@ pub struct ConfigResponse {
 pub struct VestingAccountResponse {
     pub address: String,
     pub info: VestingInfo,
+    pub accrued_anc: Uint128,
 }
 
 // We define a custom struct for each query response
@@ -92,3 +93,6 @@ pub struct VestingAccountResponse {
 pub struct VestingAccountsResponse {
     pub vesting_accounts: Vec<VestingAccountResponse>,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}
