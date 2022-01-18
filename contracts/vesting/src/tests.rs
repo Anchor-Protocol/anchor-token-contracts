@@ -21,6 +21,7 @@ fn proper_initialization() {
         owner: "owner".to_string(),
         anchor_token: "anchor_token".to_string(),
         genesis_time: 12345u64,
+        last_claim_deadline: 99999u64,
     };
 
     let info = mock_info("addr0000", &[]);
@@ -35,6 +36,7 @@ fn proper_initialization() {
             owner: "owner".to_string(),
             anchor_token: "anchor_token".to_string(),
             genesis_time: 12345u64,
+            last_claim_deadline: 99999u64,
         }
     );
 }
@@ -47,6 +49,7 @@ fn update_config() {
         owner: "owner".to_string(),
         anchor_token: "anchor_token".to_string(),
         genesis_time: 12345u64,
+        last_claim_deadline: 99999u64,
     };
 
     let info = mock_info("addr0000", &[]);
@@ -56,6 +59,7 @@ fn update_config() {
         owner: Some("owner2".to_string()),
         anchor_token: None,
         genesis_time: None,
+        last_claim_deadline: None,
     };
     let info = mock_info("owner", &[]);
     let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -69,6 +73,7 @@ fn update_config() {
             owner: "owner2".to_string(),
             anchor_token: "anchor_token".to_string(),
             genesis_time: 12345u64,
+            last_claim_deadline: 99999u64,
         }
     );
 
@@ -76,6 +81,7 @@ fn update_config() {
         owner: Some("owner".to_string()),
         anchor_token: None,
         genesis_time: None,
+        last_claim_deadline: None,
     };
     let info = mock_info("owner", &[]);
     let res = execute(deps.as_mut(), mock_env(), info, msg);
@@ -85,6 +91,7 @@ fn update_config() {
         owner: None,
         anchor_token: Some("anchor_token2".to_string()),
         genesis_time: Some(1u64),
+        last_claim_deadline: None,
     };
     let info = mock_info("owner2", &[]);
     let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -98,6 +105,7 @@ fn update_config() {
             owner: "owner2".to_string(),
             anchor_token: "anchor_token2".to_string(),
             genesis_time: 1u64,
+            last_claim_deadline: 99999u64,
         }
     );
 }
@@ -110,6 +118,7 @@ fn register_vesting_accounts() {
         owner: "owner".to_string(),
         anchor_token: "anchor_token".to_string(),
         genesis_time: 100u64,
+        last_claim_deadline: 99999u64,
     };
 
     let info = mock_info("addr0000", &[]);
@@ -153,7 +162,7 @@ fn register_vesting_accounts() {
                 mock_env(),
                 QueryMsg::VestingAccount {
                     address: acct1.clone(),
-                }
+                },
             )
             .unwrap()
         )
@@ -167,7 +176,7 @@ fn register_vesting_accounts() {
                     VestingSchedule::new(100u64, 110u64, Uint128::new(100u128)),
                     VestingSchedule::new(100u64, 200u64, Uint128::new(100u128)),
                 ],
-            }
+            },
         }
     );
 
@@ -178,9 +187,9 @@ fn register_vesting_accounts() {
                 mock_env(),
                 QueryMsg::VestingAccounts {
                     limit: None,
-                    start_after: None,
+                    start_after: Some(acct0),
                     order_by: Some(OrderBy::Asc),
-                }
+                },
             )
             .unwrap()
         )
@@ -275,6 +284,7 @@ fn claim() {
         owner: "owner".to_string(),
         anchor_token: "anchor_token".to_string(),
         genesis_time: 100u64,
+        last_claim_deadline: 99999u64,
     };
 
     let info = mock_info("addr0000", &[]);
@@ -356,5 +366,62 @@ fn claim() {
             .unwrap(),
             funds: vec![],
         }))],
+    );
+}
+
+#[test]
+fn unclaimed() {
+    let mut deps = mock_dependencies(&[]);
+
+    let msg = InstantiateMsg {
+        owner: "owner".to_string(),
+        anchor_token: "anchor_token".to_string(),
+        genesis_time: 100u64,
+        last_claim_deadline: 300u64,
+    };
+
+    let info = mock_info("addr0000", &[]);
+    let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+    let acct1 = "acct0001".to_string();
+    let acct2 = "acct0002".to_string();
+    let acct3 = "acct0003".to_string();
+
+    let msg = ExecuteMsg::RegisterVestingAccounts {
+        vesting_accounts: vec![
+            VestingAccount {
+                address: acct1.clone(),
+                schedules: vec![
+                    VestingSchedule::new(100u64, 101u64, Uint128::new(100u128)),
+                    VestingSchedule::new(100u64, 110u64, Uint128::new(100u128)),
+                    VestingSchedule::new(100u64, 200u64, Uint128::new(100u128)),
+                ],
+            },
+            VestingAccount {
+                address: acct2.clone(),
+                schedules: vec![VestingSchedule::new(100u64, 110u64, Uint128::new(100u128))],
+            },
+            VestingAccount {
+                address: acct3.clone(),
+                schedules: vec![VestingSchedule::new(100u64, 200u64, Uint128::new(100u128))],
+            },
+        ],
+    };
+    let info = mock_info("owner", &[]);
+    let _res = execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+
+    let mut env = mock_env();
+    env.block.time = Timestamp::from_seconds(400u64);
+
+    let msg = ExecuteMsg::WithdrawUnclaimed {};
+    let res = execute(deps.as_mut(), env, info, msg).unwrap();
+    assert_eq!(
+        res.attributes,
+        vec![
+            attr("action", "claim"),
+            attr("address", "owner"),
+            attr("claim_amount", "500"),
+            attr("last_claim_time", "400"),
+        ]
     );
 }

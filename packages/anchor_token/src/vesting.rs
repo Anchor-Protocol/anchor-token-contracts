@@ -9,6 +9,7 @@ pub struct InstantiateMsg {
     pub owner: String,
     pub anchor_token: String,
     pub genesis_time: u64,
+    pub last_claim_deadline: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -18,11 +19,13 @@ pub enum ExecuteMsg {
         owner: Option<String>,
         anchor_token: Option<String>,
         genesis_time: Option<u64>,
+        last_claim_deadline: Option<u64>,
     },
     RegisterVestingAccounts {
         vesting_accounts: Vec<VestingAccount>,
     },
     Claim {},
+    WithdrawUnclaimed {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -74,6 +77,7 @@ pub struct ConfigResponse {
     pub owner: String,
     pub anchor_token: String,
     pub genesis_time: u64,
+    pub last_claim_deadline: u64,
 }
 
 // We define a custom struct for each query response
