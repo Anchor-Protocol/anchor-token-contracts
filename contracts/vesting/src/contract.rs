@@ -12,7 +12,7 @@ use crate::state::{
 use anchor_token::common::OrderBy;
 use anchor_token::vesting::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, VestingAccount, VestingAccountResponse,
-    VestingAccountsResponse, VestingInfo,
+    VestingAccountsResponse, VestingInfo, VestingSchedule,
 use crate::error::{ContractError, ContractResult};
 };
 use cw20::Cw20ExecuteMsg;
@@ -98,9 +98,9 @@ pub fn update_config(
     Ok(Response::new().add_attributes(vec![("action", "update_config")]))
 }
 
-fn assert_vesting_schedules(vesting_schedules: &[(u64, u64, Uint128)]) -> ContractResult<()> {
+fn assert_vesting_schedules(vesting_schedules: &[VestingSchedule]) -> ContractResult<()> {
     for vesting_schedule in vesting_schedules.iter() {
-        if vesting_schedule.0 >= vesting_schedule.1 {
+        if vesting_schedule.start_time >= vesting_schedule.end_time {
             return Err(ContractError::InvalidVestingSchedule(
                 "end_time must bigger than start_time".to_string(),
             ));
@@ -261,17 +261,17 @@ pub fn query_vesting_accounts(
 fn test_assert_vesting_schedules() {
     // valid
     assert_vesting_schedules(&[
-        (100u64, 101u64, Uint128::from(100u128)),
-        (100u64, 110u64, Uint128::from(100u128)),
-        (100u64, 200u64, Uint128::from(100u128)),
+        VestingSchedule::new(100u64, 101u64, Uint128::from(100u128)),
+        VestingSchedule::new(100u64, 110u64, Uint128::from(100u128)),
+        VestingSchedule::new(100u64, 200u64, Uint128::from(100u128)),
     ])
     .unwrap();
 
     // invalid
     let res = assert_vesting_schedules(&[
-        (100u64, 100u64, Uint128::from(100u128)),
-        (100u64, 110u64, Uint128::from(100u128)),
-        (100u64, 200u64, Uint128::from(100u128)),
+        VestingSchedule::new(100u64, 100u64, Uint128::from(100u128)),
+        VestingSchedule::new(100u64, 110u64, Uint128::from(100u128)),
+        VestingSchedule::new(100u64, 200u64, Uint128::from(100u128)),
     ]);
     assert_eq!(
         res,
