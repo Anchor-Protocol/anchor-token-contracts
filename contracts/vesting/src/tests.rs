@@ -11,6 +11,7 @@ use cosmwasm_std::{
     Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
+use crate::error::ContractError;
 
 #[test]
 fn proper_initialization() {
@@ -78,10 +79,7 @@ fn update_config() {
     };
     let info = mock_info("owner", &[]);
     let res = execute(deps.as_mut(), mock_env(), info, msg);
-    match res {
-        Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "unauthorized"),
-        _ => panic!("DO NOT ENTER HERE"),
-    }
+    assert_eq!(res, Err(ContractError::Unauthorized));
 
     let msg = ExecuteMsg::UpdateConfig {
         owner: None,
@@ -166,10 +164,7 @@ fn register_vesting_accounts() {
     };
     let info = mock_info("addr0000", &[]);
     let res = execute(deps.as_mut(), mock_env(), info, msg.clone());
-    match res {
-        Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "unauthorized"),
-        _ => panic!("DO NOT ENTER HERE"),
-    }
+    assert_eq!(res, Err(ContractError::Unauthorized));
 
     let info = mock_info("owner", &[]);
     let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
