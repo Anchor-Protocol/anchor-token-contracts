@@ -1,3 +1,5 @@
+use std::cmp::{max, min};
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
@@ -166,24 +168,21 @@ pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> ContractResult<Respo
 }
 
 fn compute_claim_amount(current_time: u64, vesting_info: &VestingInfo) -> Uint128 {
-    let mut claimable_amount: Uint128 = Uint128::zero();
-    for s in vesting_info.schedules.iter() {
-        if s.0 > current_time || s.1 < vesting_info.last_claim_time {
-            continue;
-        }
+    let last_claim_time = vesting_info.last_claim_time;
+    vesting_info
+        .schedules
+        .iter()
+        .filter(|vs| vs.start_time < current_time && vs.end_time > last_claim_time)
+        .map(|vs| {
+            let passed_time = min(vs.end_time, current_time) - max(vs.start_time, last_claim_time);
 
-        // min(s.1, current_time) - max(s.0, last_claim_time)
-        let passed_time =
-            std::cmp::min(s.1, current_time) - std::cmp::max(s.0, vesting_info.last_claim_time);
+            // prevent zero time_period case
+            let time_period = vs.end_time - vs.start_time;
+            let release_amount_per_time = Decimal::from_ratio(vs.amount, time_period);
 
-        // prevent zero time_period case
-        let time_period = s.1 - s.0;
-        let release_amount_per_time: Decimal = Decimal::from_ratio(s.2, time_period);
-
-        claimable_amount += Uint128::from(passed_time as u128) * release_amount_per_time;
-    }
-
-    claimable_amount
+            Uint128::from(passed_time as u128) * release_amount_per_time
+        })
+        .fold(Uint128::zero(), |acc, i| acc + i)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
