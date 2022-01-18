@@ -232,17 +232,15 @@ pub fn query_vesting_accounts(
     start_after: Option<String>,
     limit: Option<u32>,
     order_by: Option<OrderBy>,
-    let vesting_infos = if let Some(start_after) = start_after {
-        read_vesting_infos(
-            deps.storage,
-            Some(deps.api.addr_canonicalize(&start_after)?),
-            limit,
-            order_by,
-        )?
-    } else {
-        read_vesting_infos(deps.storage, None, limit, order_by)?
-    };
 ) -> ContractResult<VestingAccountsResponse> {
+    let vesting_infos = read_vesting_infos(
+        deps.storage,
+        start_after
+            .map(|s| deps.api.addr_canonicalize(&s))
+            .transpose()?,
+        limit,
+        order_by,
+    )?;
 
     let vesting_account_responses: StdResult<Vec<VestingAccountResponse>> = vesting_infos
         .iter()
