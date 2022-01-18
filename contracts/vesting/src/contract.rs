@@ -2,22 +2,23 @@ use std::cmp::{max, min};
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-
 use cosmwasm_std::{
-    to_binary, Addr, Api, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
-    StdError, StdResult, Storage, Uint128, WasmMsg,
+    to_binary, Addr, Api, Binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    MessageInfo, Response, StdResult, Storage, Uint128, WasmMsg,
 };
+use cw20::Cw20ExecuteMsg;
 
-use crate::state::{
-    read_config, read_vesting_info, read_vesting_infos, store_config, store_vesting_info, Config,
-};
 use anchor_token::common::OrderBy;
 use anchor_token::vesting::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, VestingAccount, VestingAccountResponse,
     VestingAccountsResponse, VestingInfo, VestingSchedule,
-use crate::error::{ContractError, ContractResult};
 };
-use cw20::Cw20ExecuteMsg;
+
+use crate::error::{ContractError, ContractResult};
+use crate::state::{
+    read_config, read_vesting_info, read_vesting_infos, store_config, store_vesting_info,
+    store_vesting_infos, Config,
+};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -191,12 +192,12 @@ fn compute_claim_amount(current_time: u64, vesting_info: &VestingInfo) -> Uint12
 
 fn compute_claim_amounts(
     current_time: u64,
-    vesting_infos: &Vec<(CanonicalAddr, VestingInfo)>,
+    vesting_infos: &[(CanonicalAddr, VestingInfo)],
 ) -> Uint128 {
     vesting_infos
         .iter()
         .map(|p| &p.1)
-        .map(|vi| compute_claim_amount(current_time, &vi))
+        .map(|vi| compute_claim_amount(current_time, vi))
         .fold(Uint128::zero(), |acc, i| acc + i)
 }
 
