@@ -13,6 +13,7 @@ use anchor_token::common::OrderBy;
 use anchor_token::vesting::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, VestingAccount, VestingAccountResponse,
     VestingAccountsResponse, VestingInfo,
+use crate::error::{ContractError, ContractResult};
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -22,7 +23,7 @@ pub fn instantiate(
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> StdResult<Response> {
+) -> ContractResult<Response> {
     store_config(
         deps.storage,
         &Config {
@@ -36,7 +37,12 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
+pub fn execute(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> ContractResult<Response> {
     match msg {
         ExecuteMsg::Claim {} => claim(deps, env, info),
         _ => {
@@ -56,9 +62,13 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     }
 }
 
-fn assert_owner_privilege(storage: &dyn Storage, api: &dyn Api, sender: Addr) -> StdResult<()> {
+fn assert_owner_privilege(
+    storage: &dyn Storage,
+    api: &dyn Api,
+    sender: &Addr,
+) -> ContractResult<()> {
     if read_config(storage)?.owner != api.addr_canonicalize(sender.as_str())? {
-        return Err(StdError::generic_err("unauthorized"));
+        return Err(ContractError::Unauthorized);
     }
 
     Ok(())
@@ -69,7 +79,7 @@ pub fn update_config(
     owner: Option<String>,
     anchor_token: Option<String>,
     genesis_time: Option<u64>,
-) -> StdResult<Response> {
+) -> ContractResult<Response> {
     let mut config = read_config(deps.storage)?;
     if let Some(owner) = owner {
         config.owner = deps.api.addr_canonicalize(&owner)?;
@@ -88,11 +98,11 @@ pub fn update_config(
     Ok(Response::new().add_attributes(vec![("action", "update_config")]))
 }
 
-fn assert_vesting_schedules(vesting_schedules: &[(u64, u64, Uint128)]) -> StdResult<()> {
+fn assert_vesting_schedules(vesting_schedules: &[(u64, u64, Uint128)]) -> ContractResult<()> {
     for vesting_schedule in vesting_schedules.iter() {
         if vesting_schedule.0 >= vesting_schedule.1 {
-            return Err(StdError::generic_err(
-                "end_time must bigger than start_time",
+            return Err(ContractError::InvalidVestingSchedule(
+                "end_time must bigger than start_time".to_string(),
             ));
         }
     }
@@ -102,8 +112,8 @@ fn assert_vesting_schedules(vesting_schedules: &[(u64, u64, Uint128)]) -> StdRes
 
 pub fn register_vesting_accounts(
     deps: DepsMut,
-    vesting_accounts: Vec<VestingAccount>,
-) -> StdResult<Response> {
+    vesting_accounts: &[VestingAccount],
+) -> ContractResult<Response> {
     let config: Config = read_config(deps.storage)?;
     for vesting_account in vesting_accounts.iter() {
         assert_vesting_schedules(&vesting_account.schedules)?;
@@ -122,8 +132,8 @@ pub fn register_vesting_accounts(
     Ok(Response::new().add_attributes(vec![("action", "register_vesting_accounts")]))
 }
 
-pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
     let current_time = env.block.time.nanos() / 1_000_000_000;
+pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> ContractResult<Response> {
     let address = info.sender;
     let address_raw = deps.api.addr_canonicalize(&address.to_string())?;
 
@@ -177,7 +187,7 @@ fn compute_claim_amount(current_time: u64, vesting_info: &VestingInfo) -> Uint12
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
     match msg {
         QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
         QueryMsg::VestingAccount { address } => {
@@ -196,7 +206,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+pub fn query_config(deps: Deps) -> ContractResult<ConfigResponse> {
     let state = read_config(deps.storage)?;
     let resp = ConfigResponse {
         owner: deps.api.addr_humanize(&state.owner)?.to_string(),
@@ -207,7 +217,10 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     Ok(resp)
 }
 
-pub fn query_vesting_account(deps: Deps, address: String) -> StdResult<VestingAccountResponse> {
+pub fn query_vesting_account(
+    deps: Deps,
+    address: String,
+) -> ContractResult<VestingAccountResponse> {
     let info = read_vesting_info(deps.storage, &deps.api.addr_canonicalize(&address)?)?;
     let resp = VestingAccountResponse { address, info };
 
@@ -219,7 +232,6 @@ pub fn query_vesting_accounts(
     start_after: Option<String>,
     limit: Option<u32>,
     order_by: Option<OrderBy>,
-) -> StdResult<VestingAccountsResponse> {
     let vesting_infos = if let Some(start_after) = start_after {
         read_vesting_infos(
             deps.storage,
@@ -230,6 +242,7 @@ pub fn query_vesting_accounts(
     } else {
         read_vesting_infos(deps.storage, None, limit, order_by)?
     };
+) -> ContractResult<VestingAccountsResponse> {
 
     let vesting_account_responses: StdResult<Vec<VestingAccountResponse>> = vesting_infos
         .iter()
@@ -262,10 +275,10 @@ fn test_assert_vesting_schedules() {
         (100u64, 110u64, Uint128::from(100u128)),
         (100u64, 200u64, Uint128::from(100u128)),
     ]);
-    match res {
-        Err(StdError::GenericErr { msg, .. }) => {
-            assert_eq!(msg, "end_time must bigger than start_time")
-        }
-        _ => panic!("DO NOT ENTER HERE"),
-    }
+    assert_eq!(
+        res,
+        Err(ContractError::InvalidVestingSchedule(
+            "end_time must bigger than start_time".to_string()
+        ))
+    )
 }
