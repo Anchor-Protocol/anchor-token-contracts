@@ -32,6 +32,7 @@ pub fn instantiate(
             owner: deps.api.addr_canonicalize(&msg.owner)?,
             anchor_token: deps.api.addr_canonicalize(&msg.anchor_token)?,
             genesis_time: msg.genesis_time,
+            last_claim_deadline: msg.last_claim_deadline,
         },
     )?;
 
@@ -48,15 +49,17 @@ pub fn execute(
     match msg {
         ExecuteMsg::Claim {} => claim(deps, env, info),
         _ => {
-            assert_owner_privilege(deps.storage, deps.api, info.sender)?;
+            assert_owner_privilege(deps.storage, deps.api, &info.sender)?;
             match msg {
+                ExecuteMsg::WithdrawUnclaimed {} => withdraw_unclaimed(deps, env, info),
                 ExecuteMsg::UpdateConfig {
                     owner,
                     anchor_token,
                     genesis_time,
-                } => update_config(deps, owner, anchor_token, genesis_time),
+                    last_claim_deadline,
+                } => update_config(deps, owner, anchor_token, genesis_time, last_claim_deadline),
                 ExecuteMsg::RegisterVestingAccounts { vesting_accounts } => {
-                    register_vesting_accounts(deps, vesting_accounts)
+                    register_vesting_accounts(deps, &vesting_accounts)
                 }
                 _ => panic!("DO NOT ENTER HERE"),
             }
@@ -81,20 +84,21 @@ pub fn update_config(
     owner: Option<String>,
     anchor_token: Option<String>,
     genesis_time: Option<u64>,
+    last_claim_deadline: Option<u64>,
 ) -> ContractResult<Response> {
     let mut config = read_config(deps.storage)?;
     if let Some(owner) = owner {
         config.owner = deps.api.addr_canonicalize(&owner)?;
     }
-
     if let Some(anchor_token) = anchor_token {
         config.anchor_token = deps.api.addr_canonicalize(&anchor_token)?;
     }
-
     if let Some(genesis_time) = genesis_time {
         config.genesis_time = genesis_time;
     }
-
+    if let Some(last_claim_deadline) = last_claim_deadline {
+        config.last_claim_deadline = last_claim_deadline;
+    }
     store_config(deps.storage, &config)?;
 
     Ok(Response::new().add_attributes(vec![("action", "update_config")]))
@@ -139,8 +143,8 @@ pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> ContractResult<Respo
     let address = info.sender;
     let address_raw = deps.api.addr_canonicalize(&address.to_string())?;
 
-    let config: Config = read_config(deps.storage)?;
-    let mut vesting_info: VestingInfo = read_vesting_info(deps.storage, &address_raw)?;
+    let config = read_config(deps.storage)?;
+    let mut vesting_info = read_vesting_info(deps.storage, &address_raw)?;
 
     let claim_amount = compute_claim_amount(current_time, &vesting_info);
     let messages: Vec<CosmosMsg> = if claim_amount.is_zero() {
@@ -185,6 +189,60 @@ fn compute_claim_amount(current_time: u64, vesting_info: &VestingInfo) -> Uint12
         .fold(Uint128::zero(), |acc, i| acc + i)
 }
 
+fn compute_claim_amounts(
+    current_time: u64,
+    vesting_infos: &Vec<(CanonicalAddr, VestingInfo)>,
+) -> Uint128 {
+    vesting_infos
+        .iter()
+        .map(|p| &p.1)
+        .map(|vi| compute_claim_amount(current_time, &vi))
+        .fold(Uint128::zero(), |acc, i| acc + i)
+}
+
+pub fn withdraw_unclaimed(deps: DepsMut, env: Env, info: MessageInfo) -> ContractResult<Response> {
+    let current_time = env.block.time.seconds();
+    let config = read_config(deps.storage)?;
+    let address = info.sender.to_string();
+
+    let last_claim_deadline = config.last_claim_deadline;
+    if last_claim_deadline > current_time {
+        return Err(ContractError::LastClaimDeadlineNotExceeded);
+    }
+
+    let vesting_infos = read_vesting_infos(deps.storage, None, None, None)?;
+    let unclaimed_amount = compute_claim_amounts(current_time, &vesting_infos);
+
+    let messages: Vec<CosmosMsg> = if unclaimed_amount.is_zero() {
+        vec![]
+    } else {
+        vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
+            funds: vec![],
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: address.clone(),
+                amount: unclaimed_amount,
+            })?,
+        })]
+    };
+
+    let claimed_infos = vesting_infos
+        .into_iter()
+        .map(|mut p| {
+            p.1.last_claim_time = current_time;
+            p
+        })
+        .collect::<Vec<(CanonicalAddr, VestingInfo)>>();
+    store_vesting_infos(deps.storage, claimed_infos)?;
+
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        ("action", "claim"),
+        ("address", &address),
+        ("claim_amount", unclaimed_amount.to_string().as_str()),
+        ("last_claim_time", current_time.to_string().as_str()),
+    ]))
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
     match msg {
@@ -211,6 +269,7 @@ pub fn query_config(deps: Deps) -> ContractResult<ConfigResponse> {
         owner: deps.api.addr_humanize(&state.owner)?.to_string(),
         anchor_token: deps.api.addr_humanize(&state.anchor_token)?.to_string(),
         genesis_time: state.genesis_time,
+        last_claim_deadline: state.last_claim_deadline,
     };
 
     Ok(resp)
