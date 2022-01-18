@@ -134,8 +134,8 @@ pub fn register_vesting_accounts(
     Ok(Response::new().add_attributes(vec![("action", "register_vesting_accounts")]))
 }
 
-    let current_time = env.block.time.nanos() / 1_000_000_000;
 pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> ContractResult<Response> {
+    let current_time = env.block.time.seconds();
     let address = info.sender;
     let address_raw = deps.api.addr_canonicalize(&address.to_string())?;
 
