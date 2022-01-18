@@ -196,8 +196,50 @@ fn register_vesting_accounts() {
                             VestingSchedule::new(100u64, 110u64, Uint128::new(100u128)),
                             VestingSchedule::new(100u64, 200u64, Uint128::new(100u128)),
                         ],
-                    }
+                    },
                 },
+                VestingAccountResponse {
+                    address: acct2.clone(),
+                    info: VestingInfo {
+                        last_claim_time: 100u64,
+                        schedules: vec![VestingSchedule::new(
+                            100u64,
+                            110u64,
+                            Uint128::new(100u128),
+                        )],
+                    },
+                },
+                VestingAccountResponse {
+                    address: acct3.clone(),
+                    info: VestingInfo {
+                        last_claim_time: 100u64,
+                        schedules: vec![VestingSchedule::new(
+                            100u64,
+                            200u64,
+                            Uint128::new(100u128),
+                        )],
+                    },
+                },
+            ]
+        }
+    );
+
+    assert_eq!(
+        from_binary::<VestingAccountsResponse>(
+            &query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::VestingAccounts {
+                    limit: None,
+                    start_after: Some(acct3),
+                    order_by: Some(OrderBy::Desc),
+                },
+            )
+            .unwrap()
+        )
+        .unwrap(),
+        VestingAccountsResponse {
+            vesting_accounts: vec![
                 VestingAccountResponse {
                     address: acct2,
                     info: VestingInfo {
@@ -210,7 +252,7 @@ fn register_vesting_accounts() {
                     },
                 },
                 VestingAccountResponse {
-                    address: acct3,
+                    address: acct1,
                     info: VestingInfo {
                         last_claim_time: 100u64,
                         schedules: vec![
