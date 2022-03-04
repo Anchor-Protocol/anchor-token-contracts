@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ConfigResponse",
+  "description": "This structure describes config response.",
+  "type": "object",
+  "required": [
+    "anchor_token",
+    "owner"
+  ],
+  "properties": {
+    "anchor_token": {
+      "type": "string"
+    },
+    "owner": {
+      "type": "string"
+    }
+  }
+}

@@ -1,9 +1,7 @@
-use crate::contract::{execute, instantiate, query};
-use crate::escrow::{InstantiateMsg}
+use crate::contract::instantiate;
+use anchor_token::voting_escrow::InstantiateMsg;
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{from_binary, to_binary, CosmosMsg, StdError, SubMsg, Uint128, WasmMsg};
-use cw20::Cw20ExecuteMsg;
 
 #[test]
 fn proper_initialization() {
@@ -12,7 +10,7 @@ fn proper_initialization() {
     let msg = InstantiateMsg {
         owner: "owner".to_string(),
         anchor_token: "anchor".to_string(),
-        marketing: None
+        marketing: None,
     };
 
     let info = mock_info("owner", &[]);

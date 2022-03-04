@@ -5,31 +5,27 @@ use cosmwasm_std::{
     Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
-use cw20::{
-    Cw20ExecuteMsg, Cw20ReceiveMsg, Logo, LogoInfo, MarketingInfoResponse
-};
+use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, Logo, LogoInfo, MarketingInfoResponse};
 use cw20_base::contract::{
     execute_update_marketing, execute_upload_logo, query_download_logo, query_marketing_info,
 };
 use cw20_base::state::{MinterData, TokenInfo, LOGO, MARKETING_INFO, TOKEN_INFO};
 use cw_storage_plus::U64Key;
 
-use crate::escrow::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse
-    QueryMsg, VotingPowerResponse,
-}
 use crate::error::ContractError;
-use crate::state::{
-    Config, Lock, Point, CONFIG, HISTORY, LAST_SLOPE_CHANGE, LOCKED
-};
+use crate::state::{Config, Lock, Point, CONFIG, HISTORY, LAST_SLOPE_CHANGE, LOCKED};
 use crate::utils::{
-    calc_coefficient, calc_voting_power, cancel_scheduled_slope,
-    fetch_last_checkpoint, fetch_slope_changes, schedule_slope_change, time_limits_check,
-    validate_addresses, anc_token_check, get_period, WEEK, addr_validate_to_lower
+    addr_validate_to_lower, anc_token_check, calc_coefficient, calc_voting_power,
+    cancel_scheduled_slope, fetch_last_checkpoint, fetch_slope_changes, get_period,
+    schedule_slope_change, time_limits_check, WEEK,
+};
+use anchor_token::voting_escrow::{
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, QueryMsg,
+    UserSlopeResponse, VotingPowerResponse,
 };
 
 /// Contract name that is used for migration.
-const CONTRACT_NAME: &str = "voting-escrow";
+const CONTRACT_NAME: &str = "anchor-voting-escrow";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -55,9 +51,8 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let config = Config {
-        owner: addr_validate_to_lower(deps.api, &msg.owner)?,
-        guardian_addr: addr_validate_to_lower(deps.api, &msg.guardian_addr)?,
-        deposit_token_addr: addr_validate_to_lower(deps.api, &msg.deposit_token_addr)?,
+        owner: deps.api.addr_canonicalize(&msg.owner)?,
+        anchor_token: deps.api.addr_canonicalize(&msg.anchor_token)?,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -126,12 +121,6 @@ pub fn instantiate(
 /// msg should have [`Cw20ReceiveMsg`] type.
 ///
 /// * **ExecuteMsg::Withdraw {}** withdraw whole amount from the current lock if it has expired
-///
-/// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a new request to change ownership.
-///
-/// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change ownership.
-///
-/// * **ExecuteMsg::ClaimOwnership {}** Approves owner.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -415,7 +404,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
     } else {
         let config = CONFIG.load(deps.storage)?;
         let transfer_msg = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.deposit_token_addr.to_string(),
+            contract_addr: config.anchor_token.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: sender.to_string(),
                 amount: lock.amount,
@@ -509,12 +498,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::UserVotingPowerAtPeriod { user, period } => {
             to_binary(&get_user_voting_power_at_period(deps, user, period)?)
         }
+        QueryMsg::GetLastUserSlope { user: _ } => to_binary(&UserSlopeResponse {
+            slope: Uint128::from(0u64),
+        }),
         QueryMsg::LockInfo { user } => to_binary(&get_user_lock_info(deps, user)?),
         QueryMsg::Config {} => {
             let config = CONFIG.load(deps.storage)?;
             to_binary(&ConfigResponse {
                 owner: config.owner.to_string(),
-                deposit_token_addr: config.deposit_token_addr.to_string(),
+                anchor_token: config.anchor_token.to_string(),
             })
         }
         QueryMsg::MarketingInfo {} => to_binary(&query_marketing_info(deps)?),

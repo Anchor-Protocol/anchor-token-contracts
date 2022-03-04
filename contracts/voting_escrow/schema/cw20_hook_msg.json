@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Cw20HookMsg",
+  "description": "This structure describes a CW20 hook message.",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "create_lock"
+      ],
+      "properties": {
+        "create_lock": {
+          "type": "object",
+          "required": [
+            "time"
+          ],
+          "properties": {
+            "time": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "deposit_for"
+      ],
+      "properties": {
+        "deposit_for": {
+          "type": "object",
+          "required": [
+            "user"
+          ],
+          "properties": {
+            "user": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "extend_lock_amount"
+      ],
+      "properties": {
+        "extend_lock_amount": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    }
+  ]
+}

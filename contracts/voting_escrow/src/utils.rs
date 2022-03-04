@@ -1,6 +1,6 @@
 use crate::error::ContractError;
 use cosmwasm_std::{
-    Addr, Decimal, Deps, DepsMut, Fraction, Order, OverflowError, Pair, StdError, StdResult,
+    Addr, Api, Decimal, Deps, DepsMut, Fraction, Order, OverflowError, Pair, StdError, StdResult,
     Uint128, Uint256,
 };
 use cw_storage_plus::{Bound, U64Key};
@@ -28,7 +28,8 @@ pub(crate) fn time_limits_check(time: u64) -> Result<(), ContractError> {
 /// Checks the sender is ANC token
 pub(crate) fn anc_token_check(deps: Deps, sender: Addr) -> Result<(), ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    if sender != config.deposit_token_addr {
+    let raw_sender = deps.api.addr_canonicalize(&sender.to_string())?;
+    if raw_sender != config.anchor_token {
         Err(ContractError::Unauthorized {})
     } else {
         Ok(())
@@ -184,7 +185,7 @@ pub(crate) fn fetch_slope_changes(
 /// # Description
 /// Calculates how many periods are within specified time. Time should be in seconds.
 pub fn get_period(time: u64) -> u64 {
-  time / WEEK
+    time / WEEK
 }
 
 /// ## Description
@@ -194,11 +195,11 @@ pub fn get_period(time: u64) -> u64 {
 ///
 /// * **addr** is an object of type [`Addr`]
 pub fn addr_validate_to_lower(api: &dyn Api, addr: &str) -> StdResult<Addr> {
-  if addr.to_lowercase() != addr {
-      return Err(StdError::generic_err(format!(
-          "Address {} should be lowercase",
-          addr
-      )));
-  }
-  api.addr_validate(addr)
+    if addr.to_lowercase() != addr {
+        return Err(StdError::generic_err(format!(
+            "Address {} should be lowercase",
+            addr
+        )));
+    }
+    api.addr_validate(addr)
 }
