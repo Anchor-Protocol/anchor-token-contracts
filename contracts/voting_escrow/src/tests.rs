@@ -8,7 +8,9 @@ use anchor_token::voting_escrow::{
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
-use cosmwasm_std::{from_binary, to_binary, Decimal, MessageInfo, OwnedDeps, Timestamp, Uint128};
+use cosmwasm_std::{
+    from_binary, to_binary, Decimal, MessageInfo, OwnedDeps, StdError, Timestamp, Uint128,
+};
 use cw20::{Cw20ReceiveMsg, Logo, LogoInfo, MarketingInfoResponse, TokenInfoResponse};
 
 #[test]
@@ -175,7 +177,8 @@ fn test_create_lock() {
 
 #[test]
 fn test_extend_lock_amount() {
-    let (mut deps, anchor_info, _) = init_lock_factory("addr0000".to_string(), None, None);
+    let (mut deps, anchor_info, _) =
+        init_lock_factory("addr0000".to_string(), Some(Uint128::from(20u64)), None);
 
     let mut receive_msg = Cw20ReceiveMsg {
         sender: "addr0000".to_string(),
@@ -229,12 +232,68 @@ fn test_extend_lock_amount() {
     .unwrap();
     let lock_info: LockInfoResponse = from_binary(&res).unwrap();
 
-    assert_eq!(lock_info.amount, Uint128::from(20u64));
+    assert_eq!(lock_info.amount, Uint128::from(30u64));
 }
 
 #[test]
 fn test_deposit_for() {
-    let (_deps, _anchor_info, _) = init_lock_factory("addr000".to_string(), None, None);
+    let (mut deps, anchor_info, _) =
+        init_lock_factory("addr0000".to_string(), Some(Uint128::from(50u128)), None);
+
+    let mut receive_msg = Cw20ReceiveMsg {
+        sender: "addr0000".to_string(),
+        amount: Uint128::from(10u128),
+        msg: to_binary(&Cw20HookMsg::DepositFor {
+            user: "addr0000".to_string(),
+        })
+        .unwrap(),
+    };
+
+    let msg = ExecuteMsg::Receive(receive_msg.clone());
+
+    // only anchor token is authorized to deposit for `user`
+    let info = mock_info("random", &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, msg);
+    match res {
+        Err(ContractError::Unauthorized {}) => {}
+        _ => panic!("Must return Unauthorized error"),
+    };
+
+    // deposit `user` address must be valid
+    receive_msg.msg = to_binary(&Cw20HookMsg::DepositFor {
+        user: "UPPER0000".to_string(),
+    })
+    .unwrap();
+    let msg = ExecuteMsg::Receive(receive_msg.clone());
+    let res = execute(deps.as_mut(), mock_env(), anchor_info.clone(), msg);
+    match res {
+        Err(ContractError::Std(StdError::GenericErr { msg })) => {
+            assert_eq!(msg, "Address UPPER0000 should be lowercase")
+        }
+        _ => panic!("Must return address validation error"),
+    }
+
+    // deposit for `user` successfully
+    receive_msg.sender = anchor_info.sender.to_string();
+    receive_msg.amount = Uint128::from(50u128);
+    receive_msg.msg = to_binary(&Cw20HookMsg::DepositFor {
+        user: "addr0000".to_string(),
+    })
+    .unwrap();
+    let msg = ExecuteMsg::Receive(receive_msg.clone());
+    let _res = execute(deps.as_mut(), mock_env(), anchor_info.clone(), msg).unwrap();
+
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::LockInfo {
+            user: "addr0000".to_string(),
+        },
+    )
+    .unwrap();
+    let lock_info: LockInfoResponse = from_binary(&res).unwrap();
+
+    assert_eq!(lock_info.amount, Uint128::from(100u64));
 }
 
 fn init_lock_factory(
@@ -246,6 +305,9 @@ fn init_lock_factory(
     MessageInfo,
     MessageInfo,
 ) {
+    let lock_amount = lock_amount.unwrap_or(Uint128::from(10u64));
+    let lock_time = lock_time.unwrap_or(WEEK);
+
     let mut deps = mock_dependencies(&[]);
 
     let msg = InstantiateMsg {
@@ -261,11 +323,8 @@ fn init_lock_factory(
     // creates lock
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: user,
-        amount: lock_amount.unwrap_or(Uint128::from(10u64)),
-        msg: to_binary(&Cw20HookMsg::CreateLock {
-            time: lock_time.unwrap_or(WEEK),
-        })
-        .unwrap(),
+        amount: lock_amount,
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: lock_time }).unwrap(),
     });
     let res = execute(deps.as_mut(), mock_env(), anchor_info.clone(), msg).unwrap();
 
