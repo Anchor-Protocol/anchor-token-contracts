@@ -281,7 +281,10 @@ fn test_deposit_for() {
     })
     .unwrap();
     let msg = ExecuteMsg::Receive(receive_msg.clone());
-    let _res = execute(deps.as_mut(), mock_env(), anchor_info.clone(), msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), anchor_info.clone(), msg).unwrap();
+
+    assert_eq!(res.attributes[0].key, "action");
+    assert_eq!(res.attributes[0].value, "deposit_for");
 
     let res = query(
         deps.as_ref(),
@@ -294,6 +297,74 @@ fn test_deposit_for() {
     let lock_info: LockInfoResponse = from_binary(&res).unwrap();
 
     assert_eq!(lock_info.amount, Uint128::from(100u64));
+}
+
+#[test]
+fn test_extend_lock_time() {
+    let (mut deps, _, _) = init_lock_factory("addr0000".to_string(), None, Some(WEEK));
+    let info = mock_info("addr0000", &[]);
+
+    // time to extend must be at least a week
+    let two_days = 2 * 86400;
+    let msg = ExecuteMsg::ExtendLockTime { time: two_days };
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
+    match res {
+        Err(ContractError::LockTimeLimitsError {}) => {}
+        _ => panic!("Must return LockTimeLimitsError error"),
+    };
+
+    // cannot extend lock time for an expired lock
+    let msg = ExecuteMsg::ExtendLockTime { time: WEEK };
+    let mut env = mock_env();
+    env.block.time = Timestamp::from_seconds(env.block.time.seconds() + 3 * WEEK);
+    let res = execute(deps.as_mut(), env, info.clone(), msg);
+    match res {
+        Err(ContractError::LockExpired {}) => {}
+        _ => panic!("Must return LockExpired error"),
+    };
+
+    // cannot extend lock time beyond MAX_LOCK_TIME
+    let msg = ExecuteMsg::ExtendLockTime {
+        time: MAX_LOCK_TIME,
+    };
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
+    match res {
+        Err(ContractError::LockTimeLimitsError {}) => {}
+        _ => panic!("Must return LockTimeLimitsError error"),
+    };
+
+    let curr_lock_info: LockInfoResponse = from_binary(
+        &query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::LockInfo {
+                user: "addr0000".to_string(),
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+
+    // extends lock time successfully
+    let msg = ExecuteMsg::ExtendLockTime { time: WEEK * 3 };
+    let env = mock_env();
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+
+    assert_eq!(res.attributes[0].key, "action");
+    assert_eq!(res.attributes[0].value, "extend_lock_time");
+
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::LockInfo {
+            user: "addr0000".to_string(),
+        },
+    )
+    .unwrap();
+    let updated_lock_info: LockInfoResponse = from_binary(&res).unwrap();
+
+    // checks `end` time was extended by 3 weeks
+    assert_eq!(updated_lock_info.end, curr_lock_info.end + 3);
 }
 
 fn init_lock_factory(
