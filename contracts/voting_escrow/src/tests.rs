@@ -1,10 +1,13 @@
-use crate::contract::{instantiate, query};
+use crate::contract::{execute, instantiate, query};
+use crate::error::ContractError;
+use crate::utils::{MAX_LOCK_TIME, WEEK};
 use anchor_token::voting_escrow::{
-    ConfigResponse, InstantiateMarketingInfo, InstantiateMsg, QueryMsg,
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMarketingInfo, InstantiateMsg,
+    LockInfoResponse, QueryMsg,
 };
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{from_binary, Uint128};
-use cw20::{Logo, LogoInfo, MarketingInfoResponse, TokenInfoResponse};
+use cosmwasm_std::{from_binary, to_binary, Decimal, Uint128};
+use cw20::{Cw20ReceiveMsg, Logo, LogoInfo, MarketingInfoResponse, TokenInfoResponse};
 
 #[test]
 fn proper_initialization() {
@@ -51,13 +54,79 @@ fn proper_initialization() {
 
 #[test]
 fn test_create_lock() {
-    let mut _deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies(&[]);
 
-    let _msg = InstantiateMsg {
+    let msg = InstantiateMsg {
         owner: "owner".to_string(),
         anchor_token: "anchor".to_string(),
         marketing: None,
     };
 
-    let _info = mock_info("random", &[]);
+    let info = mock_info("owner", &[]);
+    let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+    let mut receive_msg = Cw20ReceiveMsg {
+        sender: "addr0000".to_string(),
+        amount: Uint128::from(10u128),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: WEEK }).unwrap(),
+    };
+
+    let msg = ExecuteMsg::Receive(receive_msg.clone());
+
+    // only anchor is authorized to create locks
+    let info = mock_info("random", &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, msg);
+    match res {
+        Err(ContractError::Unauthorized {}) => {}
+        _ => panic!("Must return Unauthorized error"),
+    }
+
+    let info = mock_info("anchor", &[]);
+
+    // time provided is below limit
+    receive_msg.msg = to_binary(&Cw20HookMsg::CreateLock { time: 2 * 86400 }).unwrap();
+    let msg = ExecuteMsg::Receive(receive_msg.clone());
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
+    match res {
+        Err(ContractError::LockTimeLimitsError {}) => {}
+        _ => panic!("Must return LockTimeLimitsError error"),
+    }
+
+    // time provided is above limit
+    receive_msg.msg = to_binary(&Cw20HookMsg::CreateLock {
+        time: MAX_LOCK_TIME + 86400,
+    })
+    .unwrap();
+    let msg = ExecuteMsg::Receive(receive_msg.clone());
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
+    match res {
+        Err(ContractError::LockTimeLimitsError {}) => {}
+        _ => panic!("Must return LockTimeLimitsError error"),
+    }
+
+    // creates lock successfully
+    receive_msg.msg = to_binary(&Cw20HookMsg::CreateLock { time: 2 * WEEK }).unwrap();
+    let msg = ExecuteMsg::Receive(receive_msg);
+    let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+    assert_eq!(res.attributes[0].key, "action");
+    assert_eq!(res.attributes[0].value, "create_lock");
+
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::LockInfo {
+            user: "addr0000".to_string(),
+        },
+    )
+    .unwrap();
+    let lock_info: LockInfoResponse = from_binary(&res).unwrap();
+
+    let weeks_in_max_time = Uint128::from(104u64); // 2 years in weeks
+    let coeff_in_2_weeks = Uint128::from(3u64); // 1.5 * 2
+    let expected_coeff = Decimal::one() + Decimal::from_ratio(coeff_in_2_weeks, weeks_in_max_time);
+
+    assert_eq!(lock_info.amount, Uint128::from(10u128));
+    assert_eq!((lock_info.end - lock_info.start) * WEEK, 2 * WEEK);
+    assert_eq!(lock_info.coefficient, expected_coeff);
 }

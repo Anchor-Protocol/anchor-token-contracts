@@ -326,7 +326,6 @@ fn receive_cw20(
 
 /// ## Description
 /// Creates a lock for the user for specified time. The time value is in seconds.
-/// Checks that the user is locking ANC token.
 /// Evaluates that the time is within [`WEEK`]..[`MAX_LOCK_TIME`] limits.
 /// Creates lock if it doesn't exist and triggers [`checkpoint`].
 /// If lock is already exists, then an [`ContractError`] is returned,
