@@ -404,7 +404,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
     } else {
         let config = CONFIG.load(deps.storage)?;
         let transfer_msg = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.anchor_token.to_string(),
+            contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: sender.to_string(),
                 amount: lock.amount,

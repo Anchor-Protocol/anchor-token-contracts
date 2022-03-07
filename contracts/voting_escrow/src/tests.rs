@@ -9,9 +9,12 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::{
-    from_binary, to_binary, Decimal, MessageInfo, OwnedDeps, StdError, Timestamp, Uint128,
+    from_binary, to_binary, CosmosMsg, Decimal, MessageInfo, OwnedDeps, StdError, SubMsg,
+    Timestamp, Uint128, WasmMsg,
 };
-use cw20::{Cw20ReceiveMsg, Logo, LogoInfo, MarketingInfoResponse, TokenInfoResponse};
+use cw20::{
+    Cw20ExecuteMsg, Cw20ReceiveMsg, Logo, LogoInfo, MarketingInfoResponse, TokenInfoResponse,
+};
 
 #[test]
 fn proper_initialization() {
@@ -365,6 +368,73 @@ fn test_extend_lock_time() {
 
     // checks `end` time was extended by 3 weeks
     assert_eq!(updated_lock_info.end, curr_lock_info.end + 3);
+}
+
+#[test]
+fn test_withdraw() {
+    let (mut deps, anchor_token, _) = init_lock_factory(
+        "addr0000".to_string(),
+        Some(Uint128::from(100u64)),
+        Some(WEEK),
+    );
+
+    let msg = ExecuteMsg::Withdraw {};
+
+    // cannot withdraw for a user w/o a lock
+    let info = mock_info("random0000", &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, msg.clone());
+    match res {
+        Err(ContractError::LockDoesntExist {}) => {}
+        _ => panic!("Must return LockDoesntExist error"),
+    };
+
+    // cannot withdraw if lock has not expired
+    let info = mock_info("addr0000", &[]);
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
+    match res {
+        Err(ContractError::LockHasNotExpired {}) => {}
+        _ => panic!("Must return LockHasNotExpired error"),
+    };
+
+    // withdraw successfully
+    let mut env = mock_env();
+    env.block.time = Timestamp::from_seconds(env.block.time.seconds() + 3 * WEEK);
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
+
+    assert_eq!(res.attributes[0].key, "action");
+    assert_eq!(res.attributes[0].value, "withdraw");
+    assert_eq!(
+        res.messages,
+        vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: anchor_token.sender.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: "addr0000".to_string(),
+                amount: Uint128::from(100u64),
+            })
+            .unwrap(),
+            funds: vec![],
+        }))]
+    );
+
+    // cannot withdraw if user has zero amount `locked`
+    let curr_lock_info: LockInfoResponse = from_binary(
+        &query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::LockInfo {
+                user: "addr0000".to_string(),
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(curr_lock_info.amount, Uint128::from(0u64));
+
+    let res = execute(deps.as_mut(), env, info.clone(), msg.clone());
+    match res {
+        Err(ContractError::LockDoesntExist {}) => {}
+        _ => panic!("Must return LockDoesntExist error"),
+    };
 }
 
 fn init_lock_factory(
