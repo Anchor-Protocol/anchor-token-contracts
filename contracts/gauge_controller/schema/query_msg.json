@@ -5,6 +5,18 @@
     {
       "type": "object",
       "required": [
+        "get_n_gauges"
+      ],
+      "properties": {
+        "get_n_gauges": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "get_gauge_weight"
       ],
       "properties": {
@@ -29,6 +41,40 @@
       ],
       "properties": {
         "get_total_weight": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_gauge_addr"
+      ],
+      "properties": {
+        "get_gauge_addr": {
+          "type": "object",
+          "required": [
+            "gauge_id"
+          ],
+          "properties": {
+            "gauge_id": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_config"
+      ],
+      "properties": {
+        "get_config": {
           "type": "object"
         }
       },
