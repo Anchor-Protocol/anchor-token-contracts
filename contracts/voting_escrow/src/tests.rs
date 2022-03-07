@@ -5,8 +5,10 @@ use anchor_token::voting_escrow::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMarketingInfo, InstantiateMsg,
     LockInfoResponse, QueryMsg, VotingPowerResponse,
 };
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{from_binary, to_binary, Decimal, Uint128};
+use cosmwasm_std::testing::{
+    mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+};
+use cosmwasm_std::{from_binary, to_binary, Decimal, MessageInfo, OwnedDeps, Timestamp, Uint128};
 use cw20::{Cw20ReceiveMsg, Logo, LogoInfo, MarketingInfoResponse, TokenInfoResponse};
 
 #[test]
@@ -169,4 +171,106 @@ fn test_create_lock() {
     let voting_power: VotingPowerResponse = from_binary(&res).unwrap();
 
     assert_eq!(voting_power.voting_power, Uint128::zero());
+}
+
+#[test]
+fn test_extend_lock_amount() {
+    let (mut deps, anchor_info, _) = init_lock_factory("addr0000".to_string(), None, None);
+
+    let mut receive_msg = Cw20ReceiveMsg {
+        sender: "addr0000".to_string(),
+        amount: Uint128::from(10u128),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
+    };
+
+    let msg = ExecuteMsg::Receive(receive_msg.clone());
+
+    // only anchor token is authorized to extend lock amount
+    let info = mock_info("random", &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, msg.clone());
+    match res {
+        Err(ContractError::Unauthorized {}) => {}
+        _ => panic!("Must return Unauthorized error"),
+    };
+
+    // cannot extend lock amount for a user w/o a lock
+    receive_msg.sender = "random0000".to_string();
+    let msg = ExecuteMsg::Receive(receive_msg.clone());
+    let res = execute(deps.as_mut(), mock_env(), anchor_info.clone(), msg);
+    match res {
+        Err(ContractError::LockDoesntExist {}) => {}
+        _ => panic!("Must return LockDoesntExist error"),
+    };
+
+    // cannot extend lock amount for an expired lock
+    receive_msg.sender = "addr0000".to_string();
+    let msg = ExecuteMsg::Receive(receive_msg.clone());
+    let mut env = mock_env();
+    env.block.time = Timestamp::from_seconds(env.block.time.seconds() + 3 * WEEK);
+    let res = execute(deps.as_mut(), env, anchor_info.clone(), msg.clone());
+    match res {
+        Err(ContractError::LockExpired {}) => {}
+        _ => panic!("Must return LockExpired error"),
+    };
+
+    // extends lock amount successfully
+    let res = execute(deps.as_mut(), mock_env(), anchor_info.clone(), msg).unwrap();
+
+    assert_eq!(res.attributes[0].key, "action");
+    assert_eq!(res.attributes[0].value, "deposit_for");
+
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::LockInfo {
+            user: "addr0000".to_string(),
+        },
+    )
+    .unwrap();
+    let lock_info: LockInfoResponse = from_binary(&res).unwrap();
+
+    assert_eq!(lock_info.amount, Uint128::from(20u64));
+}
+
+#[test]
+fn test_deposit_for() {
+    let (_deps, _anchor_info, _) = init_lock_factory("addr000".to_string(), None, None);
+}
+
+fn init_lock_factory(
+    user: String,
+    lock_amount: Option<Uint128>,
+    lock_time: Option<u64>,
+) -> (
+    OwnedDeps<MockStorage, MockApi, MockQuerier>,
+    MessageInfo,
+    MessageInfo,
+) {
+    let mut deps = mock_dependencies(&[]);
+
+    let msg = InstantiateMsg {
+        owner: "owner".to_string(),
+        anchor_token: "anchor".to_string(),
+        marketing: None,
+    };
+
+    let owner_info = mock_info("owner", &[]);
+    let anchor_info = mock_info("anchor", &[]);
+    let _res = instantiate(deps.as_mut(), mock_env(), owner_info.clone(), msg).unwrap();
+
+    // creates lock
+    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender: user,
+        amount: lock_amount.unwrap_or(Uint128::from(10u64)),
+        msg: to_binary(&Cw20HookMsg::CreateLock {
+            time: lock_time.unwrap_or(WEEK),
+        })
+        .unwrap(),
+    });
+    let res = execute(deps.as_mut(), mock_env(), anchor_info.clone(), msg).unwrap();
+
+    assert_eq!(res.attributes[0].key, "action");
+    assert_eq!(res.attributes[0].value, "create_lock");
+
+    (deps, anchor_info, owner_info)
 }

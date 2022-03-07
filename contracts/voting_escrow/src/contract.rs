@@ -361,9 +361,8 @@ fn create_lock(
 
 /// ## Description
 /// Deposits 'amount' tokens to 'user' lock.
-/// Checks that the user is locking ANC token.
 /// Triggers [`checkpoint`].
-/// If lock is already exists, then an [`ContractError`] is returned,
+/// If lock is already expired, then an [`ContractError`] is returned,
 /// otherwise returns the [`Response`] with the specified attributes if the operation was successful
 fn deposit_for(
     deps: DepsMut,
