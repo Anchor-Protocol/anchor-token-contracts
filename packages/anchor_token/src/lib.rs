@@ -3,6 +3,7 @@ pub mod collector;
 pub mod common;
 pub mod community;
 pub mod distributor;
+pub mod gauge_controller;
 pub mod gov;
 pub mod querier;
 pub mod staking;
