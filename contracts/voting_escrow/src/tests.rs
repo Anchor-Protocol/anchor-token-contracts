@@ -3,7 +3,7 @@ use crate::error::ContractError;
 use crate::utils::{MAX_LOCK_TIME, WEEK};
 use anchor_token::voting_escrow::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMarketingInfo, InstantiateMsg,
-    LockInfoResponse, QueryMsg,
+    LockInfoResponse, QueryMsg, VotingPowerResponse,
 };
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{from_binary, to_binary, Decimal, Uint128};
@@ -73,7 +73,7 @@ fn test_create_lock() {
 
     let msg = ExecuteMsg::Receive(receive_msg.clone());
 
-    // only anchor is authorized to create locks
+    // only anchor token is authorized to create locks
     let info = mock_info("random", &[]);
     let res = execute(deps.as_mut(), mock_env(), info, msg);
     match res {
@@ -106,8 +106,8 @@ fn test_create_lock() {
 
     // creates lock successfully
     receive_msg.msg = to_binary(&Cw20HookMsg::CreateLock { time: 2 * WEEK }).unwrap();
-    let msg = ExecuteMsg::Receive(receive_msg);
-    let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+    let msg = ExecuteMsg::Receive(receive_msg.clone());
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
     assert_eq!(res.attributes[0].key, "action");
     assert_eq!(res.attributes[0].value, "create_lock");
@@ -129,4 +129,44 @@ fn test_create_lock() {
     assert_eq!(lock_info.amount, Uint128::from(10u128));
     assert_eq!((lock_info.end - lock_info.start) * WEEK, 2 * WEEK);
     assert_eq!(lock_info.coefficient, expected_coeff);
+
+    // cannot create multiple locks for same user
+    receive_msg.msg = to_binary(&Cw20HookMsg::CreateLock { time: WEEK }).unwrap();
+    let msg = ExecuteMsg::Receive(receive_msg);
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
+    match res {
+        Err(ContractError::LockAlreadyExists {}) => {}
+        _ => panic!("Must return LockAlreadyExists error"),
+    };
+
+    // user voting power at `start` should be AMOUNT * coefficient
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::UserVotingPowerAtPeriod {
+            user: "addr0000".to_string(),
+            period: lock_info.start,
+        },
+    )
+    .unwrap();
+    let voting_power: VotingPowerResponse = from_binary(&res).unwrap();
+
+    assert_eq!(
+        voting_power.voting_power,
+        Uint128::from(10u64) * expected_coeff
+    );
+
+    // user voting power at `end` should be 0
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::UserVotingPowerAtPeriod {
+            user: "addr0000".to_string(),
+            period: lock_info.end,
+        },
+    )
+    .unwrap();
+    let voting_power: VotingPowerResponse = from_binary(&res).unwrap();
+
+    assert_eq!(voting_power.voting_power, Uint128::zero());
 }
