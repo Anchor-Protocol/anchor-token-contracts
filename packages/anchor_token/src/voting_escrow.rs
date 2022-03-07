@@ -74,6 +74,7 @@ pub enum QueryMsg {
     MarketingInfo {},
     DownloadLogo {},
     Config {},
+    TokenInfo {},
 }
 
 /// ## Description

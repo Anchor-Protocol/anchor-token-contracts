@@ -5,7 +5,9 @@ use cosmwasm_std::{
     Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, Logo, LogoInfo, MarketingInfoResponse};
+use cw20::{
+    Cw20ExecuteMsg, Cw20ReceiveMsg, Logo, LogoInfo, MarketingInfoResponse, TokenInfoResponse,
+};
 use cw20_base::contract::{
     execute_update_marketing, execute_upload_logo, query_download_logo, query_marketing_info,
 };
@@ -505,10 +507,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => {
             let config = CONFIG.load(deps.storage)?;
             to_binary(&ConfigResponse {
-                owner: config.owner.to_string(),
-                anchor_token: config.anchor_token.to_string(),
+                owner: deps.api.addr_humanize(&config.owner)?.to_string(),
+                anchor_token: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
             })
         }
+        QueryMsg::TokenInfo {} => to_binary(&query_token_info(deps, env)?),
         QueryMsg::MarketingInfo {} => to_binary(&query_marketing_info(deps)?),
         QueryMsg::DownloadLogo {} => to_binary(&query_download_logo(deps)?),
     }
@@ -636,4 +639,22 @@ fn get_total_voting_power_at_period(
     };
 
     Ok(VotingPowerResponse { voting_power })
+}
+
+/// # Description
+/// Fetch the veANC token information, such as the token name, symbol, decimals and total supply (total voting power).
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **env** is an object of type [`Env`].
+fn query_token_info(deps: Deps, env: Env) -> StdResult<TokenInfoResponse> {
+    let info = TOKEN_INFO.load(deps.storage)?;
+    let total_vp = get_total_voting_power(deps, env, None)?;
+    let res = TokenInfoResponse {
+        name: info.name,
+        symbol: info.symbol,
+        decimals: info.decimals,
+        total_supply: total_vp.voting_power,
+    };
+    Ok(res)
 }
