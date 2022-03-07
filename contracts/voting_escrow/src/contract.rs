@@ -500,9 +500,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::UserVotingPowerAtPeriod { user, period } => {
             to_binary(&get_user_voting_power_at_period(deps, user, period)?)
         }
-        QueryMsg::GetLastUserSlope { user: _ } => to_binary(&UserSlopeResponse {
-            slope: Uint128::from(0u64),
-        }),
+        QueryMsg::GetLastUserSlope { user } => to_binary(&get_last_user_slope(deps, env, user)?),
         QueryMsg::LockInfo { user } => to_binary(&get_user_lock_info(deps, user)?),
         QueryMsg::Config {} => {
             let config = CONFIG.load(deps.storage)?;
@@ -518,20 +516,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 /// # Description
-/// Returns user's lock information in [`LockInfoResponse`] type.
-fn get_user_lock_info(deps: Deps, user: String) -> StdResult<LockInfoResponse> {
-    let addr = addr_validate_to_lower(deps.api, &user)?;
-    if let Some(lock) = LOCKED.may_load(deps.storage, addr)? {
-        let resp = LockInfoResponse {
-            amount: lock.amount,
-            coefficient: calc_coefficient(lock.end - lock.last_extend_lock_period),
-            start: lock.start,
-            end: lock.end,
-        };
-        Ok(resp)
-    } else {
-        Err(StdError::generic_err("User is not found"))
-    }
+/// Calculates total voting power at the given time.
+/// If time is None then calculates voting power at the current block period.
+fn get_total_voting_power(
+    deps: Deps,
+    env: Env,
+    time: Option<u64>,
+) -> StdResult<VotingPowerResponse> {
+    let period = get_period(time.unwrap_or_else(|| env.block.time.seconds()));
+    get_total_voting_power_at_period(deps, env, period)
 }
 
 /// # Description
@@ -584,18 +577,6 @@ fn get_user_voting_power_at_period(
 }
 
 /// # Description
-/// Calculates total voting power at the given time.
-/// If time is None then calculates voting power at the current block period.
-fn get_total_voting_power(
-    deps: Deps,
-    env: Env,
-    time: Option<u64>,
-) -> StdResult<VotingPowerResponse> {
-    let period = get_period(time.unwrap_or_else(|| env.block.time.seconds()));
-    get_total_voting_power_at_period(deps, env, period)
-}
-
-/// # Description
 /// Calculates the total voting power (total veANC supply) at the given period number.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
@@ -639,6 +620,40 @@ fn get_total_voting_power_at_period(
     };
 
     Ok(VotingPowerResponse { voting_power })
+}
+
+/// # Description
+/// Returns user's most recently recorded rate of voting power decrease.
+fn get_last_user_slope(deps: Deps, env: Env, user: String) -> StdResult<UserSlopeResponse> {
+    let user = addr_validate_to_lower(deps.api, &user)?;
+    let period = get_period(env.block.time.seconds());
+    let period_key = U64Key::new(period);
+    let last_checkpoint = fetch_last_checkpoint(deps, &user, &period_key)?;
+
+    let slope = if let Some((_, point)) = last_checkpoint {
+        point.slope
+    } else {
+        Decimal::zero()
+    };
+
+    Ok(UserSlopeResponse { slope })
+}
+
+/// # Description
+/// Returns user's lock information in [`LockInfoResponse`] type.
+fn get_user_lock_info(deps: Deps, user: String) -> StdResult<LockInfoResponse> {
+    let addr = addr_validate_to_lower(deps.api, &user)?;
+    if let Some(lock) = LOCKED.may_load(deps.storage, addr)? {
+        let resp = LockInfoResponse {
+            amount: lock.amount,
+            coefficient: calc_coefficient(lock.end - lock.last_extend_lock_period),
+            start: lock.start,
+            end: lock.end,
+        };
+        Ok(resp)
+    } else {
+        Err(StdError::generic_err("User is not found"))
+    }
 }
 
 /// # Description

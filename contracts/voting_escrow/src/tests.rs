@@ -48,3 +48,16 @@ fn proper_initialization() {
     assert_eq!(token_info.decimals, 6);
     assert_eq!(token_info.total_supply, Uint128::zero());
 }
+
+#[test]
+fn test_create_lock() {
+    let mut _deps = mock_dependencies(&[]);
+
+    let _msg = InstantiateMsg {
+        owner: "owner".to_string(),
+        anchor_token: "anchor".to_string(),
+        marketing: None,
+    };
+
+    let _info = mock_info("random", &[]);
+}
