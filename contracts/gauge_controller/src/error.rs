@@ -17,4 +17,7 @@ pub enum ContractError {
 
     #[error("Gauge Not Found")]
     GaugeNotFound {},
+
+    #[error("Gauge Already Exist")]
+    GaugeAlreadyExist {},
 }

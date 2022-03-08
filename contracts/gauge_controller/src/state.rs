@@ -8,7 +8,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 static KEY_CONFIG: &[u8] = b"config";
-static KEY_N_GAUGES: &[u8] = b"n_gauges";
+static KEY_GAUGE_COUNT: &[u8] = b"gauge_count";
 
 static PREFIX_GAUGE_ADDR: &[u8] = b"gauge_addr";
 static PREFIX_GAUGE_INFO: &[u8] = b"gauge_info";
@@ -17,7 +17,9 @@ static PREFIX_GAGUE_WEIGHT: &[u8] = b"gauge_weight";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    pub voting_escrow_contract: CanonicalAddr,
+    pub owner: CanonicalAddr,
+    pub anchor_token: CanonicalAddr,
+    pub anchor_voting_escorw: CanonicalAddr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -47,12 +49,12 @@ pub fn config_read(storage: &dyn Storage) -> ReadonlySingleton<Config> {
     singleton_read(storage, KEY_CONFIG)
 }
 
-pub fn n_gauges_store(storage: &mut dyn Storage) -> Singleton<u64> {
-    singleton(storage, KEY_N_GAUGES)
+pub fn gauge_count_store(storage: &mut dyn Storage) -> Singleton<u64> {
+    singleton(storage, KEY_GAUGE_COUNT)
 }
 
-pub fn n_gauges_read(storage: &dyn Storage) -> ReadonlySingleton<u64> {
-    singleton_read(storage, KEY_N_GAUGES)
+pub fn gauge_count_read(storage: &dyn Storage) -> ReadonlySingleton<u64> {
+    singleton_read(storage, KEY_GAUGE_COUNT)
 }
 
 pub fn gauge_weight_store<'a>(

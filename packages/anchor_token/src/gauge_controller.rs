@@ -1,25 +1,27 @@
-use cosmwasm_std::{Decimal, CanonicalAddr, Uint128};
+use cosmwasm_std::{Decimal, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub voting_escrow_contract: CanonicalAddr,
+    pub owner: String,
+    pub anchor_token: String,
+    pub anchor_voting_escorw: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     AddGauge {
-        addr: CanonicalAddr,
+        addr: String,
         weight: Uint128,
     },
     ChangeGaugeWeight {
-        addr: CanonicalAddr,
+        addr: String,
         weight: Uint128,
     },
     VoteForGaugeWeight {
-        addr: CanonicalAddr,
+        addr: String,
         user_weight: Uint128,
     },
 }
@@ -27,12 +29,13 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    GetNGauges {},
-    GetGaugeWeight { addr: CanonicalAddr },
-    GetTotalWeight {},
-    GetGaugeAddr { gauge_id: u64 },
-    GetConfig {},
-    GetRelativeWeight { addr: CanonicalAddr, time: Uint128 },
+    GaugeCount {},
+    GaugeWeight { addr: String },
+    TotalWeight {},
+    GaugeAddr { gauge_id: u64 },
+    AllGaugeAddr {},
+    Config {},
+    RelativeWeight { addr: String, time: Uint128 },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -51,16 +54,23 @@ pub struct RelativeWeightResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
-pub struct NGaugesResponse {
-    pub n_gauges: u64
+pub struct GaugeCountResponse {
+    pub gauge_count: u64
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GaugeAddrResponse {
-    pub gauge_addr: CanonicalAddr
+    pub gauge_addr: String
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+pub struct AllGaugeAddrResponse {
+    pub all_gauge_addr: Vec<String>
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    pub voting_escrow_contract: CanonicalAddr
+    pub owner: String,
+    pub anchor_token: String,
+    pub anchor_voting_escorw: String,
 }
