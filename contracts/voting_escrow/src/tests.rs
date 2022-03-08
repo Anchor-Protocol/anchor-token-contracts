@@ -1,6 +1,7 @@
+use crate::checkpoint::checkpoint;
 use crate::contract::{execute, instantiate, query};
 use crate::error::ContractError;
-use crate::utils::{MAX_LOCK_TIME, WEEK};
+use crate::utils::{fetch_last_checkpoint, MAX_LOCK_TIME, WEEK};
 use anchor_token::voting_escrow::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMarketingInfo, InstantiateMsg,
     LockInfoResponse, QueryMsg, UserSlopeResponse, UserUnlockPeriodResponse, VotingPowerResponse,
@@ -9,14 +10,15 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::{
-    from_binary, to_binary, Binary, CosmosMsg, Decimal, MessageInfo, OwnedDeps, StdError, SubMsg,
-    Timestamp, Uint128, WasmMsg,
+    from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, MessageInfo, OwnedDeps, StdError,
+    SubMsg, Timestamp, Uint128, WasmMsg,
 };
 use cw20::{
     Cw20ExecuteMsg, Cw20ReceiveMsg, DownloadLogoResponse, EmbeddedLogo, Logo, LogoInfo,
     MarketingInfoResponse, TokenInfoResponse,
 };
 use cw20_base::ContractError as Cw20BaseContractError;
+use cw_storage_plus::U64Key;
 
 #[test]
 fn proper_initialization() {
@@ -131,9 +133,9 @@ fn test_create_lock() {
     .unwrap();
     let lock_info: LockInfoResponse = from_binary(&res).unwrap();
 
-    let weeks_in_max_time = Uint128::from(104u64); // 2 years in weeks
+    let max_period = Uint128::from(104u64); // 2 years in weeks
     let coeff_in_2_weeks = Uint128::from(3u64); // 1.5 * 2
-    let expected_coeff = Decimal::one() + Decimal::from_ratio(coeff_in_2_weeks, weeks_in_max_time);
+    let expected_coeff = Decimal::one() + Decimal::from_ratio(coeff_in_2_weeks, max_period);
 
     assert_eq!(lock_info.amount, Uint128::from(10u128));
     assert_eq!((lock_info.end - lock_info.start) * WEEK, 2 * WEEK);
@@ -586,9 +588,9 @@ fn test_get_total_voting_power() {
     let res = query(deps.as_ref(), env.clone(), QueryMsg::TotalVotingPower {}).unwrap();
     let total_voting_power: VotingPowerResponse = from_binary(&res).unwrap();
 
-    let weeks_in_max_time = Uint128::from(104u64); // 2 years in weeks
-    let user1_coeff = Decimal::one() + Decimal::from_ratio(Uint128::from(3u64), weeks_in_max_time); // (1 + (1.5 * 2)/104)
-    let user2_coeff = Decimal::one() + Decimal::from_ratio(Uint128::from(6u64), weeks_in_max_time); // (1 + (1.5 * 4)/104)
+    let max_period = Uint128::from(104u64); // 2 years in weeks
+    let user1_coeff = Decimal::one() + Decimal::from_ratio(Uint128::from(3u64), max_period); // (1 + (1.5 * 2)/104)
+    let user2_coeff = Decimal::one() + Decimal::from_ratio(Uint128::from(6u64), max_period); // (1 + (1.5 * 4)/104)
 
     let user1_voting_power = Uint128::from(100u64) * user1_coeff; // lock_amount * (1 + (1.5 * lock_time)/MAX_LOCK_TIME)
     let user2_voting_power = Uint128::from(50u64) * user2_coeff; // lock_amount * (1 + (1.5 * lock_time)/MAX_LOCK_TIME)
@@ -644,8 +646,8 @@ fn test_get_user_voting_power() {
     let res = query(deps.as_ref(), env.clone(), msg).unwrap();
     let user_voting_power: VotingPowerResponse = from_binary(&res).unwrap();
 
-    let weeks_in_max_time = Uint128::from(104u64); // 2 years in weeks
-    let coeff = Decimal::one() + Decimal::from_ratio(Uint128::from(6u64), weeks_in_max_time); // (1 + (1.5 * 4)/104)
+    let max_period = Uint128::from(104u64); // 2 years in weeks
+    let coeff = Decimal::one() + Decimal::from_ratio(Uint128::from(6u64), max_period); // (1 + (1.5 * 4)/104)
     let expected_voting_power = Uint128::from(100u64) * coeff; // lock_amount * (1 + (1.5 * lock_time)/MAX_LOCK_TIME)
 
     assert_eq!(user_voting_power.voting_power, expected_voting_power);
@@ -695,8 +697,8 @@ fn test_get_last_user_slope() {
     let res = query(deps.as_ref(), env.clone(), msg.clone()).unwrap();
     let user_slope: UserSlopeResponse = from_binary(&res).unwrap();
 
-    let weeks_in_max_time = Uint128::from(104u64); // 2 years in weeks
-    let user_coeff = Decimal::one() + Decimal::from_ratio(Uint128::from(6u64), weeks_in_max_time);
+    let max_period = Uint128::from(104u64); // 2 years in weeks
+    let user_coeff = Decimal::one() + Decimal::from_ratio(Uint128::from(6u64), max_period);
     let user_vp = Uint128::from(100u64) * user_coeff;
     let expected_slope = Uint128::new(1u128) * Decimal::from_ratio(user_vp, Uint128::from(4u64));
 
@@ -709,7 +711,7 @@ fn test_get_last_user_slope() {
     let _res = execute(deps.as_mut(), env.clone(), info, extend_lock_time_msg).unwrap();
 
     // user voting power is updated after extend_lock_time by old_vp * new_coeff
-    let user_coeff = Decimal::one() + Decimal::from_ratio(Uint128::from(10u64), weeks_in_max_time);
+    let user_coeff = Decimal::one() + Decimal::from_ratio(Uint128::from(10u64), max_period);
     let user_vp = user_vp * user_coeff;
 
     let res = query(deps.as_ref(), env.clone(), msg.clone()).unwrap();
@@ -752,6 +754,43 @@ fn test_get_user_unlock_period() {
     let expected_unlock_period = (start_time + 10 * WEEK) / WEEK;
 
     assert_eq!(user_unlock_period.unlock_period, expected_unlock_period);
+}
+
+#[test]
+fn test_checkpoint() {
+    let mut deps = mock_dependencies(&[]);
+
+    let user = Addr::unchecked("addr0001".to_string());
+    let env = mock_env();
+    let start = env.block.time.seconds() / WEEK;
+    let end = start + 4;
+    checkpoint(
+        deps.as_mut(),
+        env.clone(),
+        user.clone(),
+        Some(Uint128::from(100u64)),
+        Some(end),
+    )
+    .unwrap();
+
+    let period_key = U64Key::new(end);
+    let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &user, &period_key).unwrap();
+
+    let max_period = Uint128::from(104u64);
+    let coeff = Decimal::one() + Decimal::from_ratio(Uint128::from(6u64), max_period); // (1 + (1.5 * 4)/104)
+    let expected_power = Uint128::from(100u64) * coeff;
+    let expected_slope =
+        Uint128::new(1u128) * Decimal::from_ratio(expected_power, Uint128::from(4u64));
+
+    match last_checkpoint {
+        Some((_, point)) => {
+            assert_eq!(point.start, start);
+            assert_eq!(point.end, end);
+            assert_eq!(point.slope * Uint128::new(1u128), expected_slope);
+            assert_eq!(point.power, expected_power);
+        }
+        _ => panic!("Excepted a checkpoint to be found!"),
+    };
 }
 
 fn init_lock_factory(
