@@ -23,7 +23,7 @@ use crate::utils::{
 };
 use anchor_token::voting_escrow::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, QueryMsg,
-    UserSlopeResponse, UserUnlockTimeResponse, VotingPowerResponse,
+    UserSlopeResponse, UserUnlockPeriodResponse, VotingPowerResponse,
 };
 
 /// Contract name that is used for migration.
@@ -514,7 +514,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&get_user_voting_power_at_period(deps, user, period)?)
         }
         QueryMsg::GetLastUserSlope { user } => to_binary(&get_last_user_slope(deps, env, user)?),
-        QueryMsg::GetUserUnlockTime { user } => to_binary(&get_user_unlock_time(deps, user)?),
+        QueryMsg::GetUserUnlockPeriod { user } => to_binary(&get_user_unlock_time(deps, user)?),
         QueryMsg::LockInfo { user } => to_binary(&get_user_lock_info(deps, user)?),
         QueryMsg::Config {} => {
             let config = CONFIG.load(deps.storage)?;
@@ -654,12 +654,12 @@ fn get_last_user_slope(deps: Deps, env: Env, user: String) -> StdResult<UserSlop
 }
 
 /// # Description
-/// Returns user's lock `end` time.
-fn get_user_unlock_time(deps: Deps, user: String) -> StdResult<UserUnlockTimeResponse> {
+/// Returns user's lock `end` time, which is the period when the lock expires.
+fn get_user_unlock_time(deps: Deps, user: String) -> StdResult<UserUnlockPeriodResponse> {
     let addr = addr_validate_to_lower(deps.api, &user)?;
     if let Some(lock) = LOCKED.may_load(deps.storage, addr)? {
-        Ok(UserUnlockTimeResponse {
-            unlock_time: lock.end,
+        Ok(UserUnlockPeriodResponse {
+            unlock_period: lock.end,
         })
     } else {
         Err(StdError::generic_err("User lock not found"))

@@ -4,7 +4,7 @@ use std::fs::create_dir_all;
 
 use anchor_token::voting_escrow::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, QueryMsg,
-    UserSlopeResponse, VotingPowerResponse,
+    UserSlopeResponse, UserUnlockPeriodResponse, VotingPowerResponse,
 };
 
 fn main() {
@@ -26,6 +26,11 @@ fn main() {
         &schema_for!(UserSlopeResponse),
         &out_dir,
         "UserSlopeResponse",
+    );
+    export_schema_with_title(
+        &schema_for!(UserUnlockPeriodResponse),
+        &out_dir,
+        "UserUnlockPeriodResponse",
     );
     export_schema_with_title(&schema_for!(LockInfoResponse), &out_dir, "LockInfoResponse");
     export_schema_with_title(&schema_for!(ConfigResponse), &out_dir, "ConfigResponse");

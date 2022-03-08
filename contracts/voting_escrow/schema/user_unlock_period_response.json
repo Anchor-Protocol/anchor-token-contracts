@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "UserUnlockPeriodResponse",
+  "description": "This structure describes user unlock period (lock end).",
+  "type": "object",
+  "required": [
+    "unlock_period"
+  ],
+  "properties": {
+    "unlock_period": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    }
+  }
+}

@@ -3,7 +3,7 @@ use crate::error::ContractError;
 use crate::utils::{MAX_LOCK_TIME, WEEK};
 use anchor_token::voting_escrow::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMarketingInfo, InstantiateMsg,
-    LockInfoResponse, QueryMsg, VotingPowerResponse,
+    LockInfoResponse, QueryMsg, UserSlopeResponse, UserUnlockPeriodResponse, VotingPowerResponse,
 };
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
@@ -582,8 +582,8 @@ fn test_get_total_voting_power() {
         let _res = execute(deps.as_mut(), env.clone(), anchor_info.clone(), msg).unwrap();
     }
 
-    // voting power rigth after lock create should include both user1 and user2
-    let res = query(deps.as_ref(), mock_env(), QueryMsg::TotalVotingPower {}).unwrap();
+    // voting power at start time should include both user1 and user2
+    let res = query(deps.as_ref(), env.clone(), QueryMsg::TotalVotingPower {}).unwrap();
     let total_voting_power: VotingPowerResponse = from_binary(&res).unwrap();
 
     let weeks_in_max_time = Uint128::from(104u64); // 2 years in weeks
@@ -600,8 +600,10 @@ fn test_get_total_voting_power() {
     let start_time = env.block.time.seconds();
 
     // voting power after 2 weeks should only include user2
-    let time = start_time + (2 * WEEK + 1);
-    let msg = QueryMsg::TotalVotingPowerAt { time: time };
+    let two_weeks_later = start_time + (2 * WEEK + 1);
+    let msg = QueryMsg::TotalVotingPowerAt {
+        time: two_weeks_later,
+    };
     let res = query(deps.as_ref(), env.clone(), msg).unwrap();
     let total_voting_power: VotingPowerResponse = from_binary(&res).unwrap();
 
@@ -610,29 +612,147 @@ fn test_get_total_voting_power() {
     // total voting power should be user2's voting power with 2 weeks reduction
     // user2_vp/total_vp = user2_vp - slope * (current_time - start_time)
     let expected_voting_power = user2_voting_power
-        .checked_sub(user2_slope * (Uint128::from(time - start_time)))
+        .checked_sub(user2_slope * (Uint128::from(two_weeks_later - start_time)))
         .unwrap();
+
+    assert_eq!(total_voting_power.voting_power, expected_voting_power);
+
+    let two_weeks_later_period = two_weeks_later / WEEK;
+    let msg = QueryMsg::TotalVotingPowerAtPeriod {
+        period: two_weeks_later_period,
+    };
+    let res = query(deps.as_ref(), env.clone(), msg).unwrap();
+    let total_voting_power: VotingPowerResponse = from_binary(&res).unwrap();
 
     assert_eq!(total_voting_power.voting_power, expected_voting_power);
 }
 
 #[test]
-fn test_get_user_voting_power() {}
+fn test_get_user_voting_power() {
+    let (deps, _, _) = init_lock_factory(
+        "addr0000".to_string(),
+        Some(Uint128::from(100u64)),
+        Some(4 * WEEK),
+    );
+
+    let env = mock_env();
+    let msg = QueryMsg::UserVotingPower {
+        user: "addr0000".to_string(),
+    };
+
+    // user voting power at start time
+    let res = query(deps.as_ref(), env.clone(), msg).unwrap();
+    let user_voting_power: VotingPowerResponse = from_binary(&res).unwrap();
+
+    let weeks_in_max_time = Uint128::from(104u64); // 2 years in weeks
+    let coeff = Decimal::one() + Decimal::from_ratio(Uint128::from(6u64), weeks_in_max_time); // (1 + (1.5 * 4)/104)
+    let expected_voting_power = Uint128::from(100u64) * coeff; // lock_amount * (1 + (1.5 * lock_time)/MAX_LOCK_TIME)
+
+    assert_eq!(user_voting_power.voting_power, expected_voting_power);
+
+    let start_time = env.block.time.seconds();
+
+    // user voting power 1 week later
+    let one_week_later = start_time + (WEEK + 1);
+    let msg = QueryMsg::UserVotingPowerAt {
+        user: "addr0000".to_string(),
+        time: one_week_later,
+    };
+    let res = query(deps.as_ref(), env.clone(), msg).unwrap();
+    let user_voting_power: VotingPowerResponse = from_binary(&res).unwrap();
+
+    let user_slope = Decimal::from_ratio(expected_voting_power, 4 * WEEK);
+
+    let expected_voting_power = expected_voting_power
+        .checked_sub(user_slope * (Uint128::from(one_week_later - start_time)))
+        .unwrap();
+
+    assert_eq!(user_voting_power.voting_power, expected_voting_power);
+
+    let one_week_later_period = one_week_later / WEEK;
+    let msg = QueryMsg::UserVotingPowerAtPeriod {
+        user: "addr0000".to_string(),
+        period: one_week_later_period,
+    };
+    let res = query(deps.as_ref(), env.clone(), msg).unwrap();
+    let user_voting_power: VotingPowerResponse = from_binary(&res).unwrap();
+
+    assert_eq!(user_voting_power.voting_power, expected_voting_power);
+}
 
 #[test]
-fn test_get_last_user_slope() {}
+fn test_get_last_user_slope() {
+    let (mut deps, _, _) = init_lock_factory(
+        "addr0000".to_string(),
+        Some(Uint128::from(100u64)),
+        Some(4 * WEEK),
+    );
+
+    let env = mock_env();
+    let msg = QueryMsg::GetLastUserSlope {
+        user: "addr0000".to_string(),
+    };
+    let res = query(deps.as_ref(), env.clone(), msg.clone()).unwrap();
+    let user_slope: UserSlopeResponse = from_binary(&res).unwrap();
+
+    let weeks_in_max_time = Uint128::from(104u64); // 2 years in weeks
+    let user_coeff = Decimal::one() + Decimal::from_ratio(Uint128::from(6u64), weeks_in_max_time);
+    let user_vp = Uint128::from(100u64) * user_coeff;
+    let expected_slope = Uint128::new(1u128) * Decimal::from_ratio(user_vp, Uint128::from(4u64));
+
+    assert_eq!(user_slope.slope, expected_slope);
+
+    // extending lock time should update the slope
+    let info = mock_info("addr0000", &[]);
+    let six_weeks = 6 * WEEK;
+    let extend_lock_time_msg = ExecuteMsg::ExtendLockTime { time: six_weeks };
+    let _res = execute(deps.as_mut(), env.clone(), info, extend_lock_time_msg).unwrap();
+
+    // user voting power is updated after extend_lock_time by old_vp * new_coeff
+    let user_coeff = Decimal::one() + Decimal::from_ratio(Uint128::from(10u64), weeks_in_max_time);
+    let user_vp = user_vp * user_coeff;
+
+    let res = query(deps.as_ref(), env.clone(), msg.clone()).unwrap();
+    let user_slope: UserSlopeResponse = from_binary(&res).unwrap();
+
+    let expected_slope = Uint128::new(1u128) * Decimal::from_ratio(user_vp, Uint128::from(10u64));
+
+    assert_eq!(user_slope.slope, expected_slope);
+}
 
 #[test]
-fn test_get_user_unlock_time() {}
+fn test_get_user_unlock_period() {
+    let (mut deps, _, _) = init_lock_factory(
+        "addr0000".to_string(),
+        Some(Uint128::from(100u64)),
+        Some(4 * WEEK),
+    );
 
-#[test]
-fn test_get_lock_info() {}
+    let msg = QueryMsg::GetUserUnlockPeriod {
+        user: "addr0000".to_string(),
+    };
+    let env = mock_env();
+    let res = query(deps.as_ref(), env.clone(), msg.clone()).unwrap();
+    let user_unlock_period: UserUnlockPeriodResponse = from_binary(&res).unwrap();
 
-#[test]
-fn test_get_config() {}
+    let start_time = env.block.time.seconds();
+    let expected_unlock_period = (start_time + 4 * WEEK) / WEEK;
 
-#[test]
-fn test_get_token_info() {}
+    assert_eq!(user_unlock_period.unlock_period, expected_unlock_period);
+
+    // extending lock time should update unlock period
+    let info = mock_info("addr0000", &[]);
+    let six_weeks = 6 * WEEK;
+    let extend_lock_time_msg = ExecuteMsg::ExtendLockTime { time: six_weeks };
+    let _res = execute(deps.as_mut(), env.clone(), info, extend_lock_time_msg).unwrap();
+
+    let res = query(deps.as_ref(), env.clone(), msg).unwrap();
+    let user_unlock_period: UserUnlockPeriodResponse = from_binary(&res).unwrap();
+
+    let expected_unlock_period = (start_time + 10 * WEEK) / WEEK;
+
+    assert_eq!(user_unlock_period.unlock_period, expected_unlock_period);
+}
 
 fn init_lock_factory(
     user: String,
