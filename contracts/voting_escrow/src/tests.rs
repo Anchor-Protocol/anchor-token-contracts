@@ -9,12 +9,14 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::{
-    from_binary, to_binary, CosmosMsg, Decimal, MessageInfo, OwnedDeps, StdError, SubMsg,
+    from_binary, to_binary, Binary, CosmosMsg, Decimal, MessageInfo, OwnedDeps, StdError, SubMsg,
     Timestamp, Uint128, WasmMsg,
 };
 use cw20::{
-    Cw20ExecuteMsg, Cw20ReceiveMsg, Logo, LogoInfo, MarketingInfoResponse, TokenInfoResponse,
+    Cw20ExecuteMsg, Cw20ReceiveMsg, DownloadLogoResponse, EmbeddedLogo, Logo, LogoInfo,
+    MarketingInfoResponse, TokenInfoResponse,
 };
+use cw20_base::ContractError as Cw20BaseContractError;
 
 #[test]
 fn proper_initialization() {
@@ -452,6 +454,102 @@ fn test_withdraw() {
         Err(ContractError::LockDoesntExist {}) => {}
         _ => panic!("Must return LockDoesntExist error"),
     };
+}
+
+#[test]
+fn test_update_marketing() {
+    let mut deps = mock_dependencies(&[]);
+
+    let msg = InstantiateMsg {
+        owner: "owner".to_string(),
+        anchor_token: "anchor".to_string(),
+        marketing: None,
+    };
+
+    let owner_info = mock_info("owner", &[]);
+    let _res = instantiate(deps.as_mut(), mock_env(), owner_info.clone(), msg).unwrap();
+
+    let msg = ExecuteMsg::UpdateMarketing {
+        project: Some("voting-escrow".to_string()),
+        description: Some("voting-escrow".to_string()),
+        marketing: Some("marketingaddr0000".to_string()),
+    };
+
+    // contract `owner` can update marketing info when no `marketing` owner is set
+    let res = execute(deps.as_mut(), mock_env(), owner_info, msg).unwrap();
+
+    assert_eq!(res.attributes[0].key, "action");
+    assert_eq!(res.attributes[0].value, "update_marketing");
+
+    let res = query(deps.as_ref(), mock_env(), QueryMsg::MarketingInfo {}).unwrap();
+    let marketing_info: MarketingInfoResponse = from_binary(&res).unwrap();
+
+    assert_eq!(
+        marketing_info.description.unwrap(),
+        "voting-escrow".to_string()
+    );
+    assert_eq!(marketing_info.project.unwrap(), "voting-escrow".to_string());
+    assert_eq!(
+        marketing_info.marketing.unwrap(),
+        "marketingaddr0000".to_string()
+    );
+
+    // only `marketing` owner can make subsequent updates
+    let msg = ExecuteMsg::UpdateMarketing {
+        project: None,
+        description: None,
+        marketing: None,
+    };
+    let info = mock_info("random", &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, msg);
+    match res {
+        Err(ContractError::Cw20Base(Cw20BaseContractError::Unauthorized {})) => {}
+        _ => panic!("Must return Unauthorized error"),
+    }
+}
+
+#[test]
+fn test_upload_logo() {
+    let mut deps = mock_dependencies(&[]);
+
+    let msg = InstantiateMsg {
+        owner: "owner".to_string(),
+        anchor_token: "anchor".to_string(),
+        marketing: None,
+    };
+
+    let owner_info = mock_info("owner", &[]);
+    let _res = instantiate(deps.as_mut(), mock_env(), owner_info.clone(), msg).unwrap();
+
+    // only `marketing` owner can update logo
+    let info = mock_info("random", &[]);
+    let msg = ExecuteMsg::UploadLogo(Logo::Url("cool-logo".to_string()));
+    let res = execute(deps.as_mut(), mock_env(), info, msg);
+    match res {
+        Err(ContractError::Cw20Base(Cw20BaseContractError::Unauthorized {})) => {}
+        _ => panic!("Must return Unauthorized error"),
+    }
+
+    // upload logo successfully
+    let png_logo = [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
+    let msg = ExecuteMsg::UploadLogo(Logo::Embedded(EmbeddedLogo::Png(Binary::from(&png_logo))));
+    let res = execute(deps.as_mut(), mock_env(), owner_info.clone(), msg).unwrap();
+
+    assert_eq!(res.attributes[0].key, "action");
+    assert_eq!(res.attributes[0].value, "upload_logo");
+
+    let msg = QueryMsg::MarketingInfo {};
+    let res = query(deps.as_ref(), mock_env(), msg).unwrap();
+    let marketing_info: MarketingInfoResponse = from_binary(&res).unwrap();
+
+    assert_ne!(marketing_info.logo, None);
+
+    let msg = QueryMsg::DownloadLogo {};
+    let res = query(deps.as_ref(), mock_env(), msg).unwrap();
+    let logo: DownloadLogoResponse = from_binary(&res).unwrap();
+
+    assert_eq!(logo.mime_type, "image/png".to_string());
+    assert_eq!(logo.data, Binary::from(&png_logo));
 }
 
 fn init_lock_factory(

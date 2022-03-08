@@ -93,6 +93,17 @@ pub fn instantiate(
             logo,
         };
         MARKETING_INFO.save(deps.storage, &data)?;
+    } else {
+        // adding default marketing info so that `owner` can later update
+        MARKETING_INFO.save(
+            deps.storage,
+            &MarketingInfoResponse {
+                project: None,
+                description: None,
+                marketing: Some(deps.api.addr_validate(&msg.owner)?),
+                logo: None,
+            },
+        )?;
     }
 
     // Store token info
