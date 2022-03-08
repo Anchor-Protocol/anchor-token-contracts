@@ -1,6 +1,6 @@
 # Voting Escrow
 
-The veANC contract allows staking ANC to gain voting power. Voting power depends on the time the user is locking for.
+The veANC contract allows locking ANC to gain voting power. Voting power depends on the amount of time the user is locking for.
 Maximum lock time is 2 years which equals to 2.5 coefficient. For example, if the user locks 100 ANC for 2 years he
 gains 250 voting power. Voting power is linearly decreased by passed periods. One period equals to 1 week.
 
@@ -153,6 +153,30 @@ Response:
 }
 ```
 
+### `total_voting_power_at_period`
+
+Returns total voting power at the specific period (in weeks).
+
+Request:
+
+```json
+{
+  "total_voting_power_at_period": {
+    "period": 2052
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "voting_power_response": {
+    "voting_power": 10
+  }
+}
+```
+
 ### `user_voting_power_at`
 
 Returns user's voting power at the specific time (in seconds).
@@ -164,6 +188,31 @@ Request:
   "user_voting_power_at": {
     "user": "terra...",
     "time": 1234567
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "voting_power_response": {
+    "voting_power": 10
+  }
+}
+```
+
+### `user_voting_power_at_period`
+
+Returns user's voting power at the specific period (in weeks).
+
+Request:
+
+```json
+{
+  "user_voting_power_at_period": {
+    "user": "terra...",
+    "period": 2052
   }
 }
 ```
@@ -197,6 +246,28 @@ Response:
 ```json
 {
   "slope": 2
+}
+```
+
+### `get_user_unlock_period`
+
+Returns user's unlock period.
+
+Request:
+
+```json
+{
+  "get_user_unlock_period": {
+    "user": "tera..."
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "unlock_period": 2052
 }
 ```
 
