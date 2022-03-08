@@ -154,6 +154,26 @@
     {
       "type": "object",
       "required": [
+        "get_user_unlock_time"
+      ],
+      "properties": {
+        "get_user_unlock_time": {
+          "type": "object",
+          "required": [
+            "user"
+          ],
+          "properties": {
+            "user": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "lock_info"
       ],
       "properties": {

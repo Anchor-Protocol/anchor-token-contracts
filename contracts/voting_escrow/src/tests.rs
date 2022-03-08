@@ -552,6 +552,88 @@ fn test_upload_logo() {
     assert_eq!(logo.data, Binary::from(&png_logo));
 }
 
+#[test]
+fn test_get_total_voting_power() {
+    let mut deps = mock_dependencies(&[]);
+
+    let msg = InstantiateMsg {
+        owner: "owner".to_string(),
+        anchor_token: "anchor".to_string(),
+        marketing: None,
+    };
+
+    let owner_info = mock_info("owner", &[]);
+    let anchor_info = mock_info("anchor", &[]);
+    let _res = instantiate(deps.as_mut(), mock_env(), owner_info.clone(), msg).unwrap();
+
+    let users_to_create_lock_for = vec![
+        ("user1".to_string(), Uint128::from(100u64), 2 * WEEK),
+        ("user2".to_string(), Uint128::from(50u64), 4 * WEEK),
+    ];
+
+    let env = mock_env();
+    // create user locks
+    for (user, lock_amount, lock_time) in users_to_create_lock_for {
+        let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+            sender: user,
+            amount: lock_amount,
+            msg: to_binary(&Cw20HookMsg::CreateLock { time: lock_time }).unwrap(),
+        });
+        let _res = execute(deps.as_mut(), env.clone(), anchor_info.clone(), msg).unwrap();
+    }
+
+    // voting power rigth after lock create should include both user1 and user2
+    let res = query(deps.as_ref(), mock_env(), QueryMsg::TotalVotingPower {}).unwrap();
+    let total_voting_power: VotingPowerResponse = from_binary(&res).unwrap();
+
+    let weeks_in_max_time = Uint128::from(104u64); // 2 years in weeks
+    let user1_coeff = Decimal::one() + Decimal::from_ratio(Uint128::from(3u64), weeks_in_max_time); // (1 + (1.5 * 2)/104)
+    let user2_coeff = Decimal::one() + Decimal::from_ratio(Uint128::from(6u64), weeks_in_max_time); // (1 + (1.5 * 4)/104)
+
+    let user1_voting_power = Uint128::from(100u64) * user1_coeff; // lock_amount * (1 + (1.5 * lock_time)/MAX_LOCK_TIME)
+    let user2_voting_power = Uint128::from(50u64) * user2_coeff; // lock_amount * (1 + (1.5 * lock_time)/MAX_LOCK_TIME)
+
+    let expected_total_voting_power = user1_voting_power + user2_voting_power;
+
+    assert_eq!(total_voting_power.voting_power, expected_total_voting_power);
+
+    let start_time = env.block.time.seconds();
+
+    // voting power after 2 weeks should only include user2
+    let time = start_time + (2 * WEEK + 1);
+    let msg = QueryMsg::TotalVotingPowerAt { time: time };
+    let res = query(deps.as_ref(), env.clone(), msg).unwrap();
+    let total_voting_power: VotingPowerResponse = from_binary(&res).unwrap();
+
+    let user2_slope = Decimal::from_ratio(user2_voting_power, 4 * WEEK); // voting_power / (end - start)
+
+    // total voting power should be user2's voting power with 2 weeks reduction
+    // user2_vp/total_vp = user2_vp - slope * (current_time - start_time)
+    let expected_voting_power = user2_voting_power
+        .checked_sub(user2_slope * (Uint128::from(time - start_time)))
+        .unwrap();
+
+    assert_eq!(total_voting_power.voting_power, expected_voting_power);
+}
+
+#[test]
+fn test_get_user_voting_power() {}
+
+#[test]
+fn test_get_last_user_slope() {}
+
+#[test]
+fn test_get_user_unlock_time() {}
+
+#[test]
+fn test_get_lock_info() {}
+
+#[test]
+fn test_get_config() {}
+
+#[test]
+fn test_get_token_info() {}
+
 fn init_lock_factory(
     user: String,
     lock_amount: Option<Uint128>,

@@ -23,7 +23,7 @@ use crate::utils::{
 };
 use anchor_token::voting_escrow::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, QueryMsg,
-    UserSlopeResponse, VotingPowerResponse,
+    UserSlopeResponse, UserUnlockTimeResponse, VotingPowerResponse,
 };
 
 /// Contract name that is used for migration.
@@ -488,7 +488,11 @@ fn extend_lock_time(
 /// * **QueryMsg::TotalVotingPower {}** total voting power at current block
 /// * **QueryMsg::UserVotingPower { user }** user's voting power at current block
 /// * **QueryMsg::TotalVotingPowerAt { time }** total voting power at specified time
+/// * **QueryMsg::TotalVotingPowerAtPeriod { period }** total voting power at specified period
 /// * **QueryMsg::UserVotingPowerAt { time }** user's voting power at specified time
+/// * **QueryMsg::UserVotingPowerAtPeriod { period }** user's voting power at specified period
+/// * **QueryMsg::GetLastUserSlope { user }** user's most recently recorded slope
+/// * **QueryMsg::GetUserUnlockTime { user }** user's lock end time
 /// * **QueryMsg::LockInfo { user }** user's lock information
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -510,6 +514,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&get_user_voting_power_at_period(deps, user, period)?)
         }
         QueryMsg::GetLastUserSlope { user } => to_binary(&get_last_user_slope(deps, env, user)?),
+        QueryMsg::GetUserUnlockTime { user } => to_binary(&get_user_unlock_time(deps, user)?),
         QueryMsg::LockInfo { user } => to_binary(&get_user_lock_info(deps, user)?),
         QueryMsg::Config {} => {
             let config = CONFIG.load(deps.storage)?;
@@ -640,12 +645,25 @@ fn get_last_user_slope(deps: Deps, env: Env, user: String) -> StdResult<UserSlop
     let last_checkpoint = fetch_last_checkpoint(deps, &user, &period_key)?;
 
     let slope = if let Some((_, point)) = last_checkpoint {
-        point.slope
+        Uint128::new(1u128) * point.slope
     } else {
-        Decimal::zero()
+        Uint128::zero()
     };
 
     Ok(UserSlopeResponse { slope })
+}
+
+/// # Description
+/// Returns user's lock `end` time.
+fn get_user_unlock_time(deps: Deps, user: String) -> StdResult<UserUnlockTimeResponse> {
+    let addr = addr_validate_to_lower(deps.api, &user)?;
+    if let Some(lock) = LOCKED.may_load(deps.storage, addr)? {
+        Ok(UserUnlockTimeResponse {
+            unlock_time: lock.end,
+        })
+    } else {
+        Err(StdError::generic_err("User lock not found"))
+    }
 }
 
 /// # Description
@@ -661,7 +679,7 @@ fn get_user_lock_info(deps: Deps, user: String) -> StdResult<LockInfoResponse> {
         };
         Ok(resp)
     } else {
-        Err(StdError::generic_err("User is not found"))
+        Err(StdError::generic_err("User lock not found"))
     }
 }
 

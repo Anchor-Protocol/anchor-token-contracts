@@ -70,6 +70,7 @@ pub enum QueryMsg {
     UserVotingPowerAt { user: String, time: u64 },
     UserVotingPowerAtPeriod { user: String, period: u64 },
     GetLastUserSlope { user: String },
+    GetUserUnlockTime { user: String },
     LockInfo { user: String },
     MarketingInfo {},
     DownloadLogo {},
@@ -88,7 +89,14 @@ pub struct VotingPowerResponse {
 /// This structure describes last user slope response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserSlopeResponse {
-    pub slope: Decimal,
+    pub slope: Uint128,
+}
+
+/// ## Description
+/// This structure describes user unlock time (lock end).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UserUnlockTimeResponse {
+    pub unlock_time: u64,
 }
 
 /// ## Description
