@@ -1,6 +1,10 @@
 use crate::checkpoint::checkpoint;
 use crate::contract::{execute, instantiate, query};
-use crate::error::ContractError;
+use crate::error::ContractError::{
+    Cw20Base, LockAlreadyExists, LockDoesntExist, LockExpired, LockHasNotExpired,
+    LockTimeLimitsError, Std, Unauthorized,
+};
+use crate::state::{Config, Lock, Point};
 use crate::utils::{fetch_last_checkpoint, MAX_LOCK_TIME, WEEK};
 use anchor_token::voting_escrow::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMarketingInfo, InstantiateMsg,
@@ -10,8 +14,8 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, MessageInfo, OwnedDeps, StdError,
-    SubMsg, Timestamp, Uint128, WasmMsg,
+    from_binary, to_binary, Addr, Binary, CanonicalAddr, CosmosMsg, Decimal, MessageInfo,
+    OwnedDeps, StdError, SubMsg, Timestamp, Uint128, WasmMsg,
 };
 use cw20::{
     Cw20ExecuteMsg, Cw20ReceiveMsg, DownloadLogoResponse, EmbeddedLogo, Logo, LogoInfo,
@@ -24,9 +28,14 @@ use cw_storage_plus::U64Key;
 fn proper_initialization() {
     let mut deps = mock_dependencies(&[]);
 
+    let config = Config {
+        owner: CanonicalAddr::from("owner".as_bytes()),
+        anchor_token: CanonicalAddr::from("anchor".as_bytes()),
+    };
+
     let msg = InstantiateMsg {
-        owner: "owner".to_string(),
-        anchor_token: "anchor".to_string(),
+        owner: String::from_utf8_lossy(config.owner.as_slice()).to_string(),
+        anchor_token: String::from_utf8_lossy(config.anchor_token.as_slice()).to_string(),
         marketing: Some(InstantiateMarketingInfo {
             project: Some("voted-escrow".to_string()),
             description: Some("voted-escrow".to_string()),
@@ -88,7 +97,7 @@ fn test_create_lock() {
     let info = mock_info("random", &[]);
     let res = execute(deps.as_mut(), mock_env(), info, msg);
     match res {
-        Err(ContractError::Unauthorized {}) => {}
+        Err(Unauthorized {}) => {}
         _ => panic!("Must return Unauthorized error"),
     }
 
@@ -99,7 +108,7 @@ fn test_create_lock() {
     let msg = ExecuteMsg::Receive(receive_msg.clone());
     let res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
     match res {
-        Err(ContractError::LockTimeLimitsError {}) => {}
+        Err(LockTimeLimitsError {}) => {}
         _ => panic!("Must return LockTimeLimitsError error"),
     }
 
@@ -111,14 +120,15 @@ fn test_create_lock() {
     let msg = ExecuteMsg::Receive(receive_msg.clone());
     let res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
     match res {
-        Err(ContractError::LockTimeLimitsError {}) => {}
+        Err(LockTimeLimitsError {}) => {}
         _ => panic!("Must return LockTimeLimitsError error"),
     }
 
     // creates lock successfully
     receive_msg.msg = to_binary(&Cw20HookMsg::CreateLock { time: 2 * WEEK }).unwrap();
     let msg = ExecuteMsg::Receive(receive_msg.clone());
-    let res = execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+    let env = mock_env();
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
     assert_eq!(res.attributes[0].key, "action");
     assert_eq!(res.attributes[0].value, "create_lock");
@@ -131,14 +141,25 @@ fn test_create_lock() {
         },
     )
     .unwrap();
+
     let lock_info: LockInfoResponse = from_binary(&res).unwrap();
 
     let max_period = Uint128::from(104u64); // 2 years in weeks
     let coeff_in_2_weeks = Uint128::from(3u64); // 1.5 * 2
     let expected_coeff = Decimal::one() + Decimal::from_ratio(coeff_in_2_weeks, max_period);
 
-    assert_eq!(lock_info.amount, Uint128::from(10u128));
-    assert_eq!((lock_info.end - lock_info.start) * WEEK, 2 * WEEK);
+    let start_period = env.block.time.seconds() / WEEK;
+
+    let expected_lock = Lock {
+        amount: Uint128::from(10u128),
+        start: start_period,
+        end: start_period + 2,
+        last_extend_lock_period: 0u64,
+    };
+
+    assert_eq!(lock_info.amount, expected_lock.amount);
+    assert_eq!(lock_info.start, expected_lock.start);
+    assert_eq!(lock_info.end, expected_lock.end);
     assert_eq!(lock_info.coefficient, expected_coeff);
 
     // cannot create multiple locks for same user
@@ -146,7 +167,7 @@ fn test_create_lock() {
     let msg = ExecuteMsg::Receive(receive_msg);
     let res = execute(deps.as_mut(), mock_env(), info, msg);
     match res {
-        Err(ContractError::LockAlreadyExists {}) => {}
+        Err(LockAlreadyExists {}) => {}
         _ => panic!("Must return LockAlreadyExists error"),
     };
 
@@ -199,7 +220,7 @@ fn test_extend_lock_amount() {
     let info = mock_info("random", &[]);
     let res = execute(deps.as_mut(), mock_env(), info, msg);
     match res {
-        Err(ContractError::Unauthorized {}) => {}
+        Err(Unauthorized {}) => {}
         _ => panic!("Must return Unauthorized error"),
     };
 
@@ -208,7 +229,7 @@ fn test_extend_lock_amount() {
     let msg = ExecuteMsg::Receive(receive_msg.clone());
     let res = execute(deps.as_mut(), mock_env(), anchor_info.clone(), msg);
     match res {
-        Err(ContractError::LockDoesntExist {}) => {}
+        Err(LockDoesntExist {}) => {}
         _ => panic!("Must return LockDoesntExist error"),
     };
 
@@ -219,7 +240,7 @@ fn test_extend_lock_amount() {
     env.block.time = Timestamp::from_seconds(env.block.time.seconds() + 3 * WEEK);
     let res = execute(deps.as_mut(), env, anchor_info.clone(), msg.clone());
     match res {
-        Err(ContractError::LockExpired {}) => {}
+        Err(LockExpired {}) => {}
         _ => panic!("Must return LockExpired error"),
     };
 
@@ -262,7 +283,7 @@ fn test_deposit_for() {
     let info = mock_info("random", &[]);
     let res = execute(deps.as_mut(), mock_env(), info, msg);
     match res {
-        Err(ContractError::Unauthorized {}) => {}
+        Err(Unauthorized {}) => {}
         _ => panic!("Must return Unauthorized error"),
     };
 
@@ -274,7 +295,7 @@ fn test_deposit_for() {
     let msg = ExecuteMsg::Receive(receive_msg.clone());
     let res = execute(deps.as_mut(), mock_env(), anchor_info.clone(), msg);
     match res {
-        Err(ContractError::Std(StdError::GenericErr { msg })) => {
+        Err(Std(StdError::GenericErr { msg })) => {
             assert_eq!(msg, "Address UPPER0000 should be lowercase")
         }
         _ => panic!("Must return address validation error"),
@@ -316,7 +337,7 @@ fn test_extend_lock_time() {
     let msg = ExecuteMsg::ExtendLockTime { time: two_days };
     let res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
     match res {
-        Err(ContractError::LockTimeLimitsError {}) => {}
+        Err(LockTimeLimitsError {}) => {}
         _ => panic!("Must return LockTimeLimitsError error"),
     };
 
@@ -326,7 +347,7 @@ fn test_extend_lock_time() {
     env.block.time = Timestamp::from_seconds(env.block.time.seconds() + 3 * WEEK);
     let res = execute(deps.as_mut(), env, info.clone(), msg);
     match res {
-        Err(ContractError::LockExpired {}) => {}
+        Err(LockExpired {}) => {}
         _ => panic!("Must return LockExpired error"),
     };
 
@@ -336,7 +357,7 @@ fn test_extend_lock_time() {
     };
     let res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
     match res {
-        Err(ContractError::LockTimeLimitsError {}) => {}
+        Err(LockTimeLimitsError {}) => {}
         _ => panic!("Must return LockTimeLimitsError error"),
     };
 
@@ -388,7 +409,7 @@ fn test_withdraw() {
     let info = mock_info("random0000", &[]);
     let res = execute(deps.as_mut(), mock_env(), info, msg.clone());
     match res {
-        Err(ContractError::LockDoesntExist {}) => {}
+        Err(LockDoesntExist {}) => {}
         _ => panic!("Must return LockDoesntExist error"),
     };
 
@@ -396,7 +417,7 @@ fn test_withdraw() {
     let info = mock_info("addr0000", &[]);
     let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
     match res {
-        Err(ContractError::LockHasNotExpired {}) => {}
+        Err(LockHasNotExpired {}) => {}
         _ => panic!("Must return LockHasNotExpired error"),
     };
 
@@ -453,7 +474,7 @@ fn test_withdraw() {
 
     let res = execute(deps.as_mut(), env, info, msg);
     match res {
-        Err(ContractError::LockDoesntExist {}) => {}
+        Err(LockDoesntExist {}) => {}
         _ => panic!("Must return LockDoesntExist error"),
     };
 }
@@ -505,7 +526,7 @@ fn test_update_marketing() {
     let info = mock_info("random", &[]);
     let res = execute(deps.as_mut(), mock_env(), info, msg);
     match res {
-        Err(ContractError::Cw20Base(Cw20BaseContractError::Unauthorized {})) => {}
+        Err(Cw20Base(Cw20BaseContractError::Unauthorized {})) => {}
         _ => panic!("Must return Unauthorized error"),
     }
 }
@@ -528,7 +549,7 @@ fn test_upload_logo() {
     let msg = ExecuteMsg::UploadLogo(Logo::Url("cool-logo".to_string()));
     let res = execute(deps.as_mut(), mock_env(), info, msg);
     match res {
-        Err(ContractError::Cw20Base(Cw20BaseContractError::Unauthorized {})) => {}
+        Err(Cw20Base(Cw20BaseContractError::Unauthorized {})) => {}
         _ => panic!("Must return Unauthorized error"),
     }
 
@@ -761,12 +782,12 @@ fn test_checkpoint() {
     let mut deps = mock_dependencies(&[]);
 
     let user = Addr::unchecked("addr0001".to_string());
-    let env = mock_env();
+    let mut env = mock_env();
     let start = env.block.time.seconds() / WEEK;
     let end = start + 4;
     checkpoint(
         deps.as_mut(),
-        env,
+        env.clone(),
         user.clone(),
         Some(Uint128::from(100u64)),
         Some(end),
@@ -779,15 +800,36 @@ fn test_checkpoint() {
     let max_period = Uint128::from(104u64);
     let coeff = Decimal::one() + Decimal::from_ratio(Uint128::from(6u64), max_period); // (1 + (1.5 * 4)/104)
     let expected_power = Uint128::from(100u64) * coeff;
-    let expected_slope =
-        Uint128::new(1u128) * Decimal::from_ratio(expected_power, Uint128::from(4u64));
+    let expected_slope = Decimal::from_ratio(expected_power, Uint128::from(4u64));
+
+    let expected_point = Point {
+        power: expected_power,
+        start: start,
+        end: end,
+        slope: expected_slope,
+    };
 
     match last_checkpoint {
         Some((_, point)) => {
-            assert_eq!(point.start, start);
-            assert_eq!(point.end, end);
-            assert_eq!(point.slope * Uint128::new(1u128), expected_slope);
-            assert_eq!(point.power, expected_power);
+            assert_eq!(point.start, expected_point.start);
+            assert_eq!(point.end, expected_point.end);
+            assert_eq!(point.slope, expected_point.slope);
+            assert_eq!(point.power, expected_point.power);
+        }
+        _ => panic!("Excepted a checkpoint to be found!"),
+    };
+
+    // slope should be zero for an expired lock
+    env.block.time = Timestamp::from_seconds(env.block.time.seconds() + 4 * WEEK + 1);
+    checkpoint(deps.as_mut(), env.clone(), user.clone(), None, None).unwrap();
+
+    let period_key = U64Key::new(env.block.time.seconds() / WEEK);
+
+    let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &user, &period_key).unwrap();
+
+    match last_checkpoint {
+        Some((_, point)) => {
+            assert_eq!(point.slope, Decimal::zero());
         }
         _ => panic!("Excepted a checkpoint to be found!"),
     };
