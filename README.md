@@ -12,16 +12,16 @@ Anchor Token depends on [Terraswap](https://terraswap.io) and uses its [implemen
 
 ## Contracts
 
-| Contract                                 | Reference                                                                     | Description                                                                    |
-| ---------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| [`airdrop`](./contracts/airdrop)         | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/airdrop)   | Holds ANC tokens which are to be used Luna staker incentives                   |
-| [`collector`](./contracts/collector)     | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/collector) | Accumulates protocol fees, converts them to ANC and distributes to ANC stakers |
-| [`community`](../contracts/community)    | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/community) | Manages ANC community grants                                                   |
-| [`distributor`](./contracts/distributor) | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/dripper)   | Holds ANC tokens which are to be used as borrower incentives                   |
-| [`gov`](./contracts/gov)                 | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/gov)       | Handles Anchor Governance and reward distribution to ANC stakers               |
-| [`staking`](./contracts/staking)         | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/staking)   | Handles ANC-UST pair LP token staking                                          |
-| [`vesting`](./contracts/vesting)         | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/vesting)   | Holds ANC tokens which are to be used ANC token allocation vesting             |
-| [`voting_escrow`](./contracts/vesting)   | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/#)         | Handles locking ANC tokens to gain voting power (veANC)                        |
+| Contract                                     | Reference                                                                     | Description                                                                    |
+| -------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| [`airdrop`](./contracts/airdrop)             | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/airdrop)   | Holds ANC tokens which are to be used Luna staker incentives                   |
+| [`collector`](./contracts/collector)         | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/collector) | Accumulates protocol fees, converts them to ANC and distributes to ANC stakers |
+| [`community`](../contracts/community)        | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/community) | Manages ANC community grants                                                   |
+| [`distributor`](./contracts/distributor)     | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/dripper)   | Holds ANC tokens which are to be used as borrower incentives                   |
+| [`gov`](./contracts/gov)                     | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/gov)       | Handles Anchor Governance and reward distribution to ANC stakers               |
+| [`staking`](./contracts/staking)             | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/staking)   | Handles ANC-UST pair LP token staking                                          |
+| [`vesting`](./contracts/vesting)             | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/vesting)   | Holds ANC tokens which are to be used ANC token allocation vesting             |
+| [`voting_escrow`](./contracts/voting_escrow) | [doc](https://docs.anchorprotocol.com/smart-contracts/anchor-token/#)         | Handles locking ANC tokens to gain voting power (veANC)                        |
 
 ## Development
 
