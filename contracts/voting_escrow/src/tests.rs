@@ -355,7 +355,7 @@ fn test_extend_lock_time() {
     // extends lock time successfully
     let msg = ExecuteMsg::ExtendLockTime { time: WEEK * 3 };
     let env = mock_env();
-    let res = execute(deps.as_mut(), env, info.clone(), msg).unwrap();
+    let res = execute(deps.as_mut(), env, info, msg).unwrap();
 
     assert_eq!(res.attributes[0].key, "action");
     assert_eq!(res.attributes[0].value, "extend_lock_time");
