@@ -36,7 +36,7 @@ fn proper_initialization() {
     };
 
     let info = mock_info("owner", &[]);
-    let _res = instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+    let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     let res = query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap();
     let config: ConfigResponse = from_binary(&res).unwrap();
@@ -144,7 +144,7 @@ fn test_create_lock() {
     // cannot create multiple locks for same user
     receive_msg.msg = to_binary(&Cw20HookMsg::CreateLock { time: WEEK }).unwrap();
     let msg = ExecuteMsg::Receive(receive_msg);
-    let res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
+    let res = execute(deps.as_mut(), mock_env(), info, msg);
     match res {
         Err(ContractError::LockAlreadyExists {}) => {}
         _ => panic!("Must return LockAlreadyExists error"),
@@ -197,7 +197,7 @@ fn test_extend_lock_amount() {
 
     // only anchor token is authorized to extend lock amount
     let info = mock_info("random", &[]);
-    let res = execute(deps.as_mut(), mock_env(), info, msg.clone());
+    let res = execute(deps.as_mut(), mock_env(), info, msg);
     match res {
         Err(ContractError::Unauthorized {}) => {}
         _ => panic!("Must return Unauthorized error"),
@@ -214,7 +214,7 @@ fn test_extend_lock_amount() {
 
     // cannot extend lock amount for an expired lock
     receive_msg.sender = "addr0000".to_string();
-    let msg = ExecuteMsg::Receive(receive_msg.clone());
+    let msg = ExecuteMsg::Receive(receive_msg);
     let mut env = mock_env();
     env.block.time = Timestamp::from_seconds(env.block.time.seconds() + 3 * WEEK);
     let res = execute(deps.as_mut(), env, anchor_info.clone(), msg.clone());
@@ -224,7 +224,7 @@ fn test_extend_lock_amount() {
     };
 
     // extends lock amount successfully
-    let res = execute(deps.as_mut(), mock_env(), anchor_info.clone(), msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), anchor_info, msg).unwrap();
 
     assert_eq!(res.attributes[0].key, "action");
     assert_eq!(res.attributes[0].value, "deposit_for");
@@ -287,8 +287,8 @@ fn test_deposit_for() {
         user: "addr0000".to_string(),
     })
     .unwrap();
-    let msg = ExecuteMsg::Receive(receive_msg.clone());
-    let res = execute(deps.as_mut(), mock_env(), anchor_info.clone(), msg).unwrap();
+    let msg = ExecuteMsg::Receive(receive_msg);
+    let res = execute(deps.as_mut(), mock_env(), anchor_info, msg).unwrap();
 
     assert_eq!(res.attributes[0].key, "action");
     assert_eq!(res.attributes[0].value, "deposit_for");
@@ -355,7 +355,7 @@ fn test_extend_lock_time() {
     // extends lock time successfully
     let msg = ExecuteMsg::ExtendLockTime { time: WEEK * 3 };
     let env = mock_env();
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+    let res = execute(deps.as_mut(), env, info.clone(), msg).unwrap();
 
     assert_eq!(res.attributes[0].key, "action");
     assert_eq!(res.attributes[0].value, "extend_lock_time");
@@ -420,7 +420,7 @@ fn test_withdraw() {
         }))]
     );
 
-    let res = &query(
+    let res = query(
         deps.as_ref(),
         env.clone(),
         QueryMsg::UserVotingPower {
@@ -432,7 +432,7 @@ fn test_withdraw() {
 
     assert_eq!(user_voting_power.voting_power, Uint128::zero());
 
-    let res = &query(deps.as_ref(), env.clone(), QueryMsg::TotalVotingPower {}).unwrap();
+    let res = query(deps.as_ref(), env.clone(), QueryMsg::TotalVotingPower {}).unwrap();
     let total_voting_power: VotingPowerResponse = from_binary(&res).unwrap();
 
     assert_eq!(total_voting_power.voting_power, Uint128::zero());
@@ -451,7 +451,7 @@ fn test_withdraw() {
     .unwrap();
     assert_eq!(curr_lock_info.amount, Uint128::from(0u64));
 
-    let res = execute(deps.as_mut(), env, info.clone(), msg.clone());
+    let res = execute(deps.as_mut(), env, info, msg);
     match res {
         Err(ContractError::LockDoesntExist {}) => {}
         _ => panic!("Must return LockDoesntExist error"),
@@ -535,7 +535,7 @@ fn test_upload_logo() {
     // upload logo successfully
     let png_logo = [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
     let msg = ExecuteMsg::UploadLogo(Logo::Embedded(EmbeddedLogo::Png(Binary::from(&png_logo))));
-    let res = execute(deps.as_mut(), mock_env(), owner_info.clone(), msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), owner_info, msg).unwrap();
 
     assert_eq!(res.attributes[0].key, "action");
     assert_eq!(res.attributes[0].value, "upload_logo");
@@ -566,7 +566,7 @@ fn test_get_total_voting_power() {
 
     let owner_info = mock_info("owner", &[]);
     let anchor_info = mock_info("anchor", &[]);
-    let _res = instantiate(deps.as_mut(), mock_env(), owner_info.clone(), msg).unwrap();
+    let _res = instantiate(deps.as_mut(), mock_env(), owner_info, msg).unwrap();
 
     let users_to_create_lock_for = vec![
         ("user1".to_string(), Uint128::from(100u64), 2 * WEEK),
@@ -623,7 +623,7 @@ fn test_get_total_voting_power() {
     let msg = QueryMsg::TotalVotingPowerAtPeriod {
         period: two_weeks_later_period,
     };
-    let res = query(deps.as_ref(), env.clone(), msg).unwrap();
+    let res = query(deps.as_ref(), env, msg).unwrap();
     let total_voting_power: VotingPowerResponse = from_binary(&res).unwrap();
 
     assert_eq!(total_voting_power.voting_power, expected_voting_power);
@@ -676,7 +676,7 @@ fn test_get_user_voting_power() {
         user: "addr0000".to_string(),
         period: one_week_later_period,
     };
-    let res = query(deps.as_ref(), env.clone(), msg).unwrap();
+    let res = query(deps.as_ref(), env, msg).unwrap();
     let user_voting_power: VotingPowerResponse = from_binary(&res).unwrap();
 
     assert_eq!(user_voting_power.voting_power, expected_voting_power);
@@ -714,7 +714,7 @@ fn test_get_last_user_slope() {
     let user_coeff = Decimal::one() + Decimal::from_ratio(Uint128::from(10u64), max_period);
     let user_vp = user_vp * user_coeff;
 
-    let res = query(deps.as_ref(), env.clone(), msg.clone()).unwrap();
+    let res = query(deps.as_ref(), env, msg).unwrap();
     let user_slope: UserSlopeResponse = from_binary(&res).unwrap();
 
     let expected_slope = Uint128::new(1u128) * Decimal::from_ratio(user_vp, Uint128::from(10u64));
@@ -748,7 +748,7 @@ fn test_get_user_unlock_period() {
     let extend_lock_time_msg = ExecuteMsg::ExtendLockTime { time: six_weeks };
     let _res = execute(deps.as_mut(), env.clone(), info, extend_lock_time_msg).unwrap();
 
-    let res = query(deps.as_ref(), env.clone(), msg).unwrap();
+    let res = query(deps.as_ref(), env, msg).unwrap();
     let user_unlock_period: UserUnlockPeriodResponse = from_binary(&res).unwrap();
 
     let expected_unlock_period = (start_time + 10 * WEEK) / WEEK;
@@ -766,7 +766,7 @@ fn test_checkpoint() {
     let end = start + 4;
     checkpoint(
         deps.as_mut(),
-        env.clone(),
+        env,
         user.clone(),
         Some(Uint128::from(100u64)),
         Some(end),
@@ -802,7 +802,7 @@ fn init_lock_factory(
     MessageInfo,
     MessageInfo,
 ) {
-    let lock_amount = lock_amount.unwrap_or(Uint128::from(10u64));
+    let lock_amount = lock_amount.unwrap_or_else(|| Uint128::from(10u64));
     let lock_time = lock_time.unwrap_or(WEEK);
 
     let mut deps = mock_dependencies(&[]);
