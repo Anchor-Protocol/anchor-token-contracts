@@ -3,20 +3,19 @@
   "title": "InstantiateMsg",
   "type": "object",
   "required": [
-    "voting_escrow_contract"
+    "anchor_token",
+    "anchor_voting_escorw",
+    "owner"
   ],
   "properties": {
-    "voting_escrow_contract": {
-      "$ref": "#/definitions/CanonicalAddr"
-    }
-  },
-  "definitions": {
-    "Binary": {
-      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
+    "anchor_token": {
       "type": "string"
     },
-    "CanonicalAddr": {
-      "$ref": "#/definitions/Binary"
+    "anchor_voting_escorw": {
+      "type": "string"
+    },
+    "owner": {
+      "type": "string"
     }
   }
 }
