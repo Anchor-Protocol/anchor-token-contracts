@@ -1,21 +1,11 @@
 use crate::error::ContractError;
-use crate::state::{
-    config_read, config_store, gauge_addr_read, gauge_addr_store, gauge_count_read,
-    gauge_count_store, gauge_info_read, gauge_info_store, gauge_weight_read, gauge_weight_store,
-    Config, GaugeInfo, UserVote, Weight,
-};
 
-#[cfg(not(feature = "library"))]
-use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    from_binary, to_binary, Binary, CanonicalAddr, Deps, DepsMut, Env, MessageInfo, Response,
-    StdError, Uint128,
-};
+use cosmwasm_std::{from_binary, Uint128};
 
 use crate::contract::{execute, instantiate, query};
 use anchor_token::gauge_controller::{
     AllGaugeAddrResponse, ConfigResponse, ExecuteMsg, GaugeAddrResponse, GaugeCountResponse,
-    GaugeWeightResponse, InstantiateMsg, QueryMsg, RelativeWeightResponse, TotalWeightResponse,
+    GaugeWeightResponse, InstantiateMsg, QueryMsg,
 };
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 

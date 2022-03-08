@@ -2,14 +2,12 @@ use crate::error::ContractError;
 use crate::state::{
     config_read, config_store, gauge_addr_read, gauge_addr_store, gauge_count_read,
     gauge_count_store, gauge_info_read, gauge_info_store, gauge_weight_read, gauge_weight_store,
-    Config, GaugeInfo, UserVote, Weight,
+    Config, GaugeInfo, Weight,
 };
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    to_binary, Binary, CanonicalAddr, Deps, DepsMut, Env, MessageInfo, Response, Uint128,
-};
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, Uint128};
 
 use anchor_token::gauge_controller::{
     AllGaugeAddrResponse, ConfigResponse, ExecuteMsg, GaugeAddrResponse, GaugeCountResponse,
