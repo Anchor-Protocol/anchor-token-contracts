@@ -804,8 +804,8 @@ fn test_checkpoint() {
 
     let expected_point = Point {
         power: expected_power,
-        start: start,
-        end: end,
+        start,
+        end,
         slope: expected_slope,
     };
 
