@@ -60,23 +60,27 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::GaugeAddr { gauge_id } => Ok(to_binary(&query_gauge_addr(deps, gauge_id)?)?),
         QueryMsg::AllGaugeAddr {} => Ok(to_binary(&query_all_gauge_addr(deps)?)?),
         QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
-        QueryMsg::RelativeWeight { addr, time } => {
+        QueryMsg::GaugeRelativeWeight { addr, time } => {
             Ok(to_binary(&query_relative_weight(deps, addr, time)?)?)
         }
     }
 }
 
-fn _get_period(time: u64) -> u64 {
-    (time / WEEK + WEEK) * WEEK
+fn _get_period(seconds: u64) -> u64 {
+    (seconds / WEEK + WEEK) * WEEK
 }
 
 fn add_gauge(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     addr: String,
     weight: Uint128,
 ) -> Result<Response, ContractError> {
+    let sender = deps.api.addr_canonicalize(info.sender.as_str())?;
+    if config_read(deps.storage).load()?.owner != sender {
+        return Err(ContractError::Unauthorized {});
+    }
     let addr = deps.api.addr_canonicalize(&addr)?;
     if let Ok(_) = gauge_info_read(deps.storage).load(&addr) {
         return Err(ContractError::GaugeAlreadyExist {});
@@ -104,13 +108,40 @@ fn add_gauge(
 }
 
 fn change_gauge_weight(
-    _deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
-    _addr: String,
-    _weight: Uint128,
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    addr: String,
+    weight: Uint128,
 ) -> Result<Response, ContractError> {
-    Err(ContractError::NotImplement {})
+    let sender = deps.api.addr_canonicalize(info.sender.as_str())?;
+    if config_read(deps.storage).load()?.owner != sender {
+        return Err(ContractError::Unauthorized {});
+    }
+    let addr = deps.api.addr_canonicalize(&addr)?;
+    if let Ok(old_info) = gauge_info_read(deps.storage).load(&addr) {
+        let old_period = old_info.last_vote_period;
+        let old_weight =
+            gauge_weight_read(deps.storage, &addr).load(&old_period.to_string().as_bytes())?;
+        let new_period = _get_period(env.block.time.seconds());
+        gauge_weight_store(deps.storage, &addr).save(
+            &new_period.to_string().as_bytes(),
+            &Weight {
+                bias: weight,
+                slope: old_weight.slope,
+                slope_change: old_weight.slope_change,
+            },
+        )?;
+        gauge_info_store(deps.storage).save(
+            &addr,
+            &GaugeInfo {
+                last_vote_period: new_period,
+            },
+        )?;
+    } else {
+        return Err(ContractError::GaugeNotFound {});
+    }
+    Ok(Response::default())
 }
 
 fn vote_for_gauge_weight(
