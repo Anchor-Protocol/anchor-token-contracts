@@ -416,11 +416,28 @@ fn test_withdraw() {
         }))]
     );
 
+    let res = &query(
+        deps.as_ref(),
+        env.clone(),
+        QueryMsg::UserVotingPower {
+            user: "addr0000".to_string(),
+        },
+    )
+    .unwrap();
+    let user_voting_power: VotingPowerResponse = from_binary(&res).unwrap();
+
+    assert_eq!(user_voting_power.voting_power, Uint128::zero());
+
+    let res = &query(deps.as_ref(), env.clone(), QueryMsg::TotalVotingPower {}).unwrap();
+    let total_voting_power: VotingPowerResponse = from_binary(&res).unwrap();
+
+    assert_eq!(total_voting_power.voting_power, Uint128::zero());
+
     // cannot withdraw if user has zero amount `locked`
     let curr_lock_info: LockInfoResponse = from_binary(
         &query(
             deps.as_ref(),
-            mock_env(),
+            env.clone(),
             QueryMsg::LockInfo {
                 user: "addr0000".to_string(),
             },
