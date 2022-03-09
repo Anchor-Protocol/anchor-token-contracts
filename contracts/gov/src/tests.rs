@@ -3687,19 +3687,39 @@ fn test_migrate() {
     .unwrap();
 
     let new_config: Config = config_read(deps.as_ref().storage).load().unwrap();
+    let expected_config = LegacyConfig {
+        owner: new_config.owner,
+        anchor_token: new_config.anchor_token,
+        quorum: new_config.quorum,
+        threshold: new_config.threshold,
+        voting_period: new_config.voting_period,
+        timelock_period: new_config.timelock_period,
+        expiration_period: new_config.expiration_period,
+        proposal_deposit: new_config.proposal_deposit,
+        snapshot_period: new_config.snapshot_period,
+    };
 
-    assert_eq!(legacy_config.owner, new_config.owner);
-    assert_eq!(legacy_config.anchor_token, new_config.anchor_token);
-    assert_eq!(legacy_config.quorum, new_config.quorum);
-    assert_eq!(legacy_config.threshold, new_config.threshold);
-    assert_eq!(legacy_config.voting_period, new_config.voting_period);
-    assert_eq!(legacy_config.timelock_period, new_config.timelock_period);
+    assert_eq!(legacy_config.owner, expected_config.owner);
+    assert_eq!(legacy_config.anchor_token, expected_config.anchor_token);
+    assert_eq!(legacy_config.quorum, expected_config.quorum);
+    assert_eq!(legacy_config.threshold, expected_config.threshold);
+    assert_eq!(legacy_config.voting_period, expected_config.voting_period);
+    assert_eq!(
+        legacy_config.timelock_period,
+        expected_config.timelock_period
+    );
     assert_eq!(
         legacy_config.expiration_period,
-        new_config.expiration_period
+        expected_config.expiration_period
     );
-    assert_eq!(legacy_config.proposal_deposit, new_config.proposal_deposit);
-    assert_eq!(legacy_config.snapshot_period, new_config.snapshot_period);
+    assert_eq!(
+        legacy_config.proposal_deposit,
+        expected_config.proposal_deposit
+    );
+    assert_eq!(
+        legacy_config.snapshot_period,
+        expected_config.snapshot_period
+    );
     assert_eq!(
         new_config.anchor_voting_escrow,
         deps.api.addr_canonicalize(VOTING_ESCROW).unwrap()
