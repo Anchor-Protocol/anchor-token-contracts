@@ -2,13 +2,18 @@ use crate::error::ContractError;
 
 use crate::contract::{execute, instantiate, query};
 use crate::mock_querier::mock_dependencies;
+
 use anchor_token::gauge_controller::{
     AllGaugeAddrResponse, ConfigResponse, ExecuteMsg, GaugeAddrResponse, GaugeCountResponse,
     GaugeWeightResponse, InstantiateMsg, QueryMsg,
 };
+
 use cosmwasm_std::testing::{mock_env, mock_info};
-use cosmwasm_std::{from_binary, Deps, DepsMut, Uint128};
+use cosmwasm_std::{from_binary, Deps, DepsMut, Timestamp, Uint128};
 use serde::de::DeserializeOwned;
+
+const WEEK: u64 = 7 * 24 * 60 * 60;
+const BASE_TIME: u64 = WEEK * 1000 + 10;
 
 #[test]
 fn proper_initialization() {
@@ -32,27 +37,56 @@ fn proper_initialization() {
     assert_eq!("anchor_voting_escrow", config.anchor_voting_escorw.as_str());
 }
 
-fn run_execute_msg_expect_ok(deps: DepsMut, sender: String, msg: ExecuteMsg) {
+fn run_execute_msg_expect_ok(deps: DepsMut, sender: String, msg: ExecuteMsg, time: Option<u64>) {
     let info = mock_info(&sender, &[]);
-    if let Err(_) = execute(deps, mock_env(), info, msg) {
+    let mut env = mock_env();
+    env.block.time = if let Some(time) = time {
+        Timestamp::from_seconds(time)
+    } else {
+        Timestamp::from_seconds(BASE_TIME)
+    };
+    if let Err(_) = execute(deps, env, info, msg) {
         panic!("DO NOT ENTER HERE");
     }
 }
 
-fn run_execute_msg_expect_error(deps: DepsMut, sender: String, msg: ExecuteMsg) -> ContractError {
+fn run_execute_msg_expect_error(
+    deps: DepsMut,
+    sender: String,
+    msg: ExecuteMsg,
+    time: Option<u64>,
+) -> ContractError {
     let info = mock_info(&sender, &[]);
-    if let Err(err) = execute(deps, mock_env(), info, msg) {
+    let mut env = mock_env();
+    env.block.time = if let Some(time) = time {
+        Timestamp::from_seconds(time)
+    } else {
+        Timestamp::from_seconds(BASE_TIME)
+    };
+    if let Err(err) = execute(deps, env, info, msg) {
         return err;
     }
     panic!("DO NOT ENTER HERE");
 }
 
-fn run_query_msg_expect_ok<T: DeserializeOwned>(deps: Deps, msg: QueryMsg) -> T {
-    from_binary(&query(deps, mock_env(), msg).unwrap()).unwrap()
+fn run_query_msg_expect_ok<T: DeserializeOwned>(deps: Deps, msg: QueryMsg, time: Option<u64>) -> T {
+    let mut env = mock_env();
+    env.block.time = if let Some(time) = time {
+        Timestamp::from_seconds(time)
+    } else {
+        Timestamp::from_seconds(BASE_TIME)
+    };
+    from_binary(&query(deps, env, msg).unwrap()).unwrap()
 }
 
-fn run_query_msg_expect_error(deps: Deps, msg: QueryMsg) -> ContractError {
-    if let Err(err) = query(deps, mock_env(), msg) {
+fn run_query_msg_expect_error(deps: Deps, msg: QueryMsg, time: Option<u64>) -> ContractError {
+    let mut env = mock_env();
+    env.block.time = if let Some(time) = time {
+        Timestamp::from_seconds(time)
+    } else {
+        Timestamp::from_seconds(BASE_TIME)
+    };
+    if let Err(err) = query(deps, env, msg) {
         return err;
     }
     panic!("DO NOT ENTER HERE");
@@ -81,11 +115,12 @@ fn test_add_two_gauges_and_change_weight() {
             addr: "gauge_addr_1".to_string(),
             weight: Uint128::from(100_u64),
         },
+        None,
     );
 
     assert_eq!(
         1,
-        run_query_msg_expect_ok::<GaugeCountResponse>(deps.as_ref(), QueryMsg::GaugeCount {})
+        run_query_msg_expect_ok::<GaugeCountResponse>(deps.as_ref(), QueryMsg::GaugeCount {}, None)
             .gauge_count
     );
 
@@ -96,6 +131,7 @@ fn test_add_two_gauges_and_change_weight() {
             QueryMsg::GaugeWeight {
                 addr: "gauge_addr_1".to_string(),
             },
+            None,
         )
         .gauge_weight
     );
@@ -105,13 +141,14 @@ fn test_add_two_gauges_and_change_weight() {
         run_query_msg_expect_ok::<GaugeAddrResponse>(
             deps.as_ref(),
             QueryMsg::GaugeAddr { gauge_id: 0_u64 },
+            None,
         )
         .gauge_addr
     );
 
     assert_eq!(
         ContractError::GaugeNotFound {},
-        run_query_msg_expect_error(deps.as_ref(), QueryMsg::GaugeAddr { gauge_id: 1_u64 })
+        run_query_msg_expect_error(deps.as_ref(), QueryMsg::GaugeAddr { gauge_id: 1_u64 }, None)
     );
 
     assert_eq!(
@@ -123,6 +160,7 @@ fn test_add_two_gauges_and_change_weight() {
                 addr: "gauge_addr_1".to_string(),
                 weight: Uint128::from(100_u64),
             },
+            None,
         )
     );
 
@@ -135,6 +173,7 @@ fn test_add_two_gauges_and_change_weight() {
                 addr: "gauge_addr_2".to_string(),
                 weight: Uint128::from(100_u64),
             },
+            None,
         )
     );
 
@@ -145,18 +184,23 @@ fn test_add_two_gauges_and_change_weight() {
             addr: "gauge_addr_2".to_string(),
             weight: Uint128::from(100_u64),
         },
+        None,
     );
 
     assert_eq!(
         2,
-        run_query_msg_expect_ok::<GaugeCountResponse>(deps.as_ref(), QueryMsg::GaugeCount {})
+        run_query_msg_expect_ok::<GaugeCountResponse>(deps.as_ref(), QueryMsg::GaugeCount {}, None)
             .gauge_count
     );
 
     assert_eq!(
         vec!["gauge_addr_1".to_string(), "gauge_addr_2".to_string()],
-        run_query_msg_expect_ok::<AllGaugeAddrResponse>(deps.as_ref(), QueryMsg::AllGaugeAddr {})
-            .all_gauge_addr
+        run_query_msg_expect_ok::<AllGaugeAddrResponse>(
+            deps.as_ref(),
+            QueryMsg::AllGaugeAddr {},
+            None
+        )
+        .all_gauge_addr
     );
 
     assert_eq!(
@@ -168,6 +212,7 @@ fn test_add_two_gauges_and_change_weight() {
                 addr: "gauge_addr_1".to_string(),
                 weight: Uint128::from(200_u64),
             },
+            None,
         )
     );
 
@@ -180,6 +225,7 @@ fn test_add_two_gauges_and_change_weight() {
                 addr: "gauge_addr_3".to_string(),
                 weight: Uint128::from(200_u64),
             },
+            None,
         )
     );
 
@@ -190,6 +236,7 @@ fn test_add_two_gauges_and_change_weight() {
             addr: "gauge_addr_1".to_string(),
             weight: Uint128::from(200_u64),
         },
+        None,
     );
 
     assert_eq!(
@@ -199,7 +246,21 @@ fn test_add_two_gauges_and_change_weight() {
             QueryMsg::GaugeWeight {
                 addr: "gauge_addr_1".to_string(),
             },
+            None,
         )
         .gauge_weight
+    );
+
+    assert_eq!(
+        ContractError::TimestampError {},
+        run_execute_msg_expect_error(
+            deps.as_mut(),
+            "owner".to_string(),
+            ExecuteMsg::ChangeGaugeWeight {
+                addr: "gauge_addr_2".to_string(),
+                weight: Uint128::from(200_u64),
+            },
+            Some(BASE_TIME - WEEK * 10),
+        )
     );
 }
