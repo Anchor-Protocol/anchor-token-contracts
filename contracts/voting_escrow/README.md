@@ -227,7 +227,7 @@ Response:
 }
 ```
 
-### `get_last_user_slope`
+### `last_user_slope`
 
 Gets the most recently recorded rate of voting power decrease for 'user'.
 
@@ -235,7 +235,7 @@ Request:
 
 ```json
 {
-  "get_last_user_slope": {
+  "last_user_slope": {
     "user": "tera..."
   }
 }
@@ -249,7 +249,7 @@ Response:
 }
 ```
 
-### `get_user_unlock_period`
+### `user_unlock_period`
 
 Returns user's unlock period.
 
@@ -257,7 +257,7 @@ Request:
 
 ```json
 {
-  "get_user_unlock_period": {
+  "user_unlock_period": {
     "user": "tera..."
   }
 }

@@ -715,7 +715,7 @@ fn test_get_last_user_slope() {
     );
 
     let env = mock_env();
-    let msg = QueryMsg::GetLastUserSlope {
+    let msg = QueryMsg::LastUserSlope {
         user: "addr0000".to_string(),
     };
     let res = query(deps.as_ref(), env.clone(), msg.clone()).unwrap();
@@ -754,7 +754,7 @@ fn test_get_user_unlock_period() {
         Some(4 * WEEK),
     );
 
-    let msg = QueryMsg::GetUserUnlockPeriod {
+    let msg = QueryMsg::UserUnlockPeriod {
         user: "addr0000".to_string(),
     };
     let env = mock_env();

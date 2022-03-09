@@ -290,31 +290,31 @@ fn extend_lock_time(
 /// * **QueryMsg::TotalVotingPowerAtPeriod { period }** total voting power at specified period
 /// * **QueryMsg::UserVotingPowerAt { time }** user's voting power at specified time
 /// * **QueryMsg::UserVotingPowerAtPeriod { period }** user's voting power at specified period
-/// * **QueryMsg::GetLastUserSlope { user }** user's most recently recorded slope
-/// * **QueryMsg::GetUserUnlockTime { user }** user's lock end time
+/// * **QueryMsg::LastUserSlope { user }** user's most recently recorded slope
+/// * **QueryMsg::UserUnlockTime { user }** user's lock end time
 /// * **QueryMsg::LockInfo { user }** user's lock information
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::TotalVotingPower {} => to_binary(&get_total_voting_power(deps, env, None)?),
+        QueryMsg::TotalVotingPower {} => to_binary(&query_total_voting_power(deps, env, None)?),
         QueryMsg::UserVotingPower { user } => {
-            to_binary(&get_user_voting_power(deps, env, user, None)?)
+            to_binary(&query_user_voting_power(deps, env, user, None)?)
         }
         QueryMsg::TotalVotingPowerAt { time } => {
-            to_binary(&get_total_voting_power(deps, env, Some(time))?)
+            to_binary(&query_total_voting_power(deps, env, Some(time))?)
         }
         QueryMsg::TotalVotingPowerAtPeriod { period } => {
-            to_binary(&get_total_voting_power_at_period(deps, env, period)?)
+            to_binary(&query_total_voting_power_at_period(deps, env, period)?)
         }
         QueryMsg::UserVotingPowerAt { user, time } => {
-            to_binary(&get_user_voting_power(deps, env, user, Some(time))?)
+            to_binary(&query_user_voting_power(deps, env, user, Some(time))?)
         }
         QueryMsg::UserVotingPowerAtPeriod { user, period } => {
-            to_binary(&get_user_voting_power_at_period(deps, user, period)?)
+            to_binary(&query_user_voting_power_at_period(deps, user, period)?)
         }
-        QueryMsg::GetLastUserSlope { user } => to_binary(&get_last_user_slope(deps, env, user)?),
-        QueryMsg::GetUserUnlockPeriod { user } => to_binary(&get_user_unlock_time(deps, user)?),
-        QueryMsg::LockInfo { user } => to_binary(&get_user_lock_info(deps, user)?),
+        QueryMsg::LastUserSlope { user } => to_binary(&query_last_user_slope(deps, env, user)?),
+        QueryMsg::UserUnlockPeriod { user } => to_binary(&query_user_unlock_time(deps, user)?),
+        QueryMsg::LockInfo { user } => to_binary(&query_user_lock_info(deps, user)?),
         QueryMsg::Config {} => {
             let config = CONFIG.load(deps.storage)?;
             to_binary(&ConfigResponse {
@@ -331,26 +331,26 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// # Description
 /// Calculates total voting power at the given time.
 /// If time is None then calculates voting power at the current block period.
-fn get_total_voting_power(
+fn query_total_voting_power(
     deps: Deps,
     env: Env,
     time: Option<u64>,
 ) -> StdResult<VotingPowerResponse> {
     let period = get_period(time.unwrap_or_else(|| env.block.time.seconds()));
-    get_total_voting_power_at_period(deps, env, period)
+    query_total_voting_power_at_period(deps, env, period)
 }
 
 /// # Description
 /// Calculates user's voting power at the given time.
 /// If time is None then calculates voting power at the current block period.
-fn get_user_voting_power(
+fn query_user_voting_power(
     deps: Deps,
     env: Env,
     user: String,
     time: Option<u64>,
 ) -> StdResult<VotingPowerResponse> {
     let period = get_period(time.unwrap_or_else(|| env.block.time.seconds()));
-    get_user_voting_power_at_period(deps, user, period)
+    query_user_voting_power_at_period(deps, user, period)
 }
 
 /// # Description
@@ -361,7 +361,7 @@ fn get_user_voting_power(
 /// * **user** is an object of type String. This is the user/staker for which we fetch the current voting power (veANC balance).
 ///
 /// * **period** is [`u64`]. This is the period number at which to fetch the user's voting power (veANC balance).
-fn get_user_voting_power_at_period(
+fn query_user_voting_power_at_period(
     deps: Deps,
     user: String,
     period: u64,
@@ -397,7 +397,7 @@ fn get_user_voting_power_at_period(
 /// * **env** is an object of type [`Env`].
 ///
 /// * **period** is [`u64`]. This is the period number at which we fetch the total voting power (veANC supply).
-fn get_total_voting_power_at_period(
+fn query_total_voting_power_at_period(
     deps: Deps,
     env: Env,
     period: u64,
@@ -437,7 +437,7 @@ fn get_total_voting_power_at_period(
 
 /// # Description
 /// Returns user's most recently recorded rate of voting power decrease.
-fn get_last_user_slope(deps: Deps, env: Env, user: String) -> StdResult<UserSlopeResponse> {
+fn query_last_user_slope(deps: Deps, env: Env, user: String) -> StdResult<UserSlopeResponse> {
     let user = addr_validate_to_lower(deps.api, &user)?;
     let period = get_period(env.block.time.seconds());
     let period_key = U64Key::new(period);
@@ -454,7 +454,7 @@ fn get_last_user_slope(deps: Deps, env: Env, user: String) -> StdResult<UserSlop
 
 /// # Description
 /// Returns user's lock `end` time, which is the period when the lock expires.
-fn get_user_unlock_time(deps: Deps, user: String) -> StdResult<UserUnlockPeriodResponse> {
+fn query_user_unlock_time(deps: Deps, user: String) -> StdResult<UserUnlockPeriodResponse> {
     let addr = addr_validate_to_lower(deps.api, &user)?;
     if let Some(lock) = LOCKED.may_load(deps.storage, addr)? {
         Ok(UserUnlockPeriodResponse {
@@ -467,7 +467,7 @@ fn get_user_unlock_time(deps: Deps, user: String) -> StdResult<UserUnlockPeriodR
 
 /// # Description
 /// Returns user's lock information in [`LockInfoResponse`] type.
-fn get_user_lock_info(deps: Deps, user: String) -> StdResult<LockInfoResponse> {
+fn query_user_lock_info(deps: Deps, user: String) -> StdResult<LockInfoResponse> {
     let addr = addr_validate_to_lower(deps.api, &user)?;
     if let Some(lock) = LOCKED.may_load(deps.storage, addr)? {
         let resp = LockInfoResponse {
@@ -490,7 +490,7 @@ fn get_user_lock_info(deps: Deps, user: String) -> StdResult<LockInfoResponse> {
 /// * **env** is an object of type [`Env`].
 fn query_token_info(deps: Deps, env: Env) -> StdResult<TokenInfoResponse> {
     let info = TOKEN_INFO.load(deps.storage)?;
-    let total_vp = get_total_voting_power(deps, env, None)?;
+    let total_vp = query_total_voting_power(deps, env, None)?;
     let res = TokenInfoResponse {
         name: info.name,
         symbol: info.symbol,
