@@ -6,7 +6,7 @@ use crate::state::{
     poll_voter_read, poll_voter_store, read_poll_voters, read_polls, read_tmp_poll_id, state_read,
     state_store, store_tmp_poll_id, Config, ExecuteData, Poll, State,
 };
-
+use crate::voting_escrow::query_user_voting_power;
 use astroport::querier::query_token_balance;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -640,6 +640,14 @@ pub fn cast_vote(
     {
         return Err(ContractError::InsufficientStaked {});
     }
+
+    let veanc_voting_power = query_user_voting_power(
+        deps.as_ref(),
+        config.anchor_voting_escrow,
+        &sender_address_raw,
+    )?;
+
+    let amount = amount + veanc_voting_power;
 
     // update tally info
     if VoteOption::Yes == vote {

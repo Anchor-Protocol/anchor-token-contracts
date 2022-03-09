@@ -1,10 +1,22 @@
+use anchor_token::voting_escrow::VotingPowerResponse;
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_binary, from_slice, to_binary, Coin, ContractResult, Empty, OwnedDeps, Querier,
     QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
-use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20QueryMsg};
+use cw20::BalanceResponse as Cw20BalanceResponse;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum MockQueryMsg {
+    /// Cw20QueryMsg::Balance
+    Balance { address: String },
+    /// VotingEscrowContractQueryMsg::UserVotingPower
+    UserVotingPower { user: String },
+}
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -24,6 +36,7 @@ pub fn mock_dependencies(
 pub struct WasmMockQuerier {
     base: MockQuerier<Empty>,
     token_querier: TokenQuerier,
+    voting_power: VotingPowerResponse,
 }
 
 #[derive(Clone, Default)]
@@ -76,7 +89,7 @@ impl WasmMockQuerier {
         match &request {
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 match from_binary(msg).unwrap() {
-                    Cw20QueryMsg::Balance { address } => {
+                    MockQueryMsg::Balance { address } => {
                         let balances: &HashMap<String, Uint128> =
                             match self.token_querier.balances.get(contract_addr) {
                                 Some(balances) => balances,
@@ -107,7 +120,11 @@ impl WasmMockQuerier {
                             to_binary(&Cw20BalanceResponse { balance }).unwrap(),
                         ))
                     }
-                    _ => panic!("DO NOT ENTER HERE"),
+                    MockQueryMsg::UserVotingPower { user: _ } => {
+                        SystemResult::Ok(ContractResult::from(to_binary(&VotingPowerResponse {
+                            voting_power: self.voting_power.voting_power,
+                        })))
+                    }
                 }
             }
             _ => self.base.handle_query(request),
@@ -120,6 +137,9 @@ impl WasmMockQuerier {
         WasmMockQuerier {
             base,
             token_querier: TokenQuerier::default(),
+            voting_power: VotingPowerResponse {
+                voting_power: Uint128::zero(),
+            },
         }
     }
 
