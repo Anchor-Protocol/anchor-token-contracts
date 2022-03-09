@@ -8,19 +8,19 @@ use cosmwasm_storage::ReadonlySingleton;
 static KEY_LEGACY_CONFIG: &[u8] = b"config";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-struct LegacyConfig {
-    owner: CanonicalAddr,
-    anchor_token: CanonicalAddr,
-    quorum: Decimal,
-    threshold: Decimal,
-    voting_period: u64,
-    timelock_period: u64,
-    expiration_period: u64,
-    proposal_deposit: Uint128,
-    snapshot_period: u64,
+pub struct LegacyConfig {
+    pub owner: CanonicalAddr,
+    pub anchor_token: CanonicalAddr,
+    pub quorum: Decimal,
+    pub threshold: Decimal,
+    pub voting_period: u64,
+    pub timelock_period: u64,
+    pub expiration_period: u64,
+    pub proposal_deposit: Uint128,
+    pub snapshot_period: u64,
 }
 
-fn read_legacy_config(storage: &dyn Storage) -> StdResult<LegacyConfig> {
+pub fn read_legacy_config(storage: &dyn Storage) -> StdResult<LegacyConfig> {
     ReadonlySingleton::new(storage, KEY_LEGACY_CONFIG).load()
 }
 
