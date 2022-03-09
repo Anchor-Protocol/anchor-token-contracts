@@ -1,5 +1,6 @@
 use crate::contract::{execute, instantiate, migrate, query, reply};
 use crate::error::ContractError;
+use crate::migration::{read_legacy_config, LegacyConfig};
 use crate::mock_querier::mock_dependencies;
 use crate::state::{
     bank_read, bank_store, config_read, poll_store, poll_voter_read, poll_voter_store, state_read,
@@ -3674,9 +3675,7 @@ fn test_migrate() {
     let info = mock_info(TEST_CREATOR, &coins(2, VOTING_TOKEN));
     let _res = instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
-    let old_config: Config = config_read(deps.as_ref().storage).load().unwrap();
-
-    assert_eq!(old_config.anchor_voting_escrow, CanonicalAddr::from(vec![]));
+    let legacy_config: LegacyConfig = read_legacy_config(&deps.storage).unwrap();
 
     migrate(
         deps.as_mut(),
@@ -3689,15 +3688,18 @@ fn test_migrate() {
 
     let new_config: Config = config_read(deps.as_ref().storage).load().unwrap();
 
-    assert_eq!(old_config.owner, new_config.owner);
-    assert_eq!(old_config.anchor_token, new_config.anchor_token);
-    assert_eq!(old_config.quorum, new_config.quorum);
-    assert_eq!(old_config.threshold, new_config.threshold);
-    assert_eq!(old_config.voting_period, new_config.voting_period);
-    assert_eq!(old_config.timelock_period, new_config.timelock_period);
-    assert_eq!(old_config.expiration_period, new_config.expiration_period);
-    assert_eq!(old_config.proposal_deposit, new_config.proposal_deposit);
-    assert_eq!(old_config.snapshot_period, new_config.snapshot_period);
+    assert_eq!(legacy_config.owner, new_config.owner);
+    assert_eq!(legacy_config.anchor_token, new_config.anchor_token);
+    assert_eq!(legacy_config.quorum, new_config.quorum);
+    assert_eq!(legacy_config.threshold, new_config.threshold);
+    assert_eq!(legacy_config.voting_period, new_config.voting_period);
+    assert_eq!(legacy_config.timelock_period, new_config.timelock_period);
+    assert_eq!(
+        legacy_config.expiration_period,
+        new_config.expiration_period
+    );
+    assert_eq!(legacy_config.proposal_deposit, new_config.proposal_deposit);
+    assert_eq!(legacy_config.snapshot_period, new_config.snapshot_period);
     assert_eq!(
         new_config.anchor_voting_escrow,
         deps.api.addr_canonicalize(VOTING_ESCROW).unwrap()

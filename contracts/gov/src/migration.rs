@@ -20,7 +20,7 @@ pub struct LegacyConfig {
     pub snapshot_period: u64,
 }
 
-fn read_legacy_config(storage: &dyn Storage) -> StdResult<LegacyConfig> {
+pub fn read_legacy_config(storage: &dyn Storage) -> StdResult<LegacyConfig> {
     ReadonlySingleton::new(storage, KEY_LEGACY_CONFIG).load()
 }
 
