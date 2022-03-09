@@ -32,12 +32,6 @@ pub struct Config {
 pub struct GaugeWeight {
     pub bias: Uint128,
     pub slope: Uint128,
-    pub slope_change: Uint128,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct GaugeInfo {
-    pub last_vote_period: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -53,7 +47,7 @@ pub const GAUGE_COUNT: Item<u64> = Item::new("gauge_count");
 
 pub const GAUGE_WEIGHT: Map<(Addr, U64Key), GaugeWeight> = Map::new("gauge_weight");
 
-pub const GAUGE_INFO: Map<Addr, GaugeInfo> = Map::new("gauge_info");
+pub const SLOPE_CHANGES: Map<(Addr, U64Key), Uint128> = Map::new("slope_changes");
 
 pub const GAUGE_ADDR: Map<U64Key, Addr> = Map::new("gauge_addr");
 

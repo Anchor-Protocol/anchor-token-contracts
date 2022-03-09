@@ -1,25 +1,27 @@
 use crate::error::ContractError;
 use crate::state::{
-    Config, GaugeInfo, GaugeWeight, UserSlopResponse, UserUnlockPeriodResponse,
-    VotingEscrowContractQueryMsg, CONFIG, GAUGE_ADDR, GAUGE_COUNT, GAUGE_INFO, GAUGE_WEIGHT,
-    USER_VOTES,
+    Config, GaugeWeight, UserSlopResponse, UserUnlockPeriodResponse, VotingEscrowContractQueryMsg,
+    CONFIG, GAUGE_ADDR, GAUGE_COUNT, GAUGE_WEIGHT, SLOPE_CHANGES, USER_VOTES,
 };
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response, Uint128,
-    WasmQuery,
+    to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Pair, QueryRequest, Response,
+    StdResult, Storage, Uint128, WasmQuery,
 };
 
-use cw_storage_plus::U64Key;
+use cw_storage_plus::{Bound, U64Key};
 
 use anchor_token::gauge_controller::{
     AllGaugeAddrResponse, ConfigResponse, ExecuteMsg, GaugeAddrResponse, GaugeCountResponse,
     GaugeWeightResponse, InstantiateMsg, QueryMsg, RelativeWeightResponse, TotalWeightResponse,
 };
 
+use std::convert::TryInto;
+
 const WEEK: u64 = 7 * 24 * 60 * 60;
+const MAX_PERIOD: u64 = u64::MAX;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -103,11 +105,111 @@ fn query_user_unlock_period(deps: Deps, user: Addr) -> Result<u64, ContractError
         .unlock_period)
 }
 
-fn check_if_exists(deps: Deps, gauge_addr: &Addr) -> bool {
-    match GAUGE_INFO.load(deps.storage, gauge_addr.clone()) {
-        Ok(_) => true,
-        Err(_) => false,
+fn fetch_last_checkpoint(
+    storage: &dyn Storage,
+    addr: &Addr,
+) -> Result<Option<Pair<GaugeWeight>>, ContractError> {
+    GAUGE_WEIGHT
+        .prefix(addr.clone())
+        .range(
+            storage,
+            None,
+            Some(Bound::Inclusive(U64Key::new(MAX_PERIOD).wrapped.clone())),
+            Order::Descending,
+        )
+        .next()
+        .transpose()
+        .map_err(|_| ContractError::DeserializationError {})
+}
+
+fn fetch_slope_changes(
+    storage: &dyn Storage,
+    addr: &Addr,
+    from_period: u64,
+    to_period: u64,
+) -> Result<Vec<(u64, Uint128)>, ContractError> {
+    SLOPE_CHANGES
+        .prefix(addr.clone())
+        .range(
+            storage,
+            Some(Bound::Exclusive(U64Key::new(from_period).wrapped)),
+            Some(Bound::Inclusive(U64Key::new(to_period).wrapped)),
+            Order::Ascending,
+        )
+        .map(deserialize_pair::<Uint128>)
+        .collect()
+}
+
+fn deserialize_pair<T>(pair: StdResult<Pair<T>>) -> Result<(u64, T), ContractError> {
+    let (period_serialized, change) = pair?;
+    let period_bytes: [u8; 8] = period_serialized
+        .try_into()
+        .map_err(|_| ContractError::DeserializationError {})?;
+    Ok((u64::from_be_bytes(period_bytes), change))
+}
+
+fn check_if_exists(deps: Deps, addr: &Addr) -> bool {
+    if let Ok(last_checkpoint) = fetch_last_checkpoint(deps.storage, addr) {
+        if let Some(_) = last_checkpoint {
+            return true;
+        }
     }
+    return false;
+}
+
+fn checkpoint(
+    storage: &mut dyn Storage,
+    addr: &Addr,
+    new_period: u64,
+) -> Result<Response, ContractError> {
+    let last_checkpoint = fetch_last_checkpoint(storage, &addr)?;
+
+    if let Some(pair) = last_checkpoint {
+        let (mut old_period, mut weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
+
+        // cannot happen
+        if new_period < old_period {
+            return Err(ContractError::TimestampError {});
+        }
+
+        // no need to do checkpoint
+        if new_period == old_period {
+            return Ok(Response::default());
+        }
+
+        let scheduled_slope_changes = fetch_slope_changes(storage, &addr, old_period, new_period)?;
+
+        for (recalc_period, scheduled_change) in scheduled_slope_changes {
+            assert!(recalc_period > old_period);
+
+            let dt = recalc_period - old_period;
+
+            weight = GaugeWeight {
+                bias: weight.bias.saturating_sub(weight.slope * Uint128::from(dt)),
+                slope: weight.slope.saturating_sub(scheduled_change),
+            };
+
+            GAUGE_WEIGHT.save(storage, (addr.clone(), U64Key::new(recalc_period)), &weight)?;
+
+            old_period = recalc_period;
+        }
+
+        let dt = new_period - old_period;
+
+        if dt > 0 {
+            GAUGE_WEIGHT.save(
+                storage,
+                (addr.clone(), U64Key::new(new_period)),
+                &GaugeWeight {
+                    bias: weight.bias.saturating_sub(weight.slope * Uint128::from(dt)),
+                    slope: weight.slope,
+                },
+            )?;
+        }
+    } else {
+        return Err(ContractError::GaugeNotFound {});
+    }
+    Ok(Response::default())
 }
 
 fn add_gauge(
@@ -143,15 +245,6 @@ fn add_gauge(
         &GaugeWeight {
             bias: weight,
             slope: Uint128::zero(),
-            slope_change: Uint128::zero(),
-        },
-    )?;
-
-    GAUGE_INFO.save(
-        deps.storage,
-        addr.clone(),
-        &GaugeInfo {
-            last_vote_period: period,
         },
     )?;
 
@@ -178,35 +271,31 @@ fn change_gauge_weight(
     }
 
     let addr = deps.api.addr_validate(&addr)?;
+    let period = get_period(env.block.time.seconds());
 
-    if let Ok(old_info) = GAUGE_INFO.load(deps.storage, addr.clone()) {
-        let old_period = old_info.last_vote_period;
-        let old_weight =
-            GAUGE_WEIGHT.load(deps.storage, (addr.clone(), U64Key::new(old_period)))?;
-        let new_period = get_period(env.block.time.seconds());
+    checkpoint(deps.storage, &addr, period)?;
+
+    let last_checkpoint = fetch_last_checkpoint(deps.storage, &addr)?;
+
+    if let Some(pair) = last_checkpoint {
+        let (last_period, last_weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
+
+        if last_period != period {
+            return Err(ContractError::TimestampError {});
+        }
 
         GAUGE_WEIGHT.save(
             deps.storage,
-            (addr.clone(), U64Key::new(new_period)),
+            (addr.clone(), U64Key::new(period)),
             &GaugeWeight {
                 bias: weight,
-                slope: old_weight.slope,
-                slope_change: old_weight.slope_change,
+                slope: last_weight.slope,
             },
         )?;
-
-        GAUGE_INFO.save(
-            deps.storage,
-            addr.clone(),
-            &GaugeInfo {
-                last_vote_period: new_period,
-            },
-        )?;
-
-        return Ok(Response::default());
+    } else {
+        return Err(ContractError::GaugeNotFound {});
     }
-
-    Err(ContractError::GaugeNotFound {})
+    Ok(Response::default())
 }
 
 fn vote_for_gauge_weight(
@@ -225,15 +314,6 @@ fn vote_for_gauge_weight(
         &GaugeWeight {
             bias: user_weight,
             slope: Uint128::from(234_u64),
-            slope_change: Uint128::from(345_u64),
-        },
-    )?;
-
-    GAUGE_INFO.save(
-        deps.storage,
-        addr.clone(),
-        &GaugeInfo {
-            last_vote_period: period,
         },
     )?;
 
@@ -242,15 +322,16 @@ fn vote_for_gauge_weight(
 
 fn query_gauge_weight(deps: Deps, addr: String) -> Result<GaugeWeightResponse, ContractError> {
     let addr = deps.api.addr_validate(&addr)?;
-    let period = GAUGE_INFO
-        .load(deps.storage, addr.clone())?
-        .last_vote_period;
+    let last_checkpoint = fetch_last_checkpoint(deps.storage, &addr)?;
 
-    Ok(GaugeWeightResponse {
-        gauge_weight: GAUGE_WEIGHT
-            .load(deps.storage, (addr.clone(), U64Key::new(period)))?
-            .bias,
-    })
+    if let Some(pair) = last_checkpoint {
+        let (_, last_weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
+        return Ok(GaugeWeightResponse {
+            gauge_weight: last_weight.bias,
+        });
+    } else {
+        return Err(ContractError::GaugeNotFound {});
+    }
 }
 
 fn query_total_weight(_deps: Deps) -> Result<TotalWeightResponse, ContractError> {
