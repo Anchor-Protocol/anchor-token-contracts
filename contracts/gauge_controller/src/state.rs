@@ -1,8 +1,5 @@
-use cosmwasm_std::{CanonicalAddr, Storage, Uint128};
-
-use cosmwasm_storage::{
-    singleton, singleton_read, Bucket, ReadonlyBucket, ReadonlySingleton, Singleton,
-};
+use cosmwasm_std::{Addr, Uint128};
+use cw_storage_plus::{Item, Map, U64Key};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -24,23 +21,15 @@ pub struct UserUnlockPeriodResponse {
     pub unlock_period: u64,
 }
 
-static KEY_CONFIG: &[u8] = b"config";
-static KEY_GAUGE_COUNT: &[u8] = b"gauge_count";
-
-static PREFIX_GAUGE_ADDR: &[u8] = b"gauge_addr";
-static PREFIX_GAUGE_INFO: &[u8] = b"gauge_info";
-static PREFIX_USER_VOTES: &[u8] = b"user_votes";
-static PREFIX_GAGUE_WEIGHT: &[u8] = b"gauge_weight";
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    pub owner: CanonicalAddr,
-    pub anchor_token: CanonicalAddr,
-    pub anchor_voting_escorw: CanonicalAddr,
+    pub owner: Addr,
+    pub anchor_token: Addr,
+    pub anchor_voting_escorw: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Weight {
+pub struct GaugeWeight {
     pub bias: Uint128,
     pub slope: Uint128,
     pub slope_change: Uint128,
@@ -58,48 +47,14 @@ pub struct UserVote {
     pub end_period: u64,
 }
 
-pub fn config_store(storage: &mut dyn Storage) -> Singleton<Config> {
-    singleton(storage, KEY_CONFIG)
-}
+pub const CONFIG: Item<Config> = Item::new("config");
 
-pub fn config_read(storage: &dyn Storage) -> ReadonlySingleton<Config> {
-    singleton_read(storage, KEY_CONFIG)
-}
+pub const GAUGE_COUNT: Item<u64> = Item::new("gauge_count");
 
-pub fn gauge_count_store(storage: &mut dyn Storage) -> Singleton<u64> {
-    singleton(storage, KEY_GAUGE_COUNT)
-}
+pub const GAUGE_WEIGHT: Map<(Addr, U64Key), GaugeWeight> = Map::new("gauge_weight");
 
-pub fn gauge_count_read(storage: &dyn Storage) -> ReadonlySingleton<u64> {
-    singleton_read(storage, KEY_GAUGE_COUNT)
-}
+pub const GAUGE_INFO: Map<Addr, GaugeInfo> = Map::new("gauge_info");
 
-pub fn gauge_weight_store<'a>(
-    storage: &'a mut dyn Storage,
-    gauge_addr: &'a CanonicalAddr,
-) -> Bucket<'a, Weight> {
-    Bucket::multilevel(storage, &[PREFIX_GAGUE_WEIGHT, &gauge_addr])
-}
+pub const GAUGE_ADDR: Map<U64Key, Addr> = Map::new("gauge_addr");
 
-pub fn gauge_weight_read<'a>(
-    storage: &'a dyn Storage,
-    gauge_addr: &'a CanonicalAddr,
-) -> ReadonlyBucket<'a, Weight> {
-    ReadonlyBucket::multilevel(storage, &[PREFIX_GAGUE_WEIGHT, &gauge_addr])
-}
-
-pub fn gauge_info_store(storage: &mut dyn Storage) -> Bucket<GaugeInfo> {
-    Bucket::multilevel(storage, &[PREFIX_GAUGE_INFO])
-}
-
-pub fn gauge_info_read(storage: &dyn Storage) -> ReadonlyBucket<GaugeInfo> {
-    ReadonlyBucket::multilevel(storage, &[PREFIX_GAUGE_INFO])
-}
-
-pub fn gauge_addr_store(storage: &mut dyn Storage) -> Bucket<CanonicalAddr> {
-    Bucket::multilevel(storage, &[PREFIX_GAUGE_ADDR])
-}
-
-pub fn gauge_addr_read(storage: &dyn Storage) -> ReadonlyBucket<CanonicalAddr> {
-    ReadonlyBucket::multilevel(storage, &[PREFIX_GAUGE_ADDR])
-}
+pub const USER_VOTES: Map<(Addr, Addr), UserVote> = Map::new("user_votes");
