@@ -34,19 +34,6 @@ pub struct Config {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct LegacyConfig {
-    pub owner: CanonicalAddr,
-    pub anchor_token: CanonicalAddr,
-    pub quorum: Decimal,
-    pub threshold: Decimal,
-    pub voting_period: u64,
-    pub timelock_period: u64,
-    pub expiration_period: u64,
-    pub proposal_deposit: Uint128,
-    pub snapshot_period: u64,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
     pub contract_addr: CanonicalAddr,
     pub poll_count: u64,
@@ -110,10 +97,6 @@ pub fn config_store(storage: &mut dyn Storage) -> Singleton<Config> {
 
 pub fn config_read(storage: &dyn Storage) -> ReadonlySingleton<Config> {
     singleton_read(storage, KEY_CONFIG)
-}
-
-pub fn legacy_config_read(storage: &dyn Storage) -> StdResult<LegacyConfig> {
-    singleton_read(storage, KEY_CONFIG).load()
 }
 
 pub fn state_store(storage: &mut dyn Storage) -> Singleton<State> {

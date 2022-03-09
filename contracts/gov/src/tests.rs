@@ -1,9 +1,10 @@
 use crate::contract::{execute, instantiate, migrate, query, reply};
 use crate::error::ContractError;
+use crate::migration::{read_legacy_config, LegacyConfig};
 use crate::mock_querier::mock_dependencies;
 use crate::state::{
-    bank_read, bank_store, config_read, config_store, legacy_config_read, poll_store,
-    poll_voter_read, poll_voter_store, state_read, Config, LegacyConfig, Poll, State, TokenManager,
+    bank_read, bank_store, config_read, config_store, poll_store, poll_voter_read,
+    poll_voter_store, state_read, Config, Poll, State, TokenManager,
 };
 use anchor_token::common::OrderBy;
 use anchor_token::gov::{
@@ -3674,7 +3675,7 @@ fn test_migrate() {
     let info = mock_info(TEST_CREATOR, &coins(2, VOTING_TOKEN));
     let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 
-    let legacy_config: LegacyConfig = legacy_config_read(&deps.storage).unwrap();
+    let legacy_config: LegacyConfig = read_legacy_config(&deps.storage).unwrap();
 
     migrate(
         deps.as_mut(),
