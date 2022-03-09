@@ -3673,7 +3673,7 @@ fn test_migrate() {
 
     let msg = instantiate_msg();
     let info = mock_info(TEST_CREATOR, &coins(2, VOTING_TOKEN));
-    let _res = instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+    let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     let legacy_config: LegacyConfig = read_legacy_config(&deps.storage).unwrap();
 
