@@ -7,6 +7,23 @@ use cosmwasm_storage::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum VotingEscrowContractQueryMsg {
+    LastUserSlope { user: String },
+    UserUnlockPeriod { user: String },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
+pub struct UserSlopResponse {
+    pub slope: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
+pub struct UserUnlockPeriodResponse {
+    pub unlock_period: u64,
+}
+
 static KEY_CONFIG: &[u8] = b"config";
 static KEY_GAUGE_COUNT: &[u8] = b"gauge_count";
 

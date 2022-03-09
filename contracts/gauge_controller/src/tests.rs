@@ -1,11 +1,12 @@
 use crate::error::ContractError;
 
 use crate::contract::{execute, instantiate, query};
+use crate::mock_querier::mock_dependencies;
 use anchor_token::gauge_controller::{
     AllGaugeAddrResponse, ConfigResponse, ExecuteMsg, GaugeAddrResponse, GaugeCountResponse,
     GaugeWeightResponse, InstantiateMsg, QueryMsg,
 };
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+use cosmwasm_std::testing::{mock_env, mock_info};
 use cosmwasm_std::{from_binary, Deps, DepsMut, Uint128};
 use serde::de::DeserializeOwned;
 

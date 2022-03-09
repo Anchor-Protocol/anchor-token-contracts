@@ -2,12 +2,16 @@ use crate::error::ContractError;
 use crate::state::{
     config_read, config_store, gauge_addr_read, gauge_addr_store, gauge_count_read,
     gauge_count_store, gauge_info_read, gauge_info_store, gauge_weight_read, gauge_weight_store,
-    Config, GaugeInfo, Weight,
+    Config, GaugeInfo, UserSlopResponse, UserUnlockPeriodResponse, VotingEscrowContractQueryMsg,
+    Weight,
 };
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, Uint128};
+use cosmwasm_std::{
+    to_binary, Binary, CanonicalAddr, Deps, DepsMut, Env, MessageInfo, QueryRequest, Response,
+    Uint128, WasmQuery,
+};
 
 use anchor_token::gauge_controller::{
     AllGaugeAddrResponse, ConfigResponse, ExecuteMsg, GaugeAddrResponse, GaugeCountResponse,
@@ -70,6 +74,32 @@ fn _get_period(seconds: u64) -> u64 {
     (seconds / WEEK + WEEK) * WEEK
 }
 
+fn _query_last_user_slope(deps: Deps, user: CanonicalAddr) -> Result<Uint128, ContractError> {
+    let anchor_voting_escorw = config_read(deps.storage).load()?.anchor_voting_escorw;
+    Ok(deps
+        .querier
+        .query::<UserSlopResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: deps.api.addr_humanize(&anchor_voting_escorw)?.to_string(),
+            msg: to_binary(&VotingEscrowContractQueryMsg::LastUserSlope {
+                user: deps.api.addr_humanize(&user)?.to_string(),
+            })?,
+        }))?
+        .slope)
+}
+
+fn _query_user_unlock_period(deps: Deps, user: CanonicalAddr) -> Result<u64, ContractError> {
+    let anchor_voting_escorw = config_read(deps.storage).load()?.anchor_voting_escorw;
+    Ok(deps
+        .querier
+        .query::<UserUnlockPeriodResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: deps.api.addr_humanize(&anchor_voting_escorw)?.to_string(),
+            msg: to_binary(&VotingEscrowContractQueryMsg::UserUnlockPeriod {
+                user: deps.api.addr_humanize(&user)?.to_string(),
+            })?,
+        }))?
+        .unlock_period)
+}
+
 fn add_gauge(
     deps: DepsMut,
     env: Env,
@@ -104,6 +134,10 @@ fn add_gauge(
             last_vote_period: period,
         },
     )?;
+    let slope = _query_last_user_slope(deps.as_ref(), sender.clone())?;
+    assert_eq!(Uint128::from(233_u64), slope);
+    let unlock_period = _query_user_unlock_period(deps.as_ref(), sender.clone())?;
+    assert_eq!(666, unlock_period);
     Ok(Response::default())
 }
 
