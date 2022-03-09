@@ -911,14 +911,14 @@ fn test_calc_voting_power_util() {
         power: Uint128::from(100u64),
         start: 0u64,
         end: 100u64,
-        slope: Decimal::one(),
+        slope: Decimal::from_ratio(Uint128::from(99999999999999999999u128), Uint128::from(1u64)),
     };
     let period = Uint128::MAX.u128() as u64;
 
-    // checks vp is zero when multiplication overflows
+    // checks vp remains the same when multiplication overflows
     let voting_power = calc_voting_power(&point, period);
 
-    assert_eq!(voting_power, Uint128::zero());
+    assert_eq!(voting_power, point.power);
 
     let point = Point {
         power: Uint128::from(200u64),
