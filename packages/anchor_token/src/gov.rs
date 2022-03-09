@@ -25,6 +25,7 @@ pub enum ExecuteMsg {
     },
     RegisterContracts {
         anchor_token: String,
+        anchor_voting_escrow: String,
     },
     UpdateConfig {
         owner: Option<String>,
@@ -102,10 +103,16 @@ pub enum QueryMsg {
     },
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {
+    pub anchor_voting_escrow: String,
+}
+
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
     pub owner: String,
     pub anchor_token: String,
+    pub anchor_voting_escrow: String,
     pub quorum: Decimal,
     pub threshold: Decimal,
     pub voting_period: u64,

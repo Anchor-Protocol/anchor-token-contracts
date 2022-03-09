@@ -1,4 +1,5 @@
 use crate::error::ContractError;
+use crate::migration::migrate_config;
 use crate::staking::{query_staker, stake_voting_tokens, withdraw_voting_tokens};
 use crate::state::{
     bank_read, bank_store, config_read, config_store, poll_indexer_store, poll_read, poll_store,
@@ -17,9 +18,9 @@ use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
 use anchor_token::common::OrderBy;
 use anchor_token::gov::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, PollExecuteMsg, PollResponse,
-    PollStatus, PollsResponse, QueryMsg, StateResponse, VoteOption, VoterInfo, VotersResponse,
-    VotersResponseItem,
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PollExecuteMsg,
+    PollResponse, PollStatus, PollsResponse, QueryMsg, StateResponse, VoteOption, VoterInfo,
+    VotersResponse, VotersResponseItem,
 };
 
 const MIN_TITLE_LENGTH: usize = 4;
@@ -43,6 +44,7 @@ pub fn instantiate(
 
     let config = Config {
         anchor_token: CanonicalAddr::from(vec![]),
+        anchor_voting_escrow: CanonicalAddr::from(vec![]),
         owner: deps.api.addr_canonicalize(info.sender.as_str())?,
         quorum: msg.quorum,
         threshold: msg.threshold,
@@ -76,7 +78,10 @@ pub fn execute(
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::ExecutePollMsgs { poll_id } => execute_poll_messages(deps, env, info, poll_id),
-        ExecuteMsg::RegisterContracts { anchor_token } => register_contracts(deps, anchor_token),
+        ExecuteMsg::RegisterContracts {
+            anchor_token,
+            anchor_voting_escrow,
+        } => register_contracts(deps, anchor_token, anchor_voting_escrow),
         ExecuteMsg::UpdateConfig {
             owner,
             quorum,
@@ -119,13 +124,22 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
     }
 }
 
-pub fn register_contracts(deps: DepsMut, anchor_token: String) -> Result<Response, ContractError> {
+pub fn register_contracts(
+    deps: DepsMut,
+    anchor_token: String,
+    anchor_voting_escrow: String,
+) -> Result<Response, ContractError> {
     let mut config: Config = config_read(deps.storage).load()?;
     if config.anchor_token != CanonicalAddr::from(vec![]) {
         return Err(ContractError::Unauthorized {});
     }
 
+    if config.anchor_voting_escrow != CanonicalAddr::from(vec![]) {
+        return Err(ContractError::Unauthorized {});
+    }
+
     config.anchor_token = deps.api.addr_canonicalize(&anchor_token)?;
+    config.anchor_voting_escrow = deps.api.addr_canonicalize(&anchor_voting_escrow)?;
     config_store(deps.storage).save(&config)?;
 
     Ok(Response::default())
@@ -703,6 +717,10 @@ fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
     Ok(ConfigResponse {
         owner: deps.api.addr_humanize(&config.owner)?.to_string(),
         anchor_token: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
+        anchor_voting_escrow: deps
+            .api
+            .addr_humanize(&config.anchor_voting_escrow)?
+            .to_string(),
         quorum: config.quorum,
         threshold: config.threshold,
         voting_period: config.voting_period,
@@ -849,4 +867,15 @@ fn query_voters(
     Ok(VotersResponse {
         voters: voters_response?,
     })
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+    //migrate config
+    migrate_config(
+        deps.storage,
+        deps.api.addr_canonicalize(&msg.anchor_voting_escrow)?,
+    )?;
+
+    Ok(Response::default())
 }

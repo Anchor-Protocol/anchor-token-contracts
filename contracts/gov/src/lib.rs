@@ -1,6 +1,7 @@
 pub mod contract;
 
 mod error;
+mod migration;
 mod staking;
 mod state;
 
