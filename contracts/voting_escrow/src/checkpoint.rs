@@ -101,7 +101,7 @@ pub(crate) fn checkpoint(
 /// applies slope changes, saves all recalculated periods in [`HISTORY`] by contract address key.
 /// The function returns Ok(()) in case of success or [`StdError`]
 /// in case of serialization/deserialization error.
-fn checkpoint_total(
+pub(crate) fn checkpoint_total(
     deps: DepsMut,
     env: Env,
     add_voting_power: Option<Uint128>,

@@ -1,11 +1,14 @@
-use crate::checkpoint::checkpoint;
+use crate::checkpoint::{checkpoint, checkpoint_total};
 use crate::contract::{execute, instantiate, query};
 use crate::error::ContractError::{
     Cw20Base, LockAlreadyExists, LockDoesntExist, LockExpired, LockHasNotExpired,
     LockTimeLimitsError, Std, Unauthorized,
 };
-use crate::state::{Config, Lock, Point};
-use crate::utils::{fetch_last_checkpoint, MAX_LOCK_TIME, WEEK};
+use crate::state::{Config, Lock, Point, HISTORY, LAST_SLOPE_CHANGE, SLOPE_CHANGES};
+use crate::utils::{
+    calc_voting_power, cancel_scheduled_slope, fetch_last_checkpoint, schedule_slope_change,
+    MAX_LOCK_TIME, WEEK,
+};
 use anchor_token::voting_escrow::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMarketingInfo, InstantiateMsg,
     LockInfoResponse, QueryMsg, UserSlopeResponse, UserUnlockPeriodResponse, VotingPowerResponse,
@@ -833,6 +836,172 @@ fn test_checkpoint() {
         }
         _ => panic!("Excepted a checkpoint to be found!"),
     };
+}
+
+#[test]
+fn test_checkpoint_total() {
+    let mut deps = mock_dependencies(&[]);
+
+    let owner = Addr::unchecked("owner".to_string());
+    let period = 2;
+    let period_key = U64Key::new(period);
+
+    let point = Point {
+        power: Uint128::from(100u64),
+        start: 0u64,
+        end: 100u64,
+        slope: Decimal::from_ratio(Uint128::from(4u64), Uint128::from(1u64)),
+    };
+
+    LAST_SLOPE_CHANGE.save(&mut deps.storage, &(0)).unwrap();
+
+    HISTORY
+        .save(&mut deps.storage, (owner.clone(), period_key), &point)
+        .unwrap();
+
+    let slope_changes_to_schedule: Vec<(u64, u64)> = vec![(2, 0), (3, 2), (4, 2)];
+
+    for (period, slope) in slope_changes_to_schedule {
+        let slope = Decimal::from_ratio(Uint128::from(slope), Uint128::from(1u64));
+        SLOPE_CHANGES
+            .save(&mut deps.storage, U64Key::new(period), &slope)
+            .unwrap();
+    }
+
+    let mut env = mock_env();
+    env.block.time = Timestamp::from_seconds(env.block.time.seconds() + 5 * WEEK);
+    env.contract.address = owner.clone();
+    checkpoint_total(
+        deps.as_mut(),
+        env,
+        None,
+        None,
+        Decimal::zero(),
+        Decimal::zero(),
+    )
+    .unwrap();
+
+    // check passed points are recalculated
+    let updated_slope_period_2 = HISTORY
+        .load(&deps.storage, (owner.clone(), U64Key::new(2)))
+        .unwrap()
+        .slope
+        * Uint128::from(1u64);
+
+    let updated_slope_period_3 = HISTORY
+        .load(&deps.storage, (owner.clone(), U64Key::new(3)))
+        .unwrap()
+        .slope
+        * Uint128::from(1u64);
+
+    let updated_slope_period_4 = HISTORY
+        .load(&deps.storage, (owner, U64Key::new(4)))
+        .unwrap()
+        .slope
+        * Uint128::from(1u64);
+
+    assert_eq!(updated_slope_period_2, Uint128::from(4u64));
+    assert_eq!(updated_slope_period_3, Uint128::from(2u64));
+    assert_eq!(updated_slope_period_4, Uint128::zero());
+}
+
+#[test]
+fn test_calc_voting_power_util() {
+    let point = Point {
+        power: Uint128::from(100u64),
+        start: 0u64,
+        end: 100u64,
+        slope: Decimal::one(),
+    };
+    let period = Uint128::MAX.u128() as u64;
+
+    // checks vp is zero when multiplication overflows
+    let voting_power = calc_voting_power(&point, period);
+
+    assert_eq!(voting_power, Uint128::zero());
+
+    let point = Point {
+        power: Uint128::from(200u64),
+        start: 0u64,
+        end: 100u64,
+        slope: Decimal::from_ratio(Uint128::from(5u64), Uint128::from(3u64)),
+    };
+
+    // checks vp is rounded up correctly
+    let voting_power = calc_voting_power(&point, point.end);
+
+    let expected_vp = point.power
+        - Uint128::new(1u128)
+            * (Decimal::from_ratio(Uint128::from(500u64), Uint128::from(3u64)) + Decimal::one());
+
+    assert_eq!(voting_power, expected_vp);
+
+    let point = Point {
+        power: Uint128::from(200u64),
+        start: 0u64,
+        end: 100u64,
+        slope: Decimal::from_ratio(Uint128::from(500u64), Uint128::from(3u64)),
+    };
+
+    // checks vp is zero when sub overflows
+    let voting_power = calc_voting_power(&point, point.end);
+
+    assert_eq!(voting_power, Uint128::zero());
+}
+
+#[test]
+fn test_slope_changes_util() {
+    let mut deps = mock_dependencies(&[]);
+    let slope = Decimal::from_ratio(Uint128::from(10u64), Uint128::from(1u64));
+    let period = 2;
+    let period_key = U64Key::from(period);
+
+    SLOPE_CHANGES
+        .save(&mut deps.storage, period_key.clone(), &slope)
+        .unwrap();
+
+    LAST_SLOPE_CHANGE
+        .save(&mut deps.storage, &(period - 1))
+        .unwrap();
+
+    // canceling scheduled slopes decreases current slope by change
+    let slope_change = Decimal::from_ratio(Uint128::from(5u64), Uint128::from(1u64));
+    cancel_scheduled_slope(deps.as_mut(), slope_change, period).unwrap();
+
+    let new_slope = SLOPE_CHANGES
+        .load(&deps.storage, period_key.clone())
+        .unwrap();
+
+    assert_eq!(
+        new_slope,
+        Decimal::from_ratio(Uint128::from(5u64), Uint128::from(1u64))
+    );
+
+    LAST_SLOPE_CHANGE
+        .save(&mut deps.storage, &(period + 1))
+        .unwrap();
+
+    // canceling scheduled slopes after `LAST_SLOPE_CHANGE` does nothing
+    cancel_scheduled_slope(deps.as_mut(), slope_change, period).unwrap();
+
+    let new_slope = SLOPE_CHANGES
+        .load(&deps.storage, period_key.clone())
+        .unwrap();
+
+    assert_eq!(
+        new_slope,
+        Decimal::from_ratio(Uint128::from(5u64), Uint128::from(1u64))
+    );
+
+    // scheduling slope changes adds change to existing slope
+    schedule_slope_change(deps.as_mut(), Decimal::one(), period).unwrap();
+
+    let new_slope = SLOPE_CHANGES.load(&deps.storage, period_key).unwrap();
+
+    assert_eq!(
+        new_slope,
+        Decimal::from_ratio(Uint128::from(6u64), Uint128::from(1u64))
+    );
 }
 
 fn init_lock_factory(
