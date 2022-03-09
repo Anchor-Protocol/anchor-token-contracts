@@ -1,34 +1,11 @@
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-
-use crate::state::{config_store, Config};
-use cosmwasm_std::{CanonicalAddr, Decimal, StdResult, Storage, Uint128};
-use cosmwasm_storage::ReadonlySingleton;
-
-static KEY_LEGACY_CONFIG: &[u8] = b"config";
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct LegacyConfig {
-    pub owner: CanonicalAddr,
-    pub anchor_token: CanonicalAddr,
-    pub quorum: Decimal,
-    pub threshold: Decimal,
-    pub voting_period: u64,
-    pub timelock_period: u64,
-    pub expiration_period: u64,
-    pub proposal_deposit: Uint128,
-    pub snapshot_period: u64,
-}
-
-pub fn read_legacy_config(storage: &dyn Storage) -> StdResult<LegacyConfig> {
-    ReadonlySingleton::new(storage, KEY_LEGACY_CONFIG).load()
-}
+use crate::state::{config_store, legacy_config_read, Config, LegacyConfig};
+use cosmwasm_std::{CanonicalAddr, StdResult, Storage};
 
 pub fn migrate_config(
     storage: &mut dyn Storage,
     anchor_voting_escrow: CanonicalAddr,
 ) -> StdResult<()> {
-    let legacy_config: LegacyConfig = read_legacy_config(storage)?;
+    let legacy_config: LegacyConfig = legacy_config_read(storage)?;
 
     config_store(storage).save(&Config {
         owner: legacy_config.owner,
