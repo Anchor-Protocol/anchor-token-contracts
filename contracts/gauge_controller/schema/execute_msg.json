@@ -60,14 +60,48 @@
           "type": "object",
           "required": [
             "addr",
-            "user_weight"
+            "voting_ratio"
           ],
           "properties": {
             "addr": {
               "type": "string"
             },
-            "user_weight": {
-              "$ref": "#/definitions/Uint128"
+            "voting_ratio": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "checkpoint_all"
+      ],
+      "properties": {
+        "checkpoint_all": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "checkpoint_gauge"
+      ],
+      "properties": {
+        "checkpoint_gauge": {
+          "type": "object",
+          "required": [
+            "addr"
+          ],
+          "properties": {
+            "addr": {
+              "type": "string"
             }
           }
         }

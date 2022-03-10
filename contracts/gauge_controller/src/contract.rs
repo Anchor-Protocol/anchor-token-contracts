@@ -1,8 +1,10 @@
 use crate::error::ContractError;
 use crate::state::{Config, GaugeWeight, CONFIG, GAUGE_ADDR, GAUGE_COUNT, GAUGE_WEIGHT};
 use crate::utils::{
-    calc_new_weight, check_if_exists, deserialize_pair, fetch_last_checkpoint, fetch_slope_changes,
-    get_period, query_last_user_slope, query_user_unlock_period,
+    calc_new_weight, cancel_scheduled_slope_change, check_if_exists, deserialize_pair,
+    fetch_last_checkpoint, fetch_last_user_vote, fetch_slope_changes, get_period,
+    query_last_user_slope, query_user_unlock_period, schedule_slope_change,
+    DecimalRoundedCheckedMul, VOTE_DELAY,
 };
 
 #[cfg(not(feature = "library"))]
@@ -17,6 +19,8 @@ use anchor_token::gauge_controller::{
     AllGaugeAddrResponse, ConfigResponse, ExecuteMsg, GaugeAddrResponse, GaugeCountResponse,
     GaugeWeightResponse, InstantiateMsg, QueryMsg, RelativeWeightResponse, TotalWeightResponse,
 };
+
+use std::cmp::max;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -49,9 +53,17 @@ pub fn execute(
         ExecuteMsg::ChangeGaugeWeight { addr, weight } => {
             change_gauge_weight(deps, env, info, addr, weight)
         }
-        ExecuteMsg::VoteForGaugeWeight { addr, user_weight } => {
-            vote_for_gauge_weight(deps, env, info, addr, user_weight)
+        ExecuteMsg::VoteForGaugeWeight { addr, voting_ratio } => {
+            vote_for_gauge_weight(deps, env, info, addr, voting_ratio)
         }
+        ExecuteMsg::CheckpointAll {} => {
+            checkpoint_all(deps.storage, get_period(env.block.time.seconds()))
+        }
+        ExecuteMsg::CheckpointGauge { addr } => checkpoint_gauge(
+            deps.storage,
+            &deps.api.addr_validate(&addr)?,
+            get_period(env.block.time.seconds()),
+        ),
     }
 }
 
@@ -70,6 +82,16 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
     }
 }
 
+fn checkpoint_all(storage: &mut dyn Storage, new_period: u64) -> Result<Response, ContractError> {
+    let gauge_count = GAUGE_COUNT.load(storage)?;
+    for i in 0..gauge_count {
+        let addr = GAUGE_ADDR.load(storage, U64Key::new(i))?;
+        checkpoint_gauge(storage, &addr, new_period)?;
+    }
+    Ok(Response::default())
+}
+
+// Fill historic gauge weights week-over-week for missed checkins.
 fn checkpoint_gauge(
     storage: &mut dyn Storage,
     addr: &Addr,
@@ -134,8 +156,8 @@ fn add_gauge(
 
     let addr = deps.api.addr_validate(&addr)?;
 
-    if check_if_exists(deps.as_ref(), &addr) {
-        return Err(ContractError::GaugeAlreadyExist {});
+    if check_if_exists(deps.storage, &addr) {
+        return Err(ContractError::GaugeAlreadyExists {});
     }
 
     let gauge_count = GAUGE_COUNT.load(deps.storage)?;
@@ -208,21 +230,71 @@ fn change_gauge_weight(
 fn vote_for_gauge_weight(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     addr: String,
-    user_weight: Uint128,
+    voting_ratio: u64,
 ) -> Result<Response, ContractError> {
-    let addr = deps.api.addr_validate(&addr)?;
-    let period = get_period(env.block.time.seconds());
+    if voting_ratio > 10000_u64 {
+        return Err(ContractError::InvalidVotingWeight {});
+    }
 
-    GAUGE_WEIGHT.save(
-        deps.storage,
-        (addr.clone(), U64Key::new(period)),
-        &GaugeWeight {
-            bias: user_weight,
-            slope: Decimal::zero(),
-        },
-    )?;
+    let sender = deps.api.addr_validate(info.sender.as_str())?;
+
+    let current_period = get_period(env.block.time.seconds());
+
+    let user_unlock_period = query_user_unlock_period(deps.as_ref(), sender.clone())?;
+
+    if user_unlock_period <= current_period {
+        return Err(ContractError::LockExpiresTooSoon {});
+    }
+
+    let user_full_slope = query_last_user_slope(deps.as_ref(), sender.clone())?;
+
+    let user_slope = Decimal::from_ratio(
+        user_full_slope.checked_mul(voting_ratio)?,
+        Uint128::from(10000_u64),
+    );
+
+    let addr = deps.api.addr_validate(&addr)?;
+
+    checkpoint_gauge(deps.storage, &addr, current_period)?;
+
+    if let Some(pair) = fetch_last_checkpoint(deps.storage, &addr)? {
+        let (period, mut weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
+
+        assert_eq!(period, current_period);
+
+        let dt = user_unlock_period - current_period;
+
+        weight.slope = weight.slope + user_slope;
+        weight.bias = weight.bias + user_slope.checked_mul(dt)?;
+
+        schedule_slope_change(deps.storage, &addr, user_slope, user_unlock_period)?;
+
+        match fetch_last_user_vote(deps.storage, &sender, &addr)? {
+            Some(vote) => {
+                if current_period < vote.vote_period + VOTE_DELAY {
+                    return Err(ContractError::VoteTooOften {});
+                }
+                if vote.unlock_period > current_period {
+                    let dt = vote.unlock_period - current_period;
+
+                    weight.slope = max(weight.slope - vote.slope, Decimal::zero());
+                    weight.bias.saturating_sub(vote.slope.checked_mul(dt)?);
+
+                    cancel_scheduled_slope_change(
+                        deps.storage,
+                        &addr,
+                        vote.slope,
+                        vote.unlock_period,
+                    )?;
+                }
+            }
+            None => (),
+        }
+    } else {
+        assert!(false);
+    }
 
     Ok(Response::default())
 }

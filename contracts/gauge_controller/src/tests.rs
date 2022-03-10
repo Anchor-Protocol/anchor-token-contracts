@@ -152,7 +152,7 @@ fn test_add_two_gauges_and_change_weight() {
     );
 
     assert_eq!(
-        ContractError::GaugeAlreadyExist {},
+        ContractError::GaugeAlreadyExists {},
         run_execute_msg_expect_error(
             deps.as_mut(),
             "owner".to_string(),

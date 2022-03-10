@@ -36,9 +36,9 @@ pub struct GaugeWeight {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserVote {
-    pub slope: Uint128,
-    pub start_period: u64,
-    pub end_period: u64,
+    pub slope: Decimal,
+    pub vote_period: u64,
+    pub unlock_period: u64,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

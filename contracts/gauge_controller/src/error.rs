@@ -18,12 +18,21 @@ pub enum ContractError {
     #[error("Gauge Not Found")]
     GaugeNotFound {},
 
-    #[error("Gauge Already Exist")]
-    GaugeAlreadyExist {},
+    #[error("Gauge Already Exists")]
+    GaugeAlreadyExists {},
 
     #[error("Deserialization Error")]
     DeserializationError {},
 
     #[error("Timestamp Error")]
     TimestampError {},
+
+    #[error("Invalid Voting Weight")]
+    InvalidVotingWeight {},
+
+    #[error("Lock Expires Too Soon")]
+    LockExpiresTooSoon {},
+
+    #[error("Vote Too Often")]
+    VoteTooOften {},
 }

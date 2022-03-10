@@ -1,13 +1,13 @@
 use crate::error::ContractError;
 use crate::state::{
-    GaugeWeight, UserSlopResponse, UserUnlockPeriodResponse, VotingEscrowContractQueryMsg, CONFIG,
-    GAUGE_WEIGHT, SLOPE_CHANGES, USER_VOTES,
+    GaugeWeight, UserSlopResponse, UserUnlockPeriodResponse, UserVote,
+    VotingEscrowContractQueryMsg, CONFIG, GAUGE_WEIGHT, SLOPE_CHANGES, USER_VOTES,
 };
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
-    to_binary, Addr, Decimal, Deps, Fraction, Order, OverflowError, Pair, QueryRequest, StdResult,
-    Storage, Uint128, Uint256, WasmQuery,
+    to_binary, Addr, Decimal, Deps, Fraction, Order, OverflowError, Pair, QueryRequest, Response,
+    StdResult, Storage, Uint128, Uint256, WasmQuery,
 };
 
 use cw_storage_plus::{Bound, U64Key};
@@ -15,8 +15,10 @@ use cw_storage_plus::{Bound, U64Key};
 use std::cmp::max;
 use std::convert::TryInto;
 
-const WEEK: u64 = 7 * 24 * 60 * 60;
+const DAY: u64 = 24 * 60 * 60;
+const WEEK: u64 = 7 * DAY;
 const MAX_PERIOD: u64 = u64::MAX;
+pub const VOTE_DELAY: u64 = 10 * DAY;
 
 pub(crate) fn get_period(seconds: u64) -> u64 {
     (seconds / WEEK + WEEK) * WEEK
@@ -46,6 +48,17 @@ pub(crate) fn query_user_unlock_period(deps: Deps, user: Addr) -> Result<u64, Co
             })?,
         }))?
         .unlock_period)
+}
+
+pub(crate) fn fetch_last_user_vote(
+    storage: &dyn Storage,
+    sender: &Addr,
+    addr: &Addr,
+) -> Result<Option<UserVote>, ContractError> {
+    match USER_VOTES.may_load(storage, (sender.clone(), addr.clone())) {
+        Err(_) => Err(ContractError::DeserializationError {}),
+        Ok(result) => Ok(result),
+    }
 }
 
 pub(crate) fn fetch_last_checkpoint(
@@ -83,6 +96,50 @@ pub(crate) fn fetch_slope_changes(
         .collect()
 }
 
+pub(crate) fn cancel_scheduled_slope_change(
+    storage: &mut dyn Storage,
+    addr: &Addr,
+    slope: Decimal,
+    period: u64,
+) -> Result<Response, ContractError> {
+    if slope.is_zero() {
+        return Ok(Response::default());
+    }
+    let key = (addr.clone(), U64Key::new(period));
+    if let Some(old_scheduled_slope_change) = SLOPE_CHANGES.may_load(storage, key.clone())? {
+        let new_slope = max(old_scheduled_slope_change - slope, Decimal::zero());
+        if new_slope.is_zero() {
+            SLOPE_CHANGES.remove(storage, key.clone());
+        } else {
+            SLOPE_CHANGES.save(storage, key.clone(), &new_slope)?;
+        }
+    }
+    Ok(Response::default())
+}
+
+pub(crate) fn schedule_slope_change(
+    storage: &mut dyn Storage,
+    addr: &Addr,
+    slope: Decimal,
+    period: u64,
+) -> Result<Response, ContractError> {
+    if slope.is_zero() {
+        return Ok(Response::default());
+    }
+    SLOPE_CHANGES.update(
+        storage,
+        (addr.clone(), U64Key::new(period)),
+        |slope_opt| -> Result<Decimal, ContractError> {
+            if let Some(pslope) = slope_opt {
+                Ok(pslope + slope)
+            } else {
+                Ok(slope)
+            }
+        },
+    )?;
+    Ok(Response::default())
+}
+
 pub(crate) fn deserialize_pair<T>(pair: StdResult<Pair<T>>) -> Result<(u64, T), ContractError> {
     let (period_serialized, change) = pair?;
     let period_bytes: [u8; 8] = period_serialized
@@ -91,8 +148,8 @@ pub(crate) fn deserialize_pair<T>(pair: StdResult<Pair<T>>) -> Result<(u64, T), 
     Ok((u64::from_be_bytes(period_bytes), change))
 }
 
-pub(crate) fn check_if_exists(deps: Deps, addr: &Addr) -> bool {
-    if let Ok(last_checkpoint) = fetch_last_checkpoint(deps.storage, addr) {
+pub(crate) fn check_if_exists(storage: &dyn Storage, addr: &Addr) -> bool {
+    if let Ok(last_checkpoint) = fetch_last_checkpoint(storage, addr) {
         if let Some(_) = last_checkpoint {
             return true;
         }
@@ -102,12 +159,13 @@ pub(crate) fn check_if_exists(deps: Deps, addr: &Addr) -> bool {
 
 /// # Description
 /// Trait is intended for Decimal rounding problem elimination
-trait DecimalRoundedCheckedMul {
-    fn checked_mul(self, other: Uint128) -> Result<Uint128, OverflowError>;
+pub(crate) trait DecimalRoundedCheckedMul {
+    fn checked_mul(self, other: u64) -> Result<Uint128, OverflowError>;
 }
 
 impl DecimalRoundedCheckedMul for Decimal {
-    fn checked_mul(self, other: Uint128) -> Result<Uint128, OverflowError> {
+    fn checked_mul(self, other: u64) -> Result<Uint128, OverflowError> {
+        let other = Uint128::from(other);
         if self.is_zero() || other.is_zero() {
             return Ok(Uint128::zero());
         }
@@ -136,16 +194,9 @@ impl DecimalRoundedCheckedMul for Decimal {
 }
 
 pub(crate) fn calc_new_weight(weight: GaugeWeight, dt: u64, slope_change: Decimal) -> GaugeWeight {
+    let slope = weight.slope;
     GaugeWeight {
-        bias: weight
-            .bias
-            .checked_sub(
-                weight
-                    .slope
-                    .checked_mul(Uint128::from(dt))
-                    .unwrap_or_else(|_| Uint128::zero()),
-            )
-            .unwrap_or_else(|_| Uint128::zero()),
-        slope: max(weight.slope - slope_change, Decimal::zero()),
+        bias: weight.bias.saturating_sub(slope.checked_mul(dt).unwrap()),
+        slope: max(slope - slope_change, Decimal::zero()),
     }
 }
