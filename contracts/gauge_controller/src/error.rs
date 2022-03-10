@@ -12,9 +12,6 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("Not Implement")]
-    NotImplement {},
-
     #[error("Gauge Not Found")]
     GaugeNotFound {},
 

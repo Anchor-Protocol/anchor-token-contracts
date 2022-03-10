@@ -76,8 +76,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::GaugeAddr { gauge_id } => Ok(to_binary(&query_gauge_addr(deps, gauge_id)?)?),
         QueryMsg::AllGaugeAddr {} => Ok(to_binary(&query_all_gauge_addr(deps)?)?),
         QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
-        QueryMsg::GaugeRelativeWeight { addr, time } => {
-            Ok(to_binary(&query_relative_weight(deps, addr, time)?)?)
+        QueryMsg::GaugeRelativeWeight { addr } => {
+            Ok(to_binary(&query_relative_weight(deps, addr)?)?)
         }
     }
 }
@@ -313,16 +313,34 @@ fn query_gauge_weight(deps: Deps, addr: String) -> Result<GaugeWeightResponse, C
     }
 }
 
-fn query_total_weight(_deps: Deps) -> Result<TotalWeightResponse, ContractError> {
-    Err(ContractError::NotImplement {})
+fn query_total_weight(deps: Deps) -> Result<TotalWeightResponse, ContractError> {
+    let gauge_count = GAUGE_COUNT.load(deps.storage)?;
+
+    let mut total_weight = Uint128::zero();
+
+    for i in 0..gauge_count {
+        let addr = GAUGE_ADDR.load(deps.storage, U64Key::new(i))?;
+        let (_, weight) =
+            deserialize_pair::<GaugeWeight>(Ok(
+                fetch_last_checkpoint(deps.storage, &addr)?.unwrap()
+            ))?;
+        total_weight += weight.bias;
+    }
+
+    Ok(TotalWeightResponse {
+        total_weight: total_weight,
+    })
 }
 
 fn query_relative_weight(
-    _deps: Deps,
-    _addr: String,
-    _time: Uint128,
+    deps: Deps,
+    addr: String,
 ) -> Result<RelativeWeightResponse, ContractError> {
-    Err(ContractError::NotImplement {})
+    let gauge_weight = query_gauge_weight(deps, addr)?.gauge_weight;
+    let total_weight = query_total_weight(deps)?.total_weight;
+    Ok(RelativeWeightResponse {
+        relative_weight: Decimal::from_ratio(gauge_weight, total_weight),
+    })
 }
 
 fn query_gauge_count(deps: Deps) -> Result<GaugeCountResponse, ContractError> {

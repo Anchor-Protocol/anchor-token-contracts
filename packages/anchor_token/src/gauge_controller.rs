@@ -29,7 +29,7 @@ pub enum QueryMsg {
     GaugeAddr { gauge_id: u64 },
     AllGaugeAddr {},
     Config {},
-    GaugeRelativeWeight { addr: String, time: Uint128 },
+    GaugeRelativeWeight { addr: String },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
