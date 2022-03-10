@@ -444,9 +444,9 @@ fn query_last_user_slope(deps: Deps, env: Env, user: String) -> StdResult<UserSl
     let last_checkpoint = fetch_last_checkpoint(deps, &user, &period_key)?;
 
     let slope = if let Some((_, point)) = last_checkpoint {
-        Uint128::new(1u128) * point.slope
+        point.slope
     } else {
-        Uint128::zero()
+        Decimal::zero()
     };
 
     Ok(UserSlopeResponse { slope })
