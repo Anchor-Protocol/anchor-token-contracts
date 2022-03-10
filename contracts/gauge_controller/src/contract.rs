@@ -17,7 +17,8 @@ use cw_storage_plus::U64Key;
 
 use anchor_token::gauge_controller::{
     AllGaugeAddrResponse, ConfigResponse, ExecuteMsg, GaugeAddrResponse, GaugeCountResponse,
-    GaugeWeightResponse, InstantiateMsg, QueryMsg, RelativeWeightResponse, TotalWeightResponse,
+    GaugeRelativeWeightResponse, GaugeWeightResponse, InstantiateMsg, QueryMsg,
+    TotalWeightResponse,
 };
 
 use std::cmp::max;
@@ -77,7 +78,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::AllGaugeAddr {} => Ok(to_binary(&query_all_gauge_addr(deps)?)?),
         QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
         QueryMsg::GaugeRelativeWeight { addr } => {
-            Ok(to_binary(&query_relative_weight(deps, addr)?)?)
+            Ok(to_binary(&query_gauge_relative_weight(deps, addr)?)?)
         }
     }
 }
@@ -332,13 +333,13 @@ fn query_total_weight(deps: Deps) -> Result<TotalWeightResponse, ContractError> 
     })
 }
 
-fn query_relative_weight(
+fn query_gauge_relative_weight(
     deps: Deps,
     addr: String,
-) -> Result<RelativeWeightResponse, ContractError> {
+) -> Result<GaugeRelativeWeightResponse, ContractError> {
     let gauge_weight = query_gauge_weight(deps, addr)?.gauge_weight;
     let total_weight = query_total_weight(deps)?.total_weight;
-    Ok(RelativeWeightResponse {
+    Ok(GaugeRelativeWeightResponse {
         relative_weight: Decimal::from_ratio(gauge_weight, total_weight),
     })
 }

@@ -43,7 +43,7 @@ pub struct TotalWeightResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
-pub struct RelativeWeightResponse {
+pub struct GaugeRelativeWeightResponse {
     pub relative_weight: Decimal,
 }
 
