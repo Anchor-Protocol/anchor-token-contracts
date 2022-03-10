@@ -24,8 +24,8 @@ pub enum ContractError {
     #[error("Timestamp Error")]
     TimestampError {},
 
-    #[error("Invalid Voting Weight")]
-    InvalidVotingWeight {},
+    #[error("Invalid Voting Ratio")]
+    InvalidVotingRatio {},
 
     #[error("Lock Expires Too Soon")]
     LockExpiresTooSoon {},

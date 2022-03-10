@@ -1,10 +1,11 @@
 use crate::error::ContractError;
-use crate::state::{Config, GaugeWeight, CONFIG, GAUGE_ADDR, GAUGE_COUNT, GAUGE_WEIGHT};
+use crate::state::{
+    Config, GaugeWeight, UserVote, CONFIG, GAUGE_ADDR, GAUGE_COUNT, GAUGE_WEIGHT, USER_VOTES,
+};
 use crate::utils::{
     calc_new_weight, cancel_scheduled_slope_change, check_if_exists, deserialize_pair,
-    fetch_last_checkpoint, fetch_last_user_vote, fetch_slope_changes, get_period,
-    query_last_user_slope, query_user_unlock_period, schedule_slope_change,
-    DecimalRoundedCheckedMul, VOTE_DELAY,
+    fetch_last_checkpoint, fetch_slope_changes, get_period, query_last_user_slope,
+    query_user_unlock_period, schedule_slope_change, DecimalRoundedCheckedMul, VOTE_DELAY,
 };
 
 #[cfg(not(feature = "library"))]
@@ -178,12 +179,6 @@ fn add_gauge(
         },
     )?;
 
-    let slope = query_last_user_slope(deps.as_ref(), sender.clone())?;
-    assert_eq!(Decimal::from_ratio(2_u64, 3_u64), slope);
-
-    let unlock_period = query_user_unlock_period(deps.as_ref(), sender.clone())?;
-    assert_eq!(666, unlock_period);
-
     Ok(Response::default())
 }
 
@@ -236,8 +231,10 @@ fn vote_for_gauge_weight(
     voting_ratio: u64,
 ) -> Result<Response, ContractError> {
     if voting_ratio > 10000_u64 {
-        return Err(ContractError::InvalidVotingWeight {});
+        return Err(ContractError::InvalidVotingRatio {});
     }
+
+    // @TODO: check if the total voting ratio is more than 10000.
 
     let sender = deps.api.addr_validate(info.sender.as_str())?;
 
@@ -272,7 +269,7 @@ fn vote_for_gauge_weight(
 
         schedule_slope_change(deps.storage, &addr, user_slope, user_unlock_period)?;
 
-        match fetch_last_user_vote(deps.storage, &sender, &addr)? {
+        match USER_VOTES.may_load(deps.storage, (sender.clone(), addr.clone()))? {
             Some(vote) => {
                 if current_period < vote.vote_period + VOTE_DELAY {
                     return Err(ContractError::VoteTooOften {});
@@ -281,7 +278,7 @@ fn vote_for_gauge_weight(
                     let dt = vote.unlock_period - current_period;
 
                     weight.slope = max(weight.slope - vote.slope, Decimal::zero());
-                    weight.bias.saturating_sub(vote.slope.checked_mul(dt)?);
+                    weight.bias = weight.bias.saturating_sub(vote.slope.checked_mul(dt)?);
 
                     cancel_scheduled_slope_change(
                         deps.storage,
@@ -293,9 +290,25 @@ fn vote_for_gauge_weight(
             }
             None => (),
         }
+
+        GAUGE_WEIGHT.save(
+            deps.storage,
+            (addr.clone(), U64Key::new(current_period)),
+            &weight,
+        )?;
     } else {
         assert!(false);
     }
+
+    USER_VOTES.save(
+        deps.storage,
+        (sender.clone(), addr.clone()),
+        &UserVote {
+            slope: user_slope,
+            vote_period: current_period,
+            unlock_period: user_unlock_period,
+        },
+    )?;
 
     Ok(Response::default())
 }
@@ -340,7 +353,7 @@ fn query_gauge_relative_weight(
     let gauge_weight = query_gauge_weight(deps, addr)?.gauge_weight;
     let total_weight = query_total_weight(deps)?.total_weight;
     Ok(GaugeRelativeWeightResponse {
-        relative_weight: Decimal::from_ratio(gauge_weight, total_weight),
+        gauge_relative_weight: Decimal::from_ratio(gauge_weight, total_weight),
     })
 }
 

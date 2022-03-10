@@ -1,9 +1,13 @@
 use crate::state::{UserSlopResponse, UserUnlockPeriodResponse, VotingEscrowContractQueryMsg};
+use crate::utils::{get_period, WEEK};
+
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_binary, from_slice, to_binary, Coin, ContractResult, Decimal, Empty, OwnedDeps, Querier,
-    QuerierResult, QueryRequest, SystemError, SystemResult, WasmQuery,
+    QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
+
+pub(crate) const BASE_TIME: u64 = WEEK * 1000 + 10;
 
 pub fn mock_dependencies(
     contract_balance: &[Coin],
@@ -47,14 +51,20 @@ impl WasmMockQuerier {
                 VotingEscrowContractQueryMsg::LastUserSlope { user: _ } => {
                     SystemResult::Ok(ContractResult::Ok(
                         to_binary(&UserSlopResponse {
-                            slope: Decimal::from_ratio(2_u64, 3_u64),
+                            slope: Decimal::from_ratio(
+                                Uint128::from(998244353_u64),
+                                Uint128::from(100_u64),
+                            ),
                         })
                         .unwrap(),
                     ))
                 }
                 VotingEscrowContractQueryMsg::UserUnlockPeriod { user: _ } => {
                     SystemResult::Ok(ContractResult::Ok(
-                        to_binary(&UserUnlockPeriodResponse { unlock_period: 666 }).unwrap(),
+                        to_binary(&UserUnlockPeriodResponse {
+                            unlock_period: get_period(BASE_TIME + WEEK * 100),
+                        })
+                        .unwrap(),
                     ))
                 }
             },

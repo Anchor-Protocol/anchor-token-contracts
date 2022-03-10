@@ -1,7 +1,7 @@
 use crate::error::ContractError;
 use crate::state::{
-    GaugeWeight, UserSlopResponse, UserUnlockPeriodResponse, UserVote,
-    VotingEscrowContractQueryMsg, CONFIG, GAUGE_WEIGHT, SLOPE_CHANGES, USER_VOTES,
+    GaugeWeight, UserSlopResponse, UserUnlockPeriodResponse, VotingEscrowContractQueryMsg, CONFIG,
+    GAUGE_WEIGHT, SLOPE_CHANGES,
 };
 
 #[cfg(not(feature = "library"))]
@@ -15,13 +15,13 @@ use cw_storage_plus::{Bound, U64Key};
 use std::cmp::max;
 use std::convert::TryInto;
 
-const DAY: u64 = 24 * 60 * 60;
-const WEEK: u64 = 7 * DAY;
+pub(crate) const DAY: u64 = 24 * 60 * 60;
+pub(crate) const WEEK: u64 = 7 * DAY;
+pub(crate) const VOTE_DELAY: u64 = 2;
 const MAX_PERIOD: u64 = u64::MAX;
-pub const VOTE_DELAY: u64 = 10 * DAY;
 
 pub(crate) fn get_period(seconds: u64) -> u64 {
-    (seconds / WEEK + WEEK) * WEEK
+    seconds / WEEK
 }
 
 pub(crate) fn query_last_user_slope(deps: Deps, user: Addr) -> Result<Decimal, ContractError> {
@@ -48,17 +48,6 @@ pub(crate) fn query_user_unlock_period(deps: Deps, user: Addr) -> Result<u64, Co
             })?,
         }))?
         .unlock_period)
-}
-
-pub(crate) fn fetch_last_user_vote(
-    storage: &dyn Storage,
-    sender: &Addr,
-    addr: &Addr,
-) -> Result<Option<UserVote>, ContractError> {
-    match USER_VOTES.may_load(storage, (sender.clone(), addr.clone())) {
-        Err(_) => Err(ContractError::DeserializationError {}),
-        Ok(result) => Ok(result),
-    }
 }
 
 pub(crate) fn fetch_last_checkpoint(

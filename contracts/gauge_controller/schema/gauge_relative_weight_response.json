@@ -3,10 +3,10 @@
   "title": "GaugeRelativeWeightResponse",
   "type": "object",
   "required": [
-    "relative_weight"
+    "gauge_relative_weight"
   ],
   "properties": {
-    "relative_weight": {
+    "gauge_relative_weight": {
       "$ref": "#/definitions/Decimal"
     }
   },
