@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw_storage_plus::{Item, Map, U64Key};
 
 use schemars::JsonSchema;
@@ -13,7 +13,7 @@ pub enum VotingEscrowContractQueryMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct UserSlopResponse {
-    pub slope: Uint128,
+    pub slope: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
@@ -31,7 +31,7 @@ pub struct Config {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GaugeWeight {
     pub bias: Uint128,
-    pub slope: Uint128,
+    pub slope: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -47,7 +47,7 @@ pub const GAUGE_COUNT: Item<u64> = Item::new("gauge_count");
 
 pub const GAUGE_WEIGHT: Map<(Addr, U64Key), GaugeWeight> = Map::new("gauge_weight");
 
-pub const SLOPE_CHANGES: Map<(Addr, U64Key), Uint128> = Map::new("slope_changes");
+pub const SLOPE_CHANGES: Map<(Addr, U64Key), Decimal> = Map::new("slope_changes");
 
 pub const GAUGE_ADDR: Map<U64Key, Addr> = Map::new("gauge_addr");
 

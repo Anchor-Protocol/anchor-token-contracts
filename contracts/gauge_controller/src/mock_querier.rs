@@ -1,8 +1,8 @@
 use crate::state::{UserSlopResponse, UserUnlockPeriodResponse, VotingEscrowContractQueryMsg};
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_binary, from_slice, to_binary, Coin, ContractResult, Empty, OwnedDeps, Querier,
-    QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
+    from_binary, from_slice, to_binary, Coin, ContractResult, Decimal, Empty, OwnedDeps, Querier,
+    QuerierResult, QueryRequest, SystemError, SystemResult, WasmQuery,
 };
 
 pub fn mock_dependencies(
@@ -47,7 +47,7 @@ impl WasmMockQuerier {
                 VotingEscrowContractQueryMsg::LastUserSlope { user: _ } => {
                     SystemResult::Ok(ContractResult::Ok(
                         to_binary(&UserSlopResponse {
-                            slope: Uint128::from(233_u64),
+                            slope: Decimal::from_ratio(2_u64, 3_u64),
                         })
                         .unwrap(),
                     ))

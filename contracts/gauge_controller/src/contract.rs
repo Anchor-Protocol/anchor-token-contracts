@@ -1,27 +1,22 @@
 use crate::error::ContractError;
-use crate::state::{
-    Config, GaugeWeight, UserSlopResponse, UserUnlockPeriodResponse, VotingEscrowContractQueryMsg,
-    CONFIG, GAUGE_ADDR, GAUGE_COUNT, GAUGE_WEIGHT, SLOPE_CHANGES, USER_VOTES,
+use crate::state::{Config, GaugeWeight, CONFIG, GAUGE_ADDR, GAUGE_COUNT, GAUGE_WEIGHT};
+use crate::utils::{
+    calc_new_weight, check_if_exists, deserialize_pair, fetch_last_checkpoint, fetch_slope_changes,
+    get_period, query_last_user_slope, query_user_unlock_period,
 };
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Pair, QueryRequest, Response,
-    StdResult, Storage, Uint128, WasmQuery,
+    to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response, Storage, Uint128,
 };
 
-use cw_storage_plus::{Bound, U64Key};
+use cw_storage_plus::U64Key;
 
 use anchor_token::gauge_controller::{
     AllGaugeAddrResponse, ConfigResponse, ExecuteMsg, GaugeAddrResponse, GaugeCountResponse,
     GaugeWeightResponse, InstantiateMsg, QueryMsg, RelativeWeightResponse, TotalWeightResponse,
 };
-
-use std::convert::TryInto;
-
-const WEEK: u64 = 7 * 24 * 60 * 60;
-const MAX_PERIOD: u64 = u64::MAX;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -75,89 +70,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
     }
 }
 
-fn get_period(seconds: u64) -> u64 {
-    (seconds / WEEK + WEEK) * WEEK
-}
-
-fn query_last_user_slope(deps: Deps, user: Addr) -> Result<Uint128, ContractError> {
-    let anchor_voting_escorw = CONFIG.load(deps.storage)?.anchor_voting_escorw;
-    Ok(deps
-        .querier
-        .query::<UserSlopResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: anchor_voting_escorw.to_string(),
-            msg: to_binary(&VotingEscrowContractQueryMsg::LastUserSlope {
-                user: user.to_string(),
-            })?,
-        }))?
-        .slope)
-}
-
-fn query_user_unlock_period(deps: Deps, user: Addr) -> Result<u64, ContractError> {
-    let anchor_voting_escorw = CONFIG.load(deps.storage)?.anchor_voting_escorw;
-    Ok(deps
-        .querier
-        .query::<UserUnlockPeriodResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: anchor_voting_escorw.to_string(),
-            msg: to_binary(&VotingEscrowContractQueryMsg::UserUnlockPeriod {
-                user: user.to_string(),
-            })?,
-        }))?
-        .unlock_period)
-}
-
-fn fetch_last_checkpoint(
-    storage: &dyn Storage,
-    addr: &Addr,
-) -> Result<Option<Pair<GaugeWeight>>, ContractError> {
-    GAUGE_WEIGHT
-        .prefix(addr.clone())
-        .range(
-            storage,
-            None,
-            Some(Bound::Inclusive(U64Key::new(MAX_PERIOD).wrapped.clone())),
-            Order::Descending,
-        )
-        .next()
-        .transpose()
-        .map_err(|_| ContractError::DeserializationError {})
-}
-
-fn fetch_slope_changes(
-    storage: &dyn Storage,
-    addr: &Addr,
-    from_period: u64,
-    to_period: u64,
-) -> Result<Vec<(u64, Uint128)>, ContractError> {
-    SLOPE_CHANGES
-        .prefix(addr.clone())
-        .range(
-            storage,
-            Some(Bound::Exclusive(U64Key::new(from_period).wrapped)),
-            Some(Bound::Inclusive(U64Key::new(to_period).wrapped)),
-            Order::Ascending,
-        )
-        .map(deserialize_pair::<Uint128>)
-        .collect()
-}
-
-fn deserialize_pair<T>(pair: StdResult<Pair<T>>) -> Result<(u64, T), ContractError> {
-    let (period_serialized, change) = pair?;
-    let period_bytes: [u8; 8] = period_serialized
-        .try_into()
-        .map_err(|_| ContractError::DeserializationError {})?;
-    Ok((u64::from_be_bytes(period_bytes), change))
-}
-
-fn check_if_exists(deps: Deps, addr: &Addr) -> bool {
-    if let Ok(last_checkpoint) = fetch_last_checkpoint(deps.storage, addr) {
-        if let Some(_) = last_checkpoint {
-            return true;
-        }
-    }
-    return false;
-}
-
-fn checkpoint(
+fn checkpoint_gauge(
     storage: &mut dyn Storage,
     addr: &Addr,
     new_period: u64,
@@ -184,10 +97,7 @@ fn checkpoint(
 
             let dt = recalc_period - old_period;
 
-            weight = GaugeWeight {
-                bias: weight.bias.saturating_sub(weight.slope * Uint128::from(dt)),
-                slope: weight.slope.saturating_sub(scheduled_change),
-            };
+            weight = calc_new_weight(weight, dt, scheduled_change);
 
             GAUGE_WEIGHT.save(storage, (addr.clone(), U64Key::new(recalc_period)), &weight)?;
 
@@ -200,10 +110,7 @@ fn checkpoint(
             GAUGE_WEIGHT.save(
                 storage,
                 (addr.clone(), U64Key::new(new_period)),
-                &GaugeWeight {
-                    bias: weight.bias.saturating_sub(weight.slope * Uint128::from(dt)),
-                    slope: weight.slope,
-                },
+                &calc_new_weight(weight, dt, Decimal::zero()),
             )?;
         }
     } else {
@@ -244,12 +151,12 @@ fn add_gauge(
         (addr.clone(), U64Key::new(period)),
         &GaugeWeight {
             bias: weight,
-            slope: Uint128::zero(),
+            slope: Decimal::zero(),
         },
     )?;
 
     let slope = query_last_user_slope(deps.as_ref(), sender.clone())?;
-    assert_eq!(Uint128::from(233_u64), slope);
+    assert_eq!(Decimal::from_ratio(2_u64, 3_u64), slope);
 
     let unlock_period = query_user_unlock_period(deps.as_ref(), sender.clone())?;
     assert_eq!(666, unlock_period);
@@ -273,7 +180,7 @@ fn change_gauge_weight(
     let addr = deps.api.addr_validate(&addr)?;
     let period = get_period(env.block.time.seconds());
 
-    checkpoint(deps.storage, &addr, period)?;
+    checkpoint_gauge(deps.storage, &addr, period)?;
 
     let last_checkpoint = fetch_last_checkpoint(deps.storage, &addr)?;
 
@@ -313,7 +220,7 @@ fn vote_for_gauge_weight(
         (addr.clone(), U64Key::new(period)),
         &GaugeWeight {
             bias: user_weight,
-            slope: Uint128::from(234_u64),
+            slope: Decimal::zero(),
         },
     )?;
 
