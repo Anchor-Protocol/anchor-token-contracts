@@ -308,15 +308,6 @@ fn test_vote_for_single_gauge_by_single_user() {
 
     time += WEEK * (VOTE_DELAY - 1);
 
-    run_execute_msg_expect_ok(
-        deps.as_mut(),
-        "owner".to_string(),
-        ExecuteMsg::CheckpointGauge {
-            addr: "gauge_addr_1".to_string(),
-        },
-        time,
-    );
-
     run_execute_msg_expect_error(
         ContractError::VoteTooOften {},
         deps.as_mut(),
@@ -341,18 +332,9 @@ fn test_vote_for_single_gauge_by_single_user() {
 
     time += WEEK;
 
-    run_execute_msg_expect_ok(
-        deps.as_mut(),
-        "owner".to_string(),
-        ExecuteMsg::CheckpointGauge {
-            addr: "gauge_addr_1".to_string(),
-        },
-        time,
-    );
-
     run_query_msg_expect_ok::<GaugeWeightResponse>(
         GaugeWeightResponse {
-            gauge_weight: Uint128::from(978302798_u64),
+            gauge_weight: Uint128::from(978302799_u64),
         },
         deps.as_ref(),
         QueryMsg::GaugeWeight {
@@ -373,7 +355,7 @@ fn test_vote_for_single_gauge_by_single_user() {
 
     run_query_msg_expect_ok::<GaugeWeightResponse>(
         GaugeWeightResponse {
-            gauge_weight: Uint128::from(23332_u64),
+            gauge_weight: Uint128::from(23333_u64),
         },
         deps.as_ref(),
         QueryMsg::GaugeWeight {
@@ -384,18 +366,9 @@ fn test_vote_for_single_gauge_by_single_user() {
 
     time += 100 * WEEK;
 
-    run_execute_msg_expect_ok(
-        deps.as_mut(),
-        "owner".to_string(),
-        ExecuteMsg::CheckpointGauge {
-            addr: "gauge_addr_1".to_string(),
-        },
-        time,
-    );
-
     run_query_msg_expect_ok::<GaugeWeightResponse>(
         GaugeWeightResponse {
-            gauge_weight: Uint128::from(23332_u64),
+            gauge_weight: Uint128::from(23333_u64),
         },
         deps.as_ref(),
         QueryMsg::GaugeWeight {
@@ -499,26 +472,6 @@ fn test_vote_for_single_gauge_by_multiple_users() {
 
     run_query_msg_expect_ok::<GaugeWeightResponse>(
         GaugeWeightResponse {
-            gauge_weight: Uint128::from(908414277_u64),
-        },
-        deps.as_ref(),
-        QueryMsg::GaugeWeight {
-            addr: "gauge_addr_1".to_string(),
-        },
-        time,
-    );
-
-    run_execute_msg_expect_ok(
-        deps.as_mut(),
-        "user_3".to_string(),
-        ExecuteMsg::CheckpointGauge {
-            addr: "gauge_addr_1".to_string(),
-        },
-        time,
-    );
-
-    run_query_msg_expect_ok::<GaugeWeightResponse>(
-        GaugeWeightResponse {
             gauge_weight: Uint128::from(596207044_u64),
         },
         deps.as_ref(),
@@ -529,15 +482,6 @@ fn test_vote_for_single_gauge_by_multiple_users() {
     );
 
     time += 42 * WEEK;
-
-    run_execute_msg_expect_ok(
-        deps.as_mut(),
-        "user_3".to_string(),
-        ExecuteMsg::CheckpointGauge {
-            addr: "gauge_addr_1".to_string(),
-        },
-        time,
-    );
 
     run_query_msg_expect_ok::<GaugeWeightResponse>(
         GaugeWeightResponse {
@@ -551,15 +495,6 @@ fn test_vote_for_single_gauge_by_multiple_users() {
     );
 
     time += 8 * WEEK;
-
-    run_execute_msg_expect_ok(
-        deps.as_mut(),
-        "user_3".to_string(),
-        ExecuteMsg::CheckpointGauge {
-            addr: "gauge_addr_1".to_string(),
-        },
-        time,
-    );
 
     run_query_msg_expect_ok::<GaugeWeightResponse>(
         GaugeWeightResponse {
@@ -657,13 +592,6 @@ fn test_vote_for_multiple_gauges_by_single_user() {
 
     time += 17 * WEEK;
 
-    run_execute_msg_expect_ok(
-        deps.as_mut(),
-        "user_3".to_string(),
-        ExecuteMsg::CheckpointAll {},
-        time,
-    );
-
     run_query_msg_expect_ok::<GaugeRelativeWeightResponse>(
         GaugeRelativeWeightResponse {
             gauge_relative_weight: Decimal::from_ratio(
@@ -679,13 +607,6 @@ fn test_vote_for_multiple_gauges_by_single_user() {
     );
 
     time += 100 * WEEK;
-
-    run_execute_msg_expect_ok(
-        deps.as_mut(),
-        "user_3".to_string(),
-        ExecuteMsg::CheckpointAll {},
-        time,
-    );
 
     run_query_msg_expect_ok::<GaugeRelativeWeightResponse>(
         GaugeRelativeWeightResponse {

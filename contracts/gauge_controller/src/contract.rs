@@ -4,24 +4,24 @@ use crate::state::{
     USER_VOTES,
 };
 use crate::utils::{
-    calc_new_weight, cancel_scheduled_slope_change, check_if_exists, deserialize_pair,
-    fetch_last_checkpoint, fetch_slope_changes, get_period, query_last_user_slope,
-    query_user_unlock_period, schedule_slope_change, DecimalRoundedCheckedMul, VOTE_DELAY,
+    cancel_scheduled_slope_change, check_if_exists, checkpoint_gauge, deserialize_pair,
+    fetch_lastest_checkpoint, get_gauge_weight_at, get_period, get_total_weight_at,
+    query_last_user_slope, query_user_unlock_period, schedule_slope_change,
+    DecimalRoundedCheckedMul, VOTE_DELAY,
 };
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, Fraction, MessageInfo, Response, Storage,
-    Uint128,
+    to_binary, Binary, Decimal, Deps, DepsMut, Env, Fraction, MessageInfo, Response, Uint128,
 };
 
 use cw_storage_plus::U64Key;
 
 use anchor_token::gauge_controller::{
     AllGaugeAddrResponse, ConfigResponse, ExecuteMsg, GaugeAddrResponse, GaugeCountResponse,
-    GaugeRelativeWeightResponse, GaugeWeightResponse, InstantiateMsg, QueryMsg,
-    TotalWeightResponse,
+    GaugeRelativeWeightAtResponse, GaugeRelativeWeightResponse, GaugeWeightAtResponse,
+    GaugeWeightResponse, InstantiateMsg, QueryMsg, TotalWeightAtResponse, TotalWeightResponse,
 };
 
 use std::cmp::max;
@@ -60,89 +60,29 @@ pub fn execute(
         ExecuteMsg::VoteForGaugeWeight { addr, ratio } => {
             vote_for_gauge_weight(deps, env, info, addr, ratio)
         }
-        ExecuteMsg::CheckpointAll {} => {
-            checkpoint_all(deps.storage, get_period(env.block.time.seconds()))
-        }
-        ExecuteMsg::CheckpointGauge { addr } => checkpoint_gauge(
-            deps.storage,
-            &deps.api.addr_validate(&addr)?,
-            get_period(env.block.time.seconds()),
-        ),
     }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::GaugeCount {} => Ok(to_binary(&query_gauge_count(deps)?)?),
-        QueryMsg::GaugeWeight { addr } => Ok(to_binary(&query_gauge_weight(deps, addr)?)?),
-        QueryMsg::TotalWeight {} => Ok(to_binary(&query_total_weight(deps)?)?),
+        QueryMsg::GaugeWeight { addr } => Ok(to_binary(&query_gauge_weight(deps, env, addr)?)?),
+        QueryMsg::GaugeWeightAt { addr, time } => {
+            Ok(to_binary(&query_gauge_weight_at(deps, addr, time)?)?)
+        }
+        QueryMsg::TotalWeight {} => Ok(to_binary(&query_total_weight(deps, env)?)?),
+        QueryMsg::TotalWeightAt { time } => Ok(to_binary(&query_total_weight_at(deps, time)?)?),
+        QueryMsg::GaugeRelativeWeight { addr } => {
+            Ok(to_binary(&query_gauge_relative_weight(deps, env, addr)?)?)
+        }
+        QueryMsg::GaugeRelativeWeightAt { addr, time } => Ok(to_binary(
+            &query_gauge_relative_weight_at(deps, addr, time)?,
+        )?),
         QueryMsg::GaugeAddr { gauge_id } => Ok(to_binary(&query_gauge_addr(deps, gauge_id)?)?),
         QueryMsg::AllGaugeAddr {} => Ok(to_binary(&query_all_gauge_addr(deps)?)?),
         QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
-        QueryMsg::GaugeRelativeWeight { addr } => {
-            Ok(to_binary(&query_gauge_relative_weight(deps, addr)?)?)
-        }
     }
-}
-
-fn checkpoint_all(storage: &mut dyn Storage, new_period: u64) -> Result<Response, ContractError> {
-    let gauge_count = GAUGE_COUNT.load(storage)?;
-    for i in 0..gauge_count {
-        let addr = GAUGE_ADDR.load(storage, U64Key::new(i))?;
-        checkpoint_gauge(storage, &addr, new_period)?;
-    }
-    Ok(Response::default())
-}
-
-// Fill historic gauge weights week-over-week for missed checkins.
-fn checkpoint_gauge(
-    storage: &mut dyn Storage,
-    addr: &Addr,
-    new_period: u64,
-) -> Result<Response, ContractError> {
-    let last_checkpoint = fetch_last_checkpoint(storage, &addr)?;
-
-    if let Some(pair) = last_checkpoint {
-        let (mut old_period, mut weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
-
-        // cannot happen
-        if new_period < old_period {
-            return Err(ContractError::TimestampError {});
-        }
-
-        // no need to do checkpoint
-        if new_period == old_period {
-            return Ok(Response::default());
-        }
-
-        let scheduled_slope_changes = fetch_slope_changes(storage, &addr, old_period, new_period)?;
-
-        for (recalc_period, scheduled_change) in scheduled_slope_changes {
-            assert!(recalc_period > old_period);
-
-            let dt = recalc_period - old_period;
-
-            weight = calc_new_weight(weight, dt, scheduled_change);
-
-            GAUGE_WEIGHT.save(storage, (addr.clone(), U64Key::new(recalc_period)), &weight)?;
-
-            old_period = recalc_period;
-        }
-
-        let dt = new_period - old_period;
-
-        if dt > 0 {
-            GAUGE_WEIGHT.save(
-                storage,
-                (addr.clone(), U64Key::new(new_period)),
-                &calc_new_weight(weight, dt, Decimal::zero()),
-            )?;
-        }
-    } else {
-        return Err(ContractError::GaugeNotFound {});
-    }
-    Ok(Response::default())
 }
 
 fn add_gauge(
@@ -202,12 +142,12 @@ fn change_gauge_weight(
 
     checkpoint_gauge(deps.storage, &addr, period)?;
 
-    let last_checkpoint = fetch_last_checkpoint(deps.storage, &addr)?;
+    let lastest_checkpoint = fetch_lastest_checkpoint(deps.storage, &addr)?;
 
-    if let Some(pair) = last_checkpoint {
-        let (last_period, last_weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
+    if let Some(pair) = lastest_checkpoint {
+        let (lastest_period, lastest_weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
 
-        if last_period != period {
+        if lastest_period != period {
             return Err(ContractError::TimestampError {});
         }
 
@@ -216,7 +156,7 @@ fn change_gauge_weight(
             (addr.clone(), U64Key::new(period)),
             &GaugeWeight {
                 bias: weight,
-                slope: last_weight.slope,
+                slope: lastest_weight.slope,
             },
         )?;
     } else {
@@ -269,7 +209,7 @@ fn vote_for_gauge_weight(
 
     checkpoint_gauge(deps.storage, &addr, current_period)?;
 
-    if let Some(pair) = fetch_last_checkpoint(deps.storage, &addr)? {
+    if let Some(pair) = fetch_lastest_checkpoint(deps.storage, &addr)? {
         let (period, mut weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
 
         assert_eq!(period, current_period);
@@ -343,50 +283,69 @@ fn vote_for_gauge_weight(
     Ok(Response::default())
 }
 
-fn query_gauge_weight(deps: Deps, addr: String) -> Result<GaugeWeightResponse, ContractError> {
+fn query_gauge_weight(
+    deps: Deps,
+    env: Env,
+    addr: String,
+) -> Result<GaugeWeightResponse, ContractError> {
     let addr = deps.api.addr_validate(&addr)?;
-    let last_checkpoint = fetch_last_checkpoint(deps.storage, &addr)?;
-
-    if let Some(pair) = last_checkpoint {
-        let (_, last_weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
-        return Ok(GaugeWeightResponse {
-            gauge_weight: last_weight.bias,
-        });
-    } else {
-        return Err(ContractError::GaugeNotFound {});
-    }
+    Ok(GaugeWeightResponse {
+        gauge_weight: get_gauge_weight_at(deps.storage, &addr, env.block.time.seconds())?,
+    })
 }
 
-fn query_total_weight(deps: Deps) -> Result<TotalWeightResponse, ContractError> {
-    let gauge_count = GAUGE_COUNT.load(deps.storage)?;
-
-    let mut total_weight = Uint128::zero();
-
-    for i in 0..gauge_count {
-        let addr = GAUGE_ADDR.load(deps.storage, U64Key::new(i))?;
-        let (_, weight) =
-            deserialize_pair::<GaugeWeight>(Ok(
-                fetch_last_checkpoint(deps.storage, &addr)?.unwrap()
-            ))?;
-        total_weight += weight.bias;
-    }
-
+fn query_total_weight(deps: Deps, env: Env) -> Result<TotalWeightResponse, ContractError> {
     Ok(TotalWeightResponse {
-        total_weight: total_weight,
+        total_weight: get_total_weight_at(deps.storage, env.block.time.seconds())?,
     })
 }
 
 fn query_gauge_relative_weight(
     deps: Deps,
+    env: Env,
     addr: String,
 ) -> Result<GaugeRelativeWeightResponse, ContractError> {
-    let gauge_weight = query_gauge_weight(deps, addr)?.gauge_weight;
-    let total_weight = query_total_weight(deps)?.total_weight;
+    let addr = deps.api.addr_validate(&addr)?;
+    let gauge_weight = get_gauge_weight_at(deps.storage, &addr, env.block.time.seconds())?;
+    let total_weight = get_total_weight_at(deps.storage, env.block.time.seconds())?;
     if total_weight == Uint128::zero() {
         return Err(ContractError::TotalWeightIsZero {});
     }
     Ok(GaugeRelativeWeightResponse {
         gauge_relative_weight: Decimal::from_ratio(gauge_weight, total_weight),
+    })
+}
+
+fn query_gauge_weight_at(
+    deps: Deps,
+    addr: String,
+    time: u64,
+) -> Result<GaugeWeightAtResponse, ContractError> {
+    let addr = deps.api.addr_validate(&addr)?;
+    Ok(GaugeWeightAtResponse {
+        gauge_weight_at: get_gauge_weight_at(deps.storage, &addr, time)?,
+    })
+}
+
+fn query_total_weight_at(deps: Deps, time: u64) -> Result<TotalWeightAtResponse, ContractError> {
+    Ok(TotalWeightAtResponse {
+        total_weight_at: get_total_weight_at(deps.storage, time)?,
+    })
+}
+
+fn query_gauge_relative_weight_at(
+    deps: Deps,
+    addr: String,
+    time: u64,
+) -> Result<GaugeRelativeWeightAtResponse, ContractError> {
+    let addr = deps.api.addr_validate(&addr)?;
+    let gauge_weight = get_gauge_weight_at(deps.storage, &addr, time)?;
+    let total_weight = get_total_weight_at(deps.storage, time)?;
+    if total_weight == Uint128::zero() {
+        return Err(ContractError::TotalWeightIsZero {});
+    }
+    Ok(GaugeRelativeWeightAtResponse {
+        gauge_relative_weight_at: Decimal::from_ratio(gauge_weight, total_weight),
     })
 }
 

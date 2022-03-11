@@ -1,7 +1,7 @@
 use crate::error::ContractError;
 use crate::state::{
     GaugeWeight, UserSlopResponse, UserUnlockPeriodResponse, VotingEscrowContractQueryMsg, CONFIG,
-    GAUGE_WEIGHT, SLOPE_CHANGES,
+    GAUGE_ADDR, GAUGE_COUNT, GAUGE_WEIGHT, SLOPE_CHANGES,
 };
 
 #[cfg(not(feature = "library"))]
@@ -50,7 +50,7 @@ pub(crate) fn query_user_unlock_period(deps: Deps, user: Addr) -> Result<u64, Co
         .unlock_period)
 }
 
-pub(crate) fn fetch_last_checkpoint(
+pub(crate) fn fetch_lastest_checkpoint(
     storage: &dyn Storage,
     addr: &Addr,
 ) -> Result<Option<Pair<GaugeWeight>>, ContractError> {
@@ -139,7 +139,7 @@ pub(crate) fn deserialize_pair<T>(pair: StdResult<Pair<T>>) -> Result<(u64, T), 
 }
 
 pub(crate) fn check_if_exists(storage: &dyn Storage, addr: &Addr) -> bool {
-    if let Ok(last_checkpoint) = fetch_last_checkpoint(storage, addr) {
+    if let Ok(last_checkpoint) = fetch_lastest_checkpoint(storage, addr) {
         if let Some(_) = last_checkpoint {
             return true;
         }
@@ -189,4 +189,118 @@ pub(crate) fn calc_new_weight(weight: GaugeWeight, dt: u64, slope_change: Decima
         bias: weight.bias.saturating_sub(slope.checked_mul(dt).unwrap()),
         slope: max(slope - slope_change, Decimal::zero()),
     }
+}
+
+fn fetch_lastest_checkpoint_before(
+    storage: &dyn Storage,
+    addr: &Addr,
+    period: u64,
+) -> Result<Option<Pair<GaugeWeight>>, ContractError> {
+    GAUGE_WEIGHT
+        .prefix(addr.clone())
+        .range(
+            storage,
+            None,
+            Some(Bound::Inclusive(U64Key::new(period).wrapped.clone())),
+            Order::Descending,
+        )
+        .next()
+        .transpose()
+        .map_err(|_| ContractError::DeserializationError {})
+}
+
+pub(crate) fn get_gauge_weight_at(
+    storage: &dyn Storage,
+    addr: &Addr,
+    time: u64,
+) -> Result<Uint128, ContractError> {
+    let period = get_period(time);
+
+    let lastest_checkpoint_before_period = fetch_lastest_checkpoint_before(storage, &addr, period)?;
+
+    if let Some(pair) = lastest_checkpoint_before_period {
+        let (mut old_period, mut weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
+        if old_period == period {
+            return Ok(weight.bias);
+        }
+        let scheduled_slope_changes = fetch_slope_changes(storage, &addr, old_period, period)?;
+        for (recalc_period, scheduled_change) in scheduled_slope_changes {
+            assert!(recalc_period > old_period);
+            let dt = recalc_period - old_period;
+            weight = calc_new_weight(weight, dt, scheduled_change);
+            old_period = recalc_period;
+        }
+        let dt = period - old_period;
+        if dt > 0 {
+            weight = calc_new_weight(weight, dt, Decimal::zero());
+        }
+        return Ok(weight.bias);
+    }
+
+    Err(ContractError::GaugeNotFound {})
+}
+
+pub(crate) fn get_total_weight_at(
+    storage: &dyn Storage,
+    time: u64,
+) -> Result<Uint128, ContractError> {
+    let gauge_count = GAUGE_COUNT.load(storage)?;
+    let mut total_weight = Uint128::zero();
+
+    for i in 0..gauge_count {
+        let addr = GAUGE_ADDR.load(storage, U64Key::new(i))?;
+        total_weight += get_gauge_weight_at(storage, &addr, time)?;
+    }
+
+    Ok(total_weight)
+}
+
+// Fill historic gauge weights week-over-week for missed checkins.
+pub(crate) fn checkpoint_gauge(
+    storage: &mut dyn Storage,
+    addr: &Addr,
+    new_period: u64,
+) -> Result<Response, ContractError> {
+    let lastest_checkpoint = fetch_lastest_checkpoint(storage, &addr)?;
+
+    if let Some(pair) = lastest_checkpoint {
+        let (mut old_period, mut weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
+
+        // cannot happen
+        if new_period < old_period {
+            return Err(ContractError::TimestampError {});
+        }
+
+        // no need to do checkpoint
+        if new_period == old_period {
+            return Ok(Response::default());
+        }
+
+        let scheduled_slope_changes = fetch_slope_changes(storage, &addr, old_period, new_period)?;
+
+        for (recalc_period, scheduled_change) in scheduled_slope_changes {
+            assert!(recalc_period > old_period);
+
+            let dt = recalc_period - old_period;
+
+            weight = calc_new_weight(weight, dt, scheduled_change);
+
+            GAUGE_WEIGHT.save(storage, (addr.clone(), U64Key::new(recalc_period)), &weight)?;
+
+            old_period = recalc_period;
+        }
+
+        let dt = new_period - old_period;
+
+        if dt > 0 {
+            GAUGE_WEIGHT.save(
+                storage,
+                (addr.clone(), U64Key::new(new_period)),
+                &calc_new_weight(weight, dt, Decimal::zero()),
+            )?;
+        }
+    } else {
+        return Err(ContractError::GaugeNotFound {});
+    }
+    Ok(Response::default())
 }

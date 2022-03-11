@@ -4,8 +4,8 @@ use std::fs::create_dir_all;
 
 use anchor_token::gauge_controller::{
     AllGaugeAddrResponse, ConfigResponse, ExecuteMsg, GaugeAddrResponse, GaugeCountResponse,
-    GaugeRelativeWeightResponse, GaugeWeightResponse, InstantiateMsg, QueryMsg,
-    TotalWeightResponse,
+    GaugeRelativeWeightAtResponse, GaugeRelativeWeightResponse, GaugeWeightAtResponse,
+    GaugeWeightResponse, InstantiateMsg, QueryMsg, TotalWeightAtResponse, TotalWeightResponse,
 };
 
 fn main() {
@@ -15,8 +15,11 @@ fn main() {
     remove_schemas(&out_dir).unwrap();
 
     export_schema(&schema_for!(GaugeWeightResponse), &out_dir);
+    export_schema(&schema_for!(GaugeWeightAtResponse), &out_dir);
     export_schema(&schema_for!(TotalWeightResponse), &out_dir);
+    export_schema(&schema_for!(TotalWeightAtResponse), &out_dir);
     export_schema(&schema_for!(GaugeRelativeWeightResponse), &out_dir);
+    export_schema(&schema_for!(GaugeRelativeWeightAtResponse), &out_dir);
     export_schema(&schema_for!(GaugeCountResponse), &out_dir);
     export_schema(&schema_for!(GaugeAddrResponse), &out_dir);
     export_schema(&schema_for!(AllGaugeAddrResponse), &out_dir);

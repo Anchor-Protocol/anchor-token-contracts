@@ -37,11 +37,105 @@
     {
       "type": "object",
       "required": [
+        "gauge_weight_at"
+      ],
+      "properties": {
+        "gauge_weight_at": {
+          "type": "object",
+          "required": [
+            "addr",
+            "time"
+          ],
+          "properties": {
+            "addr": {
+              "type": "string"
+            },
+            "time": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "total_weight"
       ],
       "properties": {
         "total_weight": {
           "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "total_weight_at"
+      ],
+      "properties": {
+        "total_weight_at": {
+          "type": "object",
+          "required": [
+            "time"
+          ],
+          "properties": {
+            "time": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "gauge_relative_weight"
+      ],
+      "properties": {
+        "gauge_relative_weight": {
+          "type": "object",
+          "required": [
+            "addr"
+          ],
+          "properties": {
+            "addr": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "gauge_relative_weight_at"
+      ],
+      "properties": {
+        "gauge_relative_weight_at": {
+          "type": "object",
+          "required": [
+            "addr",
+            "time"
+          ],
+          "properties": {
+            "addr": {
+              "type": "string"
+            },
+            "time": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
         }
       },
       "additionalProperties": false
@@ -88,26 +182,6 @@
       "properties": {
         "config": {
           "type": "object"
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "gauge_relative_weight"
-      ],
-      "properties": {
-        "gauge_relative_weight": {
-          "type": "object",
-          "required": [
-            "addr"
-          ],
-          "properties": {
-            "addr": {
-              "type": "string"
-            }
-          }
         }
       },
       "additionalProperties": false
