@@ -6,7 +6,8 @@ use crate::utils::{VOTE_DELAY, WEEK};
 
 use anchor_token::gauge_controller::{
     AllGaugeAddrResponse, ConfigResponse, ExecuteMsg, GaugeAddrResponse, GaugeCountResponse,
-    GaugeRelativeWeightResponse, GaugeWeightResponse, InstantiateMsg, QueryMsg,
+    GaugeRelativeWeightAtResponse, GaugeRelativeWeightResponse, GaugeWeightAtResponse,
+    GaugeWeightResponse, InstantiateMsg, QueryMsg, TotalWeightAtResponse, TotalWeightResponse,
 };
 
 use cosmwasm_std::testing::{mock_env, mock_info};
@@ -124,6 +125,15 @@ fn test_add_two_gauges_and_change_weight() {
         deps.as_ref(),
         QueryMsg::GaugeWeight {
             addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+
+    run_query_msg_expect_error(
+        ContractError::GaugeNotFound {},
+        deps.as_ref(),
+        QueryMsg::GaugeWeight {
+            addr: "gauge_addr_2".to_string(),
         },
         time,
     );
@@ -468,6 +478,18 @@ fn test_vote_for_single_gauge_by_multiple_users() {
         time,
     );
 
+    run_query_msg_expect_ok::<GaugeWeightAtResponse>(
+        GaugeWeightAtResponse {
+            gauge_weight_at: Uint128::from(19956276_u64),
+        },
+        deps.as_ref(),
+        QueryMsg::GaugeWeightAt {
+            addr: "gauge_addr_1".to_string(),
+            time: time + 73 * WEEK,
+        },
+        time,
+    );
+
     time += 23 * WEEK;
 
     run_query_msg_expect_ok::<GaugeWeightResponse>(
@@ -503,6 +525,18 @@ fn test_vote_for_single_gauge_by_multiple_users() {
         deps.as_ref(),
         QueryMsg::GaugeWeight {
             addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+
+    run_query_msg_expect_ok::<GaugeWeightAtResponse>(
+        GaugeWeightAtResponse {
+            gauge_weight_at: Uint128::from(908414277_u64),
+        },
+        deps.as_ref(),
+        QueryMsg::GaugeWeightAt {
+            addr: "gauge_addr_1".to_string(),
+            time: time - 73 * WEEK,
         },
         time,
     );
@@ -590,6 +624,32 @@ fn test_vote_for_multiple_gauges_by_single_user() {
         time,
     );
 
+    run_query_msg_expect_ok::<GaugeRelativeWeightAtResponse>(
+        GaugeRelativeWeightAtResponse {
+            gauge_relative_weight_at: Decimal::from_ratio(
+                Uint128::from(23333_u64),
+                Uint128::from(66666_u64 + 23333_u64),
+            ),
+        },
+        deps.as_ref(),
+        QueryMsg::GaugeRelativeWeightAt {
+            addr: "gauge_addr_1".to_string(),
+            time: time + 117 * WEEK,
+        },
+        time,
+    );
+
+    run_query_msg_expect_ok::<TotalWeightAtResponse>(
+        TotalWeightAtResponse {
+            total_weight_at: Uint128::from(66666_u64 + 23333_u64),
+        },
+        deps.as_ref(),
+        QueryMsg::TotalWeightAt {
+            time: time + 117 * WEEK,
+        },
+        time,
+    );
+
     time += 17 * WEEK;
 
     run_query_msg_expect_ok::<GaugeRelativeWeightResponse>(
@@ -618,6 +678,30 @@ fn test_vote_for_multiple_gauges_by_single_user() {
         deps.as_ref(),
         QueryMsg::GaugeRelativeWeight {
             addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+
+    run_query_msg_expect_ok::<TotalWeightResponse>(
+        TotalWeightResponse {
+            total_weight: Uint128::from(66666_u64 + 23333_u64),
+        },
+        deps.as_ref(),
+        QueryMsg::TotalWeight {},
+        time,
+    );
+
+    run_query_msg_expect_ok::<GaugeRelativeWeightAtResponse>(
+        GaugeRelativeWeightAtResponse {
+            gauge_relative_weight_at: Decimal::from_ratio(
+                Uint128::from(434958398_u64),
+                Uint128::from(563375954_u64 + 434958398_u64),
+            ),
+        },
+        deps.as_ref(),
+        QueryMsg::GaugeRelativeWeightAt {
+            addr: "gauge_addr_1".to_string(),
+            time: time - 117 * WEEK,
         },
         time,
     );

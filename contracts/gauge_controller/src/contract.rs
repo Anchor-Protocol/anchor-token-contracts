@@ -143,24 +143,20 @@ fn change_gauge_weight(
 
     let lastest_checkpoint = fetch_lastest_checkpoint(deps.storage, &addr)?;
 
-    if let Some(pair) = lastest_checkpoint {
-        let (lastest_period, lastest_weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
+    let pair = lastest_checkpoint.unwrap();
+    let (lastest_period, lastest_weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
 
-        if lastest_period != period {
-            return Err(ContractError::TimestampError {});
-        }
+    assert_eq!(lastest_period, period);
 
-        GAUGE_WEIGHT.save(
-            deps.storage,
-            (addr.clone(), U64Key::new(period)),
-            &GaugeWeight {
-                bias: weight,
-                slope: lastest_weight.slope,
-            },
-        )?;
-    } else {
-        return Err(ContractError::GaugeNotFound {});
-    }
+    GAUGE_WEIGHT.save(
+        deps.storage,
+        (addr.clone(), U64Key::new(period)),
+        &GaugeWeight {
+            bias: weight,
+            slope: lastest_weight.slope,
+        },
+    )?;
+
     Ok(Response::default())
 }
 
@@ -208,53 +204,43 @@ fn vote_for_gauge_weight(
 
     checkpoint_gauge(deps.storage, &addr, current_period)?;
 
-    if let Some(pair) = fetch_lastest_checkpoint(deps.storage, &addr)? {
-        let (period, mut weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
+    let pair = fetch_lastest_checkpoint(deps.storage, &addr)?.unwrap();
+    let (period, mut weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
 
-        assert_eq!(period, current_period);
+    assert_eq!(period, current_period);
 
-        let dt = user_unlock_period - current_period;
+    let dt = user_unlock_period - current_period;
 
-        weight.slope = weight.slope + user_slope;
-        weight.bias = weight.bias + user_slope.checked_mul(dt)?;
+    weight.slope = weight.slope + user_slope;
+    weight.bias = weight.bias + user_slope.checked_mul(dt)?;
 
-        schedule_slope_change(deps.storage, &addr, user_slope, user_unlock_period)?;
+    schedule_slope_change(deps.storage, &addr, user_slope, user_unlock_period)?;
 
-        match USER_VOTES.may_load(deps.storage, (sender.clone(), addr.clone()))? {
-            Some(vote) => {
-                if vote.unlock_period > current_period {
-                    let dt = vote.unlock_period - current_period;
+    match USER_VOTES.may_load(deps.storage, (sender.clone(), addr.clone()))? {
+        Some(vote) => {
+            if vote.unlock_period > current_period {
+                let dt = vote.unlock_period - current_period;
 
-                    weight.slope = max(weight.slope - vote.slope, Decimal::zero());
-                    weight.bias = weight.bias.saturating_sub(vote.slope.checked_mul(dt)?);
+                weight.slope = max(weight.slope - vote.slope, Decimal::zero());
+                weight.bias = weight.bias.saturating_sub(vote.slope.checked_mul(dt)?);
 
-                    cancel_scheduled_slope_change(
-                        deps.storage,
-                        &addr,
-                        vote.slope,
-                        vote.unlock_period,
-                    )?;
-                }
-
-                USER_RATIO.update(
-                    deps.storage,
-                    sender.clone(),
-                    |ratio_opt| -> Result<u64, ContractError> {
-                        Ok(ratio_opt.unwrap() - vote.ratio)
-                    },
-                )?;
+                cancel_scheduled_slope_change(deps.storage, &addr, vote.slope, vote.unlock_period)?;
             }
-            None => (),
-        }
 
-        GAUGE_WEIGHT.save(
-            deps.storage,
-            (addr.clone(), U64Key::new(current_period)),
-            &weight,
-        )?;
-    } else {
-        assert!(false);
+            USER_RATIO.update(
+                deps.storage,
+                sender.clone(),
+                |ratio_opt| -> Result<u64, ContractError> { Ok(ratio_opt.unwrap() - vote.ratio) },
+            )?;
+        }
+        None => (),
     }
+
+    GAUGE_WEIGHT.save(
+        deps.storage,
+        (addr.clone(), U64Key::new(current_period)),
+        &weight,
+    )?;
 
     USER_VOTES.save(
         deps.storage,
