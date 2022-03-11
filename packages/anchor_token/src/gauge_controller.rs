@@ -15,8 +15,6 @@ pub enum ExecuteMsg {
     AddGauge { addr: String, weight: Uint128 },
     ChangeGaugeWeight { addr: String, weight: Uint128 },
     VoteForGaugeWeight { addr: String, ratio: u64 },
-    CheckpointAll {},
-    CheckpointGauge { addr: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -24,12 +22,14 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     GaugeCount {},
     GaugeWeight { addr: String },
+    GaugeWeightAt { addr: String, time: u64 },
     TotalWeight {},
-
+    TotalWeightAt { time: u64 },
+    GaugeRelativeWeight { addr: String },
+    GaugeRelativeWeightAt { addr: String, time: u64 },
     GaugeAddr { gauge_id: u64 },
     AllGaugeAddr {},
     Config {},
-    GaugeRelativeWeight { addr: String },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -38,13 +38,28 @@ pub struct GaugeWeightResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+pub struct GaugeWeightAtResponse {
+    pub gauge_weight_at: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct TotalWeightResponse {
     pub total_weight: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+pub struct TotalWeightAtResponse {
+    pub total_weight_at: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 pub struct GaugeRelativeWeightResponse {
     pub gauge_relative_weight: Decimal,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+pub struct GaugeRelativeWeightAtResponse {
+    pub gauge_relative_weight_at: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]

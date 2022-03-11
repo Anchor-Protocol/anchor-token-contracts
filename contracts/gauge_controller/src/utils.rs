@@ -96,6 +96,7 @@ pub(crate) fn cancel_scheduled_slope_change(
     }
 
     let key = (addr.clone(), U64Key::new(period));
+
     if let Some(old_scheduled_slope_change) = SLOPE_CHANGES.may_load(storage, key.clone())? {
         let new_slope = max(old_scheduled_slope_change - slope, Decimal::zero());
         if new_slope.is_zero() {
@@ -104,6 +105,7 @@ pub(crate) fn cancel_scheduled_slope_change(
             SLOPE_CHANGES.save(storage, key.clone(), &new_slope)?;
         }
     }
+
     Ok(Response::default())
 }
 
@@ -116,6 +118,7 @@ pub(crate) fn schedule_slope_change(
     if slope.is_zero() {
         return Ok(Response::default());
     }
+
     SLOPE_CHANGES.update(
         storage,
         (addr.clone(), U64Key::new(period)),
@@ -127,6 +130,7 @@ pub(crate) fn schedule_slope_change(
             }
         },
     )?;
+
     Ok(Response::default())
 }
 
@@ -185,6 +189,7 @@ impl DecimalRoundedCheckedMul for Decimal {
 
 pub(crate) fn calc_new_weight(weight: GaugeWeight, dt: u64, slope_change: Decimal) -> GaugeWeight {
     let slope = weight.slope;
+
     GaugeWeight {
         bias: weight.bias.saturating_sub(slope.checked_mul(dt).unwrap()),
         slope: max(slope - slope_change, Decimal::zero()),
@@ -220,20 +225,26 @@ pub(crate) fn get_gauge_weight_at(
 
     if let Some(pair) = lastest_checkpoint_before_period {
         let (mut old_period, mut weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
+
         if old_period == period {
             return Ok(weight.bias);
         }
+
         let scheduled_slope_changes = fetch_slope_changes(storage, &addr, old_period, period)?;
+
         for (recalc_period, scheduled_change) in scheduled_slope_changes {
             assert!(recalc_period > old_period);
             let dt = recalc_period - old_period;
             weight = calc_new_weight(weight, dt, scheduled_change);
             old_period = recalc_period;
         }
+
         let dt = period - old_period;
+
         if dt > 0 {
             weight = calc_new_weight(weight, dt, Decimal::zero());
         }
+
         return Ok(weight.bias);
     }
 
@@ -280,14 +291,12 @@ pub(crate) fn checkpoint_gauge(
 
         for (recalc_period, scheduled_change) in scheduled_slope_changes {
             assert!(recalc_period > old_period);
-
             let dt = recalc_period - old_period;
 
             weight = calc_new_weight(weight, dt, scheduled_change);
+            old_period = recalc_period;
 
             GAUGE_WEIGHT.save(storage, (addr.clone(), U64Key::new(recalc_period)), &weight)?;
-
-            old_period = recalc_period;
         }
 
         let dt = new_period - old_period;
@@ -302,5 +311,6 @@ pub(crate) fn checkpoint_gauge(
     } else {
         return Err(ContractError::GaugeNotFound {});
     }
+
     Ok(Response::default())
 }

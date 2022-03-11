@@ -107,7 +107,6 @@ fn add_gauge(
     let gauge_count = GAUGE_COUNT.load(deps.storage)?;
 
     GAUGE_ADDR.save(deps.storage, U64Key::new(gauge_count), &addr)?;
-
     GAUGE_COUNT.save(deps.storage, &(gauge_count + 1))?;
 
     let period = get_period(env.block.time.seconds());
@@ -308,9 +307,11 @@ fn query_gauge_relative_weight(
     let addr = deps.api.addr_validate(&addr)?;
     let gauge_weight = get_gauge_weight_at(deps.storage, &addr, env.block.time.seconds())?;
     let total_weight = get_total_weight_at(deps.storage, env.block.time.seconds())?;
+
     if total_weight == Uint128::zero() {
         return Err(ContractError::TotalWeightIsZero {});
     }
+
     Ok(GaugeRelativeWeightResponse {
         gauge_relative_weight: Decimal::from_ratio(gauge_weight, total_weight),
     })
@@ -322,6 +323,7 @@ fn query_gauge_weight_at(
     time: u64,
 ) -> Result<GaugeWeightAtResponse, ContractError> {
     let addr = deps.api.addr_validate(&addr)?;
+
     Ok(GaugeWeightAtResponse {
         gauge_weight_at: get_gauge_weight_at(deps.storage, &addr, time)?,
     })
@@ -341,9 +343,11 @@ fn query_gauge_relative_weight_at(
     let addr = deps.api.addr_validate(&addr)?;
     let gauge_weight = get_gauge_weight_at(deps.storage, &addr, time)?;
     let total_weight = get_total_weight_at(deps.storage, time)?;
+
     if total_weight == Uint128::zero() {
         return Err(ContractError::TotalWeightIsZero {});
     }
+
     Ok(GaugeRelativeWeightAtResponse {
         gauge_relative_weight_at: Decimal::from_ratio(gauge_weight, total_weight),
     })
