@@ -48,21 +48,29 @@ impl WasmMockQuerier {
                 contract_addr: _,
                 msg,
             }) => match from_binary(msg).unwrap() {
-                VotingEscrowContractQueryMsg::LastUserSlope { user: _ } => {
+                VotingEscrowContractQueryMsg::LastUserSlope { user } => {
+                    let slope = if user == String::from("user_1") {
+                        Decimal::from_ratio(Uint128::from(998244353_u64), Uint128::from(100_u64))
+                    } else if user == String::from("user_2") {
+                        Decimal::from_ratio(Uint128::from(1000000007_u64), Uint128::from(66_u64))
+                    } else {
+                        panic!("INVALID USER");
+                    };
                     SystemResult::Ok(ContractResult::Ok(
-                        to_binary(&UserSlopResponse {
-                            slope: Decimal::from_ratio(
-                                Uint128::from(998244353_u64),
-                                Uint128::from(100_u64),
-                            ),
-                        })
-                        .unwrap(),
+                        to_binary(&UserSlopResponse { slope: slope }).unwrap(),
                     ))
                 }
-                VotingEscrowContractQueryMsg::UserUnlockPeriod { user: _ } => {
+                VotingEscrowContractQueryMsg::UserUnlockPeriod { user } => {
+                    let time = if user == String::from("user_1") {
+                        BASE_TIME + WEEK * 100
+                    } else if user == String::from("user_2") {
+                        BASE_TIME + WEEK * 66
+                    } else {
+                        panic!("INVALID USER");
+                    };
                     SystemResult::Ok(ContractResult::Ok(
                         to_binary(&UserUnlockPeriodResponse {
-                            unlock_period: get_period(BASE_TIME + WEEK * 100),
+                            unlock_period: get_period(time),
                         })
                         .unwrap(),
                     ))

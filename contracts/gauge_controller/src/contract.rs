@@ -1,6 +1,7 @@
 use crate::error::ContractError;
 use crate::state::{
-    Config, GaugeWeight, UserVote, CONFIG, GAUGE_ADDR, GAUGE_COUNT, GAUGE_WEIGHT, USER_VOTES,
+    Config, GaugeWeight, UserVote, CONFIG, GAUGE_ADDR, GAUGE_COUNT, GAUGE_WEIGHT, USER_RATIO,
+    USER_VOTES,
 };
 use crate::utils::{
     calc_new_weight, cancel_scheduled_slope_change, check_if_exists, deserialize_pair,
@@ -11,7 +12,8 @@ use crate::utils::{
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response, Storage, Uint128,
+    to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, Fraction, MessageInfo, Response, Storage,
+    Uint128,
 };
 
 use cw_storage_plus::U64Key;
@@ -55,8 +57,8 @@ pub fn execute(
         ExecuteMsg::ChangeGaugeWeight { addr, weight } => {
             change_gauge_weight(deps, env, info, addr, weight)
         }
-        ExecuteMsg::VoteForGaugeWeight { addr, voting_ratio } => {
-            vote_for_gauge_weight(deps, env, info, addr, voting_ratio)
+        ExecuteMsg::VoteForGaugeWeight { addr, ratio } => {
+            vote_for_gauge_weight(deps, env, info, addr, ratio)
         }
         ExecuteMsg::CheckpointAll {} => {
             checkpoint_all(deps.storage, get_period(env.block.time.seconds()))
@@ -228,17 +230,29 @@ fn vote_for_gauge_weight(
     env: Env,
     info: MessageInfo,
     addr: String,
-    voting_ratio: u64,
+    ratio: u64,
 ) -> Result<Response, ContractError> {
-    if voting_ratio > 10000_u64 {
+    if ratio > 10000_u64 {
         return Err(ContractError::InvalidVotingRatio {});
     }
 
-    // @TODO: check if the total voting ratio is more than 10000.
-
     let sender = deps.api.addr_validate(info.sender.as_str())?;
-
+    let addr = deps.api.addr_validate(&addr)?;
     let current_period = get_period(env.block.time.seconds());
+
+    if let Some(vote) = USER_VOTES.may_load(deps.storage, (sender.clone(), addr.clone()))? {
+        if current_period < vote.vote_period + VOTE_DELAY {
+            return Err(ContractError::VoteTooOften {});
+        }
+    }
+
+    let used_ratio = USER_RATIO
+        .may_load(deps.storage, sender.clone())?
+        .unwrap_or(0);
+
+    if used_ratio + ratio > 10000_u64 {
+        return Err(ContractError::InsufficientVotingRatio {});
+    }
 
     let user_unlock_period = query_user_unlock_period(deps.as_ref(), sender.clone())?;
 
@@ -249,11 +263,9 @@ fn vote_for_gauge_weight(
     let user_full_slope = query_last_user_slope(deps.as_ref(), sender.clone())?;
 
     let user_slope = Decimal::from_ratio(
-        user_full_slope.checked_mul(voting_ratio)?,
-        Uint128::from(10000_u64),
+        Uint128::from(ratio) * Uint128::from(user_full_slope.numerator()),
+        Uint128::from(10000_u64) * Uint128::from(user_full_slope.denominator()),
     );
-
-    let addr = deps.api.addr_validate(&addr)?;
 
     checkpoint_gauge(deps.storage, &addr, current_period)?;
 
@@ -271,9 +283,6 @@ fn vote_for_gauge_weight(
 
         match USER_VOTES.may_load(deps.storage, (sender.clone(), addr.clone()))? {
             Some(vote) => {
-                if current_period < vote.vote_period + VOTE_DELAY {
-                    return Err(ContractError::VoteTooOften {});
-                }
                 if vote.unlock_period > current_period {
                     let dt = vote.unlock_period - current_period;
 
@@ -287,6 +296,14 @@ fn vote_for_gauge_weight(
                         vote.unlock_period,
                     )?;
                 }
+
+                USER_RATIO.update(
+                    deps.storage,
+                    sender.clone(),
+                    |ratio_opt| -> Result<u64, ContractError> {
+                        Ok(ratio_opt.unwrap() - vote.ratio)
+                    },
+                )?;
             }
             None => (),
         }
@@ -307,6 +324,19 @@ fn vote_for_gauge_weight(
             slope: user_slope,
             vote_period: current_period,
             unlock_period: user_unlock_period,
+            ratio: ratio,
+        },
+    )?;
+
+    USER_RATIO.update(
+        deps.storage,
+        sender.clone(),
+        |ratio_opt| -> Result<u64, ContractError> {
+            if let Some(pratio) = ratio_opt {
+                Ok(pratio + ratio)
+            } else {
+                Ok(ratio)
+            }
         },
     )?;
 
@@ -352,6 +382,9 @@ fn query_gauge_relative_weight(
 ) -> Result<GaugeRelativeWeightResponse, ContractError> {
     let gauge_weight = query_gauge_weight(deps, addr)?.gauge_weight;
     let total_weight = query_total_weight(deps)?.total_weight;
+    if total_weight == Uint128::zero() {
+        return Err(ContractError::TotalWeightIsZero {});
+    }
     Ok(GaugeRelativeWeightResponse {
         gauge_relative_weight: Decimal::from_ratio(gauge_weight, total_weight),
     })

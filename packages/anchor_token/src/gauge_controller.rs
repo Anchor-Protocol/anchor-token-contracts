@@ -14,7 +14,7 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     AddGauge { addr: String, weight: Uint128 },
     ChangeGaugeWeight { addr: String, weight: Uint128 },
-    VoteForGaugeWeight { addr: String, voting_ratio: u64 },
+    VoteForGaugeWeight { addr: String, ratio: u64 },
     CheckpointAll {},
     CheckpointGauge { addr: String },
 }

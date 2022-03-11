@@ -39,6 +39,7 @@ pub struct UserVote {
     pub slope: Decimal,
     pub vote_period: u64,
     pub unlock_period: u64,
+    pub ratio: u64,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
@@ -52,3 +53,5 @@ pub const SLOPE_CHANGES: Map<(Addr, U64Key), Decimal> = Map::new("slope_changes"
 pub const GAUGE_ADDR: Map<U64Key, Addr> = Map::new("gauge_addr");
 
 pub const USER_VOTES: Map<(Addr, Addr), UserVote> = Map::new("user_votes");
+
+pub const USER_RATIO: Map<Addr, u64> = Map::new("user_used_ratio");

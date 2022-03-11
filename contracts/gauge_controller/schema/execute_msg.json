@@ -60,13 +60,13 @@
           "type": "object",
           "required": [
             "addr",
-            "voting_ratio"
+            "ratio"
           ],
           "properties": {
             "addr": {
               "type": "string"
             },
-            "voting_ratio": {
+            "ratio": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0.0

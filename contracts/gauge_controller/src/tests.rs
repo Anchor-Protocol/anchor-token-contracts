@@ -35,178 +35,54 @@ fn proper_initialization() {
     assert_eq!("anchor_voting_escrow", config.anchor_voting_escorw.as_str());
 }
 
-fn run_execute_msg_expect_ok(deps: DepsMut, sender: String, msg: ExecuteMsg, time: Option<u64>) {
+fn run_execute_msg_expect_ok(deps: DepsMut, sender: String, msg: ExecuteMsg, time: u64) {
     let info = mock_info(&sender, &[]);
     let mut env = mock_env();
-    env.block.time = if let Some(time) = time {
-        Timestamp::from_seconds(time)
-    } else {
-        Timestamp::from_seconds(BASE_TIME)
-    };
+    env.block.time = Timestamp::from_seconds(time);
     if let Err(err) = execute(deps, env, info, msg) {
         panic!("{}", err);
     }
 }
 
 fn run_execute_msg_expect_error(
+    expect_err: ContractError,
     deps: DepsMut,
     sender: String,
     msg: ExecuteMsg,
-    time: Option<u64>,
-) -> ContractError {
+    time: u64,
+) {
     let info = mock_info(&sender, &[]);
     let mut env = mock_env();
-    env.block.time = if let Some(time) = time {
-        Timestamp::from_seconds(time)
-    } else {
-        Timestamp::from_seconds(BASE_TIME)
+    env.block.time = Timestamp::from_seconds(time);
+    match execute(deps, env, info, msg) {
+        Err(err) => assert_eq!(expect_err, err),
+        _ => panic!("DO NOT ENTER HERE"),
     };
-    if let Err(err) = execute(deps, env, info, msg) {
-        return err;
-    }
-    panic!("DO NOT ENTER HERE");
 }
 
-fn run_query_msg_expect_ok<T: DeserializeOwned>(deps: Deps, msg: QueryMsg, time: Option<u64>) -> T {
+fn run_query_msg_expect_ok<T: DeserializeOwned + std::cmp::PartialEq + std::fmt::Debug>(
+    expect_response: T,
+    deps: Deps,
+    msg: QueryMsg,
+    time: u64,
+) {
     let mut env = mock_env();
-    env.block.time = if let Some(time) = time {
-        Timestamp::from_seconds(time)
-    } else {
-        Timestamp::from_seconds(BASE_TIME)
-    };
-    from_binary(&query(deps, env, msg).unwrap()).unwrap()
+    env.block.time = Timestamp::from_seconds(time);
+    assert_eq!(
+        expect_response,
+        from_binary(&query(deps, env, msg).unwrap()).unwrap()
+    );
 }
 
-fn run_query_msg_expect_error(deps: Deps, msg: QueryMsg, time: Option<u64>) -> ContractError {
+fn run_query_msg_expect_error(expect_err: ContractError, deps: Deps, msg: QueryMsg, time: u64) {
     let mut env = mock_env();
-    env.block.time = if let Some(time) = time {
-        Timestamp::from_seconds(time)
-    } else {
-        Timestamp::from_seconds(BASE_TIME)
+    env.block.time = Timestamp::from_seconds(time);
+    match query(deps, env, msg) {
+        Err(err) => assert_eq!(expect_err, err),
+        _ => panic!("DO NOT ENTER HERE"),
     };
-    if let Err(err) = query(deps, env, msg) {
-        return err;
-    }
-    panic!("DO NOT ENTER HERE");
 }
 
-#[test]
-fn test_vote_for_single_gauge() {
-    let mut deps = mock_dependencies(&[]);
-    let _res = instantiate(
-        deps.as_mut(),
-        mock_env(),
-        mock_info("addr0000", &[]),
-        InstantiateMsg {
-            owner: "owner".to_string(),
-            anchor_token: "anchor_token".to_string(),
-            anchor_voting_escorw: "anchor_voting_escrow".to_string(),
-        },
-    )
-    .unwrap();
-
-    run_execute_msg_expect_ok(
-        deps.as_mut(),
-        "owner".to_string(),
-        ExecuteMsg::AddGauge {
-            addr: "gauge_addr_1".to_string(),
-            weight: Uint128::from(23333_u64),
-        },
-        None,
-    );
-
-    assert_eq!(
-        ContractError::InvalidVotingRatio {},
-        run_execute_msg_expect_error(
-            deps.as_mut(),
-            "user_1".to_string(),
-            ExecuteMsg::VoteForGaugeWeight {
-                addr: "gauge_addr_1".to_string(),
-                voting_ratio: 10001,
-            },
-            None,
-        )
-    );
-
-    run_execute_msg_expect_ok(
-        deps.as_mut(),
-        "user_1".to_string(),
-        ExecuteMsg::VoteForGaugeWeight {
-            addr: "gauge_addr_1".to_string(),
-            voting_ratio: 10000,
-        },
-        None,
-    );
-
-    assert_eq!(
-        ContractError::VoteTooOften {},
-        run_execute_msg_expect_error(
-            deps.as_mut(),
-            "user_1".to_string(),
-            ExecuteMsg::VoteForGaugeWeight {
-                addr: "gauge_addr_1".to_string(),
-                voting_ratio: 10000,
-            },
-            Some(BASE_TIME + WEEK * (VOTE_DELAY - 1)),
-        )
-    );
-
-    assert_eq!(
-        Uint128::from(23333_u64 + 998244353_u64 - 9982444_u64),
-        run_query_msg_expect_ok::<GaugeWeightResponse>(
-            deps.as_ref(),
-            QueryMsg::GaugeWeight {
-                addr: "gauge_addr_1".to_string()
-            },
-            None,
-        )
-        .gauge_weight
-    );
-
-    run_execute_msg_expect_ok(
-        deps.as_mut(),
-        "owner".to_string(),
-        ExecuteMsg::CheckpointAll {},
-        Some(BASE_TIME + WEEK * VOTE_DELAY),
-    );
-
-    assert_eq!(
-        Uint128::from(23333_u64 + 998244353_u64 - 19964888_u64),
-        run_query_msg_expect_ok::<GaugeWeightResponse>(
-            deps.as_ref(),
-            QueryMsg::GaugeWeight {
-                addr: "gauge_addr_1".to_string()
-            },
-            Some(BASE_TIME + WEEK * VOTE_DELAY),
-        )
-        .gauge_weight
-    );
-
-    run_execute_msg_expect_ok(
-        deps.as_mut(),
-        "user_1".to_string(),
-        ExecuteMsg::VoteForGaugeWeight {
-            addr: "gauge_addr_1".to_string(),
-            voting_ratio: 0,
-        },
-        Some(BASE_TIME + WEEK * VOTE_DELAY),
-    );
-
-    assert_eq!(
-        Uint128::from(23332_u64),
-        run_query_msg_expect_ok::<GaugeWeightResponse>(
-            deps.as_ref(),
-            QueryMsg::GaugeWeight {
-                addr: "gauge_addr_1".to_string()
-            },
-            Some(BASE_TIME + WEEK * VOTE_DELAY),
-        )
-        .gauge_weight
-    );
-}
-
-/// test AddGauge, ChangeGaugeWeight, GaugeCount, GaugeWeight, TotalWeight,  
-/// GaugeRelativeWeight, GaugeAddr, AllGaugeAddr, Config
 #[test]
 fn test_add_two_gauges_and_change_weight() {
     let mut deps = mock_dependencies(&[]);
@@ -222,6 +98,8 @@ fn test_add_two_gauges_and_change_weight() {
     )
     .unwrap();
 
+    let time = BASE_TIME;
+
     run_execute_msg_expect_ok(
         deps.as_mut(),
         "owner".to_string(),
@@ -229,66 +107,63 @@ fn test_add_two_gauges_and_change_weight() {
             addr: "gauge_addr_1".to_string(),
             weight: Uint128::from(100_u64),
         },
-        None,
+        time,
     );
 
-    assert_eq!(
-        1,
-        run_query_msg_expect_ok::<GaugeCountResponse>(deps.as_ref(), QueryMsg::GaugeCount {}, None)
-            .gauge_count
+    run_query_msg_expect_ok::<GaugeCountResponse>(
+        GaugeCountResponse { gauge_count: 1 },
+        deps.as_ref(),
+        QueryMsg::GaugeCount {},
+        time,
     );
 
-    assert_eq!(
-        Uint128::from(100_u64),
-        run_query_msg_expect_ok::<GaugeWeightResponse>(
-            deps.as_ref(),
-            QueryMsg::GaugeWeight {
-                addr: "gauge_addr_1".to_string(),
-            },
-            None,
-        )
-        .gauge_weight
+    run_query_msg_expect_ok::<GaugeWeightResponse>(
+        GaugeWeightResponse {
+            gauge_weight: Uint128::from(100_u64),
+        },
+        deps.as_ref(),
+        QueryMsg::GaugeWeight {
+            addr: "gauge_addr_1".to_string(),
+        },
+        time,
     );
 
-    assert_eq!(
-        "gauge_addr_1".to_string(),
-        run_query_msg_expect_ok::<GaugeAddrResponse>(
-            deps.as_ref(),
-            QueryMsg::GaugeAddr { gauge_id: 0_u64 },
-            None,
-        )
-        .gauge_addr
+    run_query_msg_expect_ok::<GaugeAddrResponse>(
+        GaugeAddrResponse {
+            gauge_addr: "gauge_addr_1".to_string(),
+        },
+        deps.as_ref(),
+        QueryMsg::GaugeAddr { gauge_id: 0_u64 },
+        time,
     );
 
-    assert_eq!(
+    run_query_msg_expect_error(
         ContractError::GaugeNotFound {},
-        run_query_msg_expect_error(deps.as_ref(), QueryMsg::GaugeAddr { gauge_id: 1_u64 }, None)
+        deps.as_ref(),
+        QueryMsg::GaugeAddr { gauge_id: 1_u64 },
+        time,
     );
 
-    assert_eq!(
+    run_execute_msg_expect_error(
         ContractError::GaugeAlreadyExists {},
-        run_execute_msg_expect_error(
-            deps.as_mut(),
-            "owner".to_string(),
-            ExecuteMsg::AddGauge {
-                addr: "gauge_addr_1".to_string(),
-                weight: Uint128::from(100_u64),
-            },
-            None,
-        )
+        deps.as_mut(),
+        "owner".to_string(),
+        ExecuteMsg::AddGauge {
+            addr: "gauge_addr_1".to_string(),
+            weight: Uint128::from(100_u64),
+        },
+        time,
     );
 
-    assert_eq!(
+    run_execute_msg_expect_error(
         ContractError::Unauthorized {},
-        run_execute_msg_expect_error(
-            deps.as_mut(),
-            "addr0000".to_string(),
-            ExecuteMsg::AddGauge {
-                addr: "gauge_addr_2".to_string(),
-                weight: Uint128::from(100_u64),
-            },
-            None,
-        )
+        deps.as_mut(),
+        "addr0000".to_string(),
+        ExecuteMsg::AddGauge {
+            addr: "gauge_addr_2".to_string(),
+            weight: Uint128::from(100_u64),
+        },
+        time,
     );
 
     run_execute_msg_expect_ok(
@@ -298,49 +173,45 @@ fn test_add_two_gauges_and_change_weight() {
             addr: "gauge_addr_2".to_string(),
             weight: Uint128::from(100_u64),
         },
-        None,
+        time,
     );
 
-    assert_eq!(
-        2,
-        run_query_msg_expect_ok::<GaugeCountResponse>(deps.as_ref(), QueryMsg::GaugeCount {}, None)
-            .gauge_count
+    run_query_msg_expect_ok::<GaugeCountResponse>(
+        GaugeCountResponse { gauge_count: 2 },
+        deps.as_ref(),
+        QueryMsg::GaugeCount {},
+        time,
     );
 
-    assert_eq!(
-        vec!["gauge_addr_1".to_string(), "gauge_addr_2".to_string()],
-        run_query_msg_expect_ok::<AllGaugeAddrResponse>(
-            deps.as_ref(),
-            QueryMsg::AllGaugeAddr {},
-            None
-        )
-        .all_gauge_addr
+    run_query_msg_expect_ok::<AllGaugeAddrResponse>(
+        AllGaugeAddrResponse {
+            all_gauge_addr: vec!["gauge_addr_1".to_string(), "gauge_addr_2".to_string()],
+        },
+        deps.as_ref(),
+        QueryMsg::AllGaugeAddr {},
+        time,
     );
 
-    assert_eq!(
+    run_execute_msg_expect_error(
         ContractError::Unauthorized {},
-        run_execute_msg_expect_error(
-            deps.as_mut(),
-            "addr0000".to_string(),
-            ExecuteMsg::ChangeGaugeWeight {
-                addr: "gauge_addr_1".to_string(),
-                weight: Uint128::from(200_u64),
-            },
-            None,
-        )
+        deps.as_mut(),
+        "addr0000".to_string(),
+        ExecuteMsg::ChangeGaugeWeight {
+            addr: "gauge_addr_1".to_string(),
+            weight: Uint128::from(200_u64),
+        },
+        time,
     );
 
-    assert_eq!(
+    run_execute_msg_expect_error(
         ContractError::GaugeNotFound {},
-        run_execute_msg_expect_error(
-            deps.as_mut(),
-            "owner".to_string(),
-            ExecuteMsg::ChangeGaugeWeight {
-                addr: "gauge_addr_3".to_string(),
-                weight: Uint128::from(200_u64),
-            },
-            None,
-        )
+        deps.as_mut(),
+        "owner".to_string(),
+        ExecuteMsg::ChangeGaugeWeight {
+            addr: "gauge_addr_3".to_string(),
+            weight: Uint128::from(200_u64),
+        },
+        time,
     );
 
     run_execute_msg_expect_ok(
@@ -350,43 +221,483 @@ fn test_add_two_gauges_and_change_weight() {
             addr: "gauge_addr_1".to_string(),
             weight: Uint128::from(200_u64),
         },
-        None,
+        time,
     );
 
-    assert_eq!(
-        Uint128::from(200_u64),
-        run_query_msg_expect_ok::<GaugeWeightResponse>(
-            deps.as_ref(),
-            QueryMsg::GaugeWeight {
-                addr: "gauge_addr_1".to_string(),
-            },
-            None,
-        )
-        .gauge_weight
+    run_query_msg_expect_ok::<GaugeWeightResponse>(
+        GaugeWeightResponse {
+            gauge_weight: Uint128::from(200_u64),
+        },
+        deps.as_ref(),
+        QueryMsg::GaugeWeight {
+            addr: "gauge_addr_1".to_string(),
+        },
+        time,
     );
 
-    assert_eq!(
-        Decimal::from_ratio(Uint128::from(2_u64), Uint128::from(3_u64)),
-        run_query_msg_expect_ok::<GaugeRelativeWeightResponse>(
-            deps.as_ref(),
-            QueryMsg::GaugeRelativeWeight {
-                addr: "gauge_addr_1".to_string(),
-            },
-            None,
-        )
-        .gauge_relative_weight
+    run_query_msg_expect_ok::<GaugeRelativeWeightResponse>(
+        GaugeRelativeWeightResponse {
+            gauge_relative_weight: Decimal::from_ratio(Uint128::from(2_u64), Uint128::from(3_u64)),
+        },
+        deps.as_ref(),
+        QueryMsg::GaugeRelativeWeight {
+            addr: "gauge_addr_1".to_string(),
+        },
+        time,
     );
 
-    assert_eq!(
+    run_execute_msg_expect_error(
         ContractError::TimestampError {},
-        run_execute_msg_expect_error(
-            deps.as_mut(),
-            "owner".to_string(),
-            ExecuteMsg::ChangeGaugeWeight {
-                addr: "gauge_addr_2".to_string(),
-                weight: Uint128::from(200_u64),
-            },
-            Some(BASE_TIME - WEEK * 10),
-        )
+        deps.as_mut(),
+        "owner".to_string(),
+        ExecuteMsg::ChangeGaugeWeight {
+            addr: "gauge_addr_2".to_string(),
+            weight: Uint128::from(200_u64),
+        },
+        time - WEEK,
+    );
+}
+
+#[test]
+fn test_vote_for_single_gauge_by_single_user() {
+    let mut deps = mock_dependencies(&[]);
+    let _res = instantiate(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("addr0000", &[]),
+        InstantiateMsg {
+            owner: "owner".to_string(),
+            anchor_token: "anchor_token".to_string(),
+            anchor_voting_escorw: "anchor_voting_escrow".to_string(),
+        },
+    )
+    .unwrap();
+
+    let mut time = BASE_TIME;
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "owner".to_string(),
+        ExecuteMsg::AddGauge {
+            addr: "gauge_addr_1".to_string(),
+            weight: Uint128::from(23333_u64),
+        },
+        time,
+    );
+
+    run_execute_msg_expect_error(
+        ContractError::InvalidVotingRatio {},
+        deps.as_mut(),
+        "user_1".to_string(),
+        ExecuteMsg::VoteForGaugeWeight {
+            addr: "gauge_addr_1".to_string(),
+            ratio: 10001,
+        },
+        time,
+    );
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "user_1".to_string(),
+        ExecuteMsg::VoteForGaugeWeight {
+            addr: "gauge_addr_1".to_string(),
+            ratio: 10000,
+        },
+        time,
+    );
+
+    time += WEEK * (VOTE_DELAY - 1);
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "owner".to_string(),
+        ExecuteMsg::CheckpointGauge {
+            addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+
+    run_execute_msg_expect_error(
+        ContractError::VoteTooOften {},
+        deps.as_mut(),
+        "user_1".to_string(),
+        ExecuteMsg::VoteForGaugeWeight {
+            addr: "gauge_addr_1".to_string(),
+            ratio: 10000,
+        },
+        time,
+    );
+
+    run_query_msg_expect_ok::<GaugeWeightResponse>(
+        GaugeWeightResponse {
+            gauge_weight: Uint128::from(988285242_u64),
+        },
+        deps.as_ref(),
+        QueryMsg::GaugeWeight {
+            addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+
+    time += WEEK;
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "owner".to_string(),
+        ExecuteMsg::CheckpointGauge {
+            addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+
+    run_query_msg_expect_ok::<GaugeWeightResponse>(
+        GaugeWeightResponse {
+            gauge_weight: Uint128::from(978302798_u64),
+        },
+        deps.as_ref(),
+        QueryMsg::GaugeWeight {
+            addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "user_1".to_string(),
+        ExecuteMsg::VoteForGaugeWeight {
+            addr: "gauge_addr_1".to_string(),
+            ratio: 0,
+        },
+        time,
+    );
+
+    run_query_msg_expect_ok::<GaugeWeightResponse>(
+        GaugeWeightResponse {
+            gauge_weight: Uint128::from(23332_u64),
+        },
+        deps.as_ref(),
+        QueryMsg::GaugeWeight {
+            addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+
+    time += 100 * WEEK;
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "owner".to_string(),
+        ExecuteMsg::CheckpointGauge {
+            addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+
+    run_query_msg_expect_ok::<GaugeWeightResponse>(
+        GaugeWeightResponse {
+            gauge_weight: Uint128::from(23332_u64),
+        },
+        deps.as_ref(),
+        QueryMsg::GaugeWeight {
+            addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+
+    run_execute_msg_expect_error(
+        ContractError::LockExpiresTooSoon {},
+        deps.as_mut(),
+        "user_1".to_string(),
+        ExecuteMsg::VoteForGaugeWeight {
+            addr: "gauge_addr_1".to_string(),
+            ratio: 10000,
+        },
+        time,
+    );
+}
+
+#[test]
+fn test_vote_for_single_gauge_by_multiple_users() {
+    let mut deps = mock_dependencies(&[]);
+    let _res = instantiate(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("addr0000", &[]),
+        InstantiateMsg {
+            owner: "owner".to_string(),
+            anchor_token: "anchor_token".to_string(),
+            anchor_voting_escorw: "anchor_voting_escrow".to_string(),
+        },
+    )
+    .unwrap();
+
+    let mut time = BASE_TIME;
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "owner".to_string(),
+        ExecuteMsg::AddGauge {
+            addr: "gauge_addr_1".to_string(),
+            weight: Uint128::from(0_u64),
+        },
+        time,
+    );
+
+    run_query_msg_expect_error(
+        ContractError::TotalWeightIsZero {},
+        deps.as_ref(),
+        QueryMsg::GaugeRelativeWeight {
+            addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "owner".to_string(),
+        ExecuteMsg::ChangeGaugeWeight {
+            addr: "gauge_addr_1".to_string(),
+            weight: Uint128::from(23333_u64),
+        },
+        time,
+    );
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "user_1".to_string(),
+        ExecuteMsg::VoteForGaugeWeight {
+            addr: "gauge_addr_1".to_string(),
+            ratio: 768,
+        },
+        time,
+    );
+
+    time += WEEK;
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "user_2".to_string(),
+        ExecuteMsg::VoteForGaugeWeight {
+            addr: "gauge_addr_1".to_string(),
+            ratio: 8453,
+        },
+        time,
+    );
+
+    run_query_msg_expect_ok::<GaugeWeightResponse>(
+        GaugeWeightResponse {
+            gauge_weight: Uint128::from(908414277_u64),
+        },
+        deps.as_ref(),
+        QueryMsg::GaugeWeight {
+            addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+
+    time += 23 * WEEK;
+
+    run_query_msg_expect_ok::<GaugeWeightResponse>(
+        GaugeWeightResponse {
+            gauge_weight: Uint128::from(908414277_u64),
+        },
+        deps.as_ref(),
+        QueryMsg::GaugeWeight {
+            addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "user_3".to_string(),
+        ExecuteMsg::CheckpointGauge {
+            addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+
+    run_query_msg_expect_ok::<GaugeWeightResponse>(
+        GaugeWeightResponse {
+            gauge_weight: Uint128::from(596207044_u64),
+        },
+        deps.as_ref(),
+        QueryMsg::GaugeWeight {
+            addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+
+    time += 42 * WEEK;
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "user_3".to_string(),
+        ExecuteMsg::CheckpointGauge {
+            addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+
+    run_query_msg_expect_ok::<GaugeWeightResponse>(
+        GaugeWeightResponse {
+            gauge_weight: Uint128::from(26089489_u64),
+        },
+        deps.as_ref(),
+        QueryMsg::GaugeWeight {
+            addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+
+    time += 8 * WEEK;
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "user_3".to_string(),
+        ExecuteMsg::CheckpointGauge {
+            addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+
+    run_query_msg_expect_ok::<GaugeWeightResponse>(
+        GaugeWeightResponse {
+            gauge_weight: Uint128::from(19956276_u64),
+        },
+        deps.as_ref(),
+        QueryMsg::GaugeWeight {
+            addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+}
+
+#[test]
+fn test_vote_for_multiple_gauges_by_single_user() {
+    let mut deps = mock_dependencies(&[]);
+    let _res = instantiate(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("addr0000", &[]),
+        InstantiateMsg {
+            owner: "owner".to_string(),
+            anchor_token: "anchor_token".to_string(),
+            anchor_voting_escorw: "anchor_voting_escrow".to_string(),
+        },
+    )
+    .unwrap();
+
+    let mut time = BASE_TIME;
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "owner".to_string(),
+        ExecuteMsg::AddGauge {
+            addr: "gauge_addr_1".to_string(),
+            weight: Uint128::from(23333_u64),
+        },
+        time,
+    );
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "owner".to_string(),
+        ExecuteMsg::AddGauge {
+            addr: "gauge_addr_2".to_string(),
+            weight: Uint128::from(66666_u64),
+        },
+        time,
+    );
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "user_1".to_string(),
+        ExecuteMsg::VoteForGaugeWeight {
+            addr: "gauge_addr_1".to_string(),
+            ratio: 4357,
+        },
+        time,
+    );
+
+    run_execute_msg_expect_error(
+        ContractError::InsufficientVotingRatio {},
+        deps.as_mut(),
+        "user_1".to_string(),
+        ExecuteMsg::VoteForGaugeWeight {
+            addr: "gauge_addr_2".to_string(),
+            ratio: 5644,
+        },
+        time,
+    );
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "user_1".to_string(),
+        ExecuteMsg::VoteForGaugeWeight {
+            addr: "gauge_addr_2".to_string(),
+            ratio: 5643,
+        },
+        time,
+    );
+
+    run_query_msg_expect_ok::<GaugeRelativeWeightResponse>(
+        GaugeRelativeWeightResponse {
+            gauge_relative_weight: Decimal::from_ratio(
+                Uint128::from(434958398_u64),
+                Uint128::from(563375954_u64 + 434958398_u64),
+            ),
+        },
+        deps.as_ref(),
+        QueryMsg::GaugeRelativeWeight {
+            addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+
+    time += 17 * WEEK;
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "user_3".to_string(),
+        ExecuteMsg::CheckpointAll {},
+        time,
+    );
+
+    run_query_msg_expect_ok::<GaugeRelativeWeightResponse>(
+        GaugeRelativeWeightResponse {
+            gauge_relative_weight: Decimal::from_ratio(
+                Uint128::from(361019437_u64),
+                Uint128::from(467613375_u64 + 361019437_u64),
+            ),
+        },
+        deps.as_ref(),
+        QueryMsg::GaugeRelativeWeight {
+            addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+
+    time += 100 * WEEK;
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "user_3".to_string(),
+        ExecuteMsg::CheckpointAll {},
+        time,
+    );
+
+    run_query_msg_expect_ok::<GaugeRelativeWeightResponse>(
+        GaugeRelativeWeightResponse {
+            gauge_relative_weight: Decimal::from_ratio(
+                Uint128::from(23333_u64),
+                Uint128::from(66666_u64 + 23333_u64),
+            ),
+        },
+        deps.as_ref(),
+        QueryMsg::GaugeRelativeWeight {
+            addr: "gauge_addr_1".to_string(),
+        },
+        time,
     );
 }

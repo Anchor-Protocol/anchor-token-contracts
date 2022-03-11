@@ -94,6 +94,7 @@ pub(crate) fn cancel_scheduled_slope_change(
     if slope.is_zero() {
         return Ok(Response::default());
     }
+
     let key = (addr.clone(), U64Key::new(period));
     if let Some(old_scheduled_slope_change) = SLOPE_CHANGES.may_load(storage, key.clone())? {
         let new_slope = max(old_scheduled_slope_change - slope, Decimal::zero());

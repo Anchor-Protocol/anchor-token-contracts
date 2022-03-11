@@ -32,4 +32,10 @@ pub enum ContractError {
 
     #[error("Vote Too Often")]
     VoteTooOften {},
+
+    #[error("Total Weight Is Zero")]
+    TotalWeightIsZero {},
+
+    #[error("Insufficient Voting Ratio")]
+    InsufficientVotingRatio {},
 }
