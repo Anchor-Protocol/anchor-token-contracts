@@ -368,9 +368,7 @@ fn query_all_gauge_addr(deps: Deps) -> Result<AllGaugeAddrResponse, ContractErro
         all_gauge_addr.push(gauge_addr.to_string());
     }
 
-    Ok(AllGaugeAddrResponse {
-        all_gauge_addr,
-    })
+    Ok(AllGaugeAddrResponse { all_gauge_addr })
 }
 
 fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
