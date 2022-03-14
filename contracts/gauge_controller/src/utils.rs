@@ -6,13 +6,12 @@ use crate::state::{
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
-    to_binary, Addr, Decimal, Deps, Fraction, Order, OverflowError, Pair, QueryRequest, StdResult,
-    Storage, Uint128, Uint256, WasmQuery,
+    to_binary, Addr, Decimal, Deps, Fraction, Order, OverflowError, Pair, QueryRequest, StdError,
+    StdResult, Storage, Uint128, Uint256, WasmQuery,
 };
 
 use cw_storage_plus::{Bound, U64Key};
 
-use std::cmp::max;
 use std::convert::TryInto;
 
 pub(crate) const DAY: u64 = 24 * 60 * 60;
@@ -24,7 +23,7 @@ pub(crate) fn get_period(seconds: u64) -> u64 {
     seconds / WEEK
 }
 
-pub(crate) fn query_last_user_slope(deps: Deps, user: Addr) -> Result<Decimal, ContractError> {
+pub(crate) fn query_last_user_slope(deps: Deps, user: Addr) -> StdResult<Decimal> {
     let anchor_voting_escrow = CONFIG.load(deps.storage)?.anchor_voting_escrow;
     Ok(deps
         .querier
@@ -37,7 +36,7 @@ pub(crate) fn query_last_user_slope(deps: Deps, user: Addr) -> Result<Decimal, C
         .slope)
 }
 
-pub(crate) fn query_user_unlock_period(deps: Deps, user: Addr) -> Result<u64, ContractError> {
+pub(crate) fn query_user_unlock_period(deps: Deps, user: Addr) -> StdResult<u64> {
     let anchor_voting_escrow = CONFIG.load(deps.storage)?.anchor_voting_escrow;
     Ok(deps
         .querier
@@ -53,7 +52,7 @@ pub(crate) fn query_user_unlock_period(deps: Deps, user: Addr) -> Result<u64, Co
 pub(crate) fn fetch_latest_checkpoint(
     storage: &dyn Storage,
     addr: &Addr,
-) -> Result<Option<Pair<GaugeWeight>>, ContractError> {
+) -> StdResult<Option<Pair<GaugeWeight>>> {
     GAUGE_WEIGHT
         .prefix(addr.clone())
         .range(
@@ -64,7 +63,6 @@ pub(crate) fn fetch_latest_checkpoint(
         )
         .next()
         .transpose()
-        .map_err(|_| ContractError::DeserializationError {})
 }
 
 pub(crate) fn fetch_slope_changes(
@@ -72,7 +70,7 @@ pub(crate) fn fetch_slope_changes(
     addr: &Addr,
     from_period: u64,
     to_period: u64,
-) -> Result<Vec<(u64, Decimal)>, ContractError> {
+) -> StdResult<Vec<(u64, Decimal)>> {
     SLOPE_CHANGES
         .prefix(addr.clone())
         .range(
@@ -90,7 +88,7 @@ pub(crate) fn cancel_scheduled_slope_change(
     addr: &Addr,
     slope: Decimal,
     period: u64,
-) -> Result<(), ContractError> {
+) -> StdResult<()> {
     if slope.is_zero() {
         return Ok(());
     }
@@ -98,7 +96,11 @@ pub(crate) fn cancel_scheduled_slope_change(
     let key = (addr.clone(), U64Key::new(period));
 
     if let Some(old_scheduled_slope_change) = SLOPE_CHANGES.may_load(storage, key.clone())? {
-        let new_slope = max(old_scheduled_slope_change - slope, Decimal::zero());
+        let new_slope = if old_scheduled_slope_change > slope {
+            old_scheduled_slope_change - slope
+        } else {
+            Decimal::zero()
+        };
         if new_slope.is_zero() {
             SLOPE_CHANGES.remove(storage, key.clone());
         } else {
@@ -114,7 +116,7 @@ pub(crate) fn schedule_slope_change(
     addr: &Addr,
     slope: Decimal,
     period: u64,
-) -> Result<(), ContractError> {
+) -> StdResult<()> {
     if slope.is_zero() {
         return Ok(());
     }
@@ -122,7 +124,7 @@ pub(crate) fn schedule_slope_change(
     SLOPE_CHANGES.update(
         storage,
         (addr.clone(), U64Key::new(period)),
-        |slope_opt| -> Result<Decimal, ContractError> {
+        |slope_opt| -> StdResult<Decimal> {
             if let Some(pslope) = slope_opt {
                 Ok(pslope + slope)
             } else {
@@ -134,11 +136,11 @@ pub(crate) fn schedule_slope_change(
     Ok(())
 }
 
-pub(crate) fn deserialize_pair<T>(pair: StdResult<Pair<T>>) -> Result<(u64, T), ContractError> {
+pub(crate) fn deserialize_pair<T>(pair: StdResult<Pair<T>>) -> StdResult<(u64, T)> {
     let (period_serialized, change) = pair?;
     let period_bytes: [u8; 8] = period_serialized
         .try_into()
-        .map_err(|_| ContractError::DeserializationError {})?;
+        .map_err(|_| StdError::generic_err("Deserialization error"))?;
     Ok((u64::from_be_bytes(period_bytes), change))
 }
 
@@ -187,20 +189,28 @@ impl DecimalRoundedCheckedMul for Decimal {
     }
 }
 
-pub(crate) fn calc_new_weight(weight: GaugeWeight, dt: u64, slope_change: Decimal) -> GaugeWeight {
+pub(crate) fn calc_new_weight(
+    weight: GaugeWeight,
+    dt: u64,
+    slope_change: Decimal,
+) -> StdResult<GaugeWeight> {
     let slope = weight.slope;
 
-    GaugeWeight {
-        bias: weight.bias.saturating_sub(slope.checked_mul(dt).unwrap()),
-        slope: max(slope - slope_change, Decimal::zero()),
-    }
+    Ok(GaugeWeight {
+        bias: weight.bias.saturating_sub(slope.checked_mul(dt)?),
+        slope: if slope > slope_change {
+            slope - slope_change
+        } else {
+            Decimal::zero()
+        },
+    })
 }
 
 fn fetch_latest_checkpoint_before(
     storage: &dyn Storage,
     addr: &Addr,
     period: u64,
-) -> Result<Option<Pair<GaugeWeight>>, ContractError> {
+) -> StdResult<Option<Pair<GaugeWeight>>> {
     GAUGE_WEIGHT
         .prefix(addr.clone())
         .range(
@@ -211,7 +221,6 @@ fn fetch_latest_checkpoint_before(
         )
         .next()
         .transpose()
-        .map_err(|_| ContractError::DeserializationError {})
 }
 
 pub(crate) fn get_gauge_weight_at(
@@ -235,14 +244,14 @@ pub(crate) fn get_gauge_weight_at(
         for (recalc_period, scheduled_change) in scheduled_slope_changes {
             assert!(recalc_period > old_period);
             let dt = recalc_period - old_period;
-            weight = calc_new_weight(weight, dt, scheduled_change);
+            weight = calc_new_weight(weight, dt, scheduled_change)?;
             old_period = recalc_period;
         }
 
         let dt = period - old_period;
 
         if dt > 0 {
-            weight = calc_new_weight(weight, dt, Decimal::zero());
+            weight = calc_new_weight(weight, dt, Decimal::zero())?;
         }
 
         return Ok(weight.bias);
@@ -290,10 +299,9 @@ pub(crate) fn checkpoint_gauge(
         let scheduled_slope_changes = fetch_slope_changes(storage, &addr, old_period, new_period)?;
 
         for (recalc_period, scheduled_change) in scheduled_slope_changes {
-            assert!(recalc_period > old_period);
             let dt = recalc_period - old_period;
 
-            weight = calc_new_weight(weight, dt, scheduled_change);
+            weight = calc_new_weight(weight, dt, scheduled_change)?;
             old_period = recalc_period;
 
             GAUGE_WEIGHT.save(storage, (addr.clone(), U64Key::new(recalc_period)), &weight)?;
@@ -305,12 +313,11 @@ pub(crate) fn checkpoint_gauge(
             GAUGE_WEIGHT.save(
                 storage,
                 (addr.clone(), U64Key::new(new_period)),
-                &calc_new_weight(weight, dt, Decimal::zero()),
+                &calc_new_weight(weight, dt, Decimal::zero())?,
             )?;
         }
-    } else {
-        return Err(ContractError::GaugeNotFound {});
+        return Ok(());
     }
 
-    Ok(())
+    Err(ContractError::GaugeNotFound {})
 }

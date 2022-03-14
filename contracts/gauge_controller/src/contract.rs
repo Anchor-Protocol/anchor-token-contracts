@@ -24,8 +24,6 @@ use anchor_token::gauge_controller::{
     GaugeWeightResponse, InstantiateMsg, QueryMsg, TotalWeightAtResponse, TotalWeightResponse,
 };
 
-use std::cmp::max;
-
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -178,8 +176,9 @@ fn vote_for_gauge_weight(
     let sender = info.sender;
     let addr = deps.api.addr_validate(&gauge_addr)?;
     let current_period = get_period(env.block.time.seconds());
-
+    let mut old_ratio = 0;
     if let Some(vote) = USER_VOTES.may_load(deps.storage, (sender.clone(), addr.clone()))? {
+        old_ratio = vote.ratio;
         if current_period < vote.vote_period + VOTE_DELAY {
             return Err(ContractError::VoteTooOften {});
         }
@@ -189,7 +188,7 @@ fn vote_for_gauge_weight(
         .may_load(deps.storage, sender.clone())?
         .unwrap_or(0);
 
-    if used_ratio + ratio > 10000_u64 {
+    if used_ratio - old_ratio + ratio > 10000_u64 {
         return Err(ContractError::InsufficientVotingRatio {});
     }
 
@@ -202,8 +201,8 @@ fn vote_for_gauge_weight(
     let user_full_slope = query_last_user_slope(deps.as_ref(), sender.clone())?;
 
     let user_slope = Decimal::from_ratio(
-        Uint128::from(ratio) * Uint128::from(user_full_slope.numerator()),
-        Uint128::from(10000_u64) * Uint128::from(user_full_slope.denominator()),
+        Uint128::from(ratio).checked_mul(Uint128::from(user_full_slope.numerator()))?,
+        Uint128::from(10000_u64).checked_mul(Uint128::from(user_full_slope.denominator()))?,
     );
 
     checkpoint_gauge(deps.storage, &addr, current_period)?;
@@ -223,7 +222,11 @@ fn vote_for_gauge_weight(
             if vote.unlock_period > current_period {
                 let dt = vote.unlock_period - current_period;
 
-                weight.slope = max(weight.slope - vote.slope, Decimal::zero());
+                weight.slope = if weight.slope > vote.slope {
+                    weight.slope - vote.slope
+                } else {
+                    Decimal::zero()
+                };
                 weight.bias = weight.bias.saturating_sub(vote.slope.checked_mul(dt)?);
 
                 cancel_scheduled_slope_change(deps.storage, &addr, vote.slope, vote.unlock_period)?;
@@ -236,7 +239,7 @@ fn vote_for_gauge_weight(
             )?;
         }
         None => (),
-    }
+    };
 
     GAUGE_WEIGHT.save(
         deps.storage,

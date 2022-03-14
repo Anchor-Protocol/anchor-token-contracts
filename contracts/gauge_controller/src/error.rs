@@ -18,9 +18,6 @@ pub enum ContractError {
     #[error("Gauge Already Exists")]
     GaugeAlreadyExists {},
 
-    #[error("Deserialization Error")]
-    DeserializationError {},
-
     #[error("Timestamp Error")]
     TimestampError {},
 

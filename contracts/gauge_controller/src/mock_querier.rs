@@ -53,6 +53,8 @@ impl WasmMockQuerier {
                         Decimal::from_ratio(Uint128::from(998244353_u64), Uint128::from(100_u64))
                     } else if user == String::from("user_2") {
                         Decimal::from_ratio(Uint128::from(1000000007_u64), Uint128::from(66_u64))
+                    } else if user == String::from("user_3") {
+                        Decimal::from_ratio(Uint128::from(847426363_u64), Uint128::from(100_u64))
                     } else {
                         panic!("INVALID USER");
                     };
@@ -65,6 +67,8 @@ impl WasmMockQuerier {
                         BASE_TIME + WEEK * 100
                     } else if user == String::from("user_2") {
                         BASE_TIME + WEEK * 66
+                    } else if user == String::from("user_3") {
+                        BASE_TIME + WEEK * 100
                     } else {
                         panic!("INVALID USER");
                     };
