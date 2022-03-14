@@ -900,3 +900,64 @@ fn test_overflow() {
         _ => panic!("DO NOT ENTER HERE"),
     }
 }
+
+#[test]
+fn test_bias_be_negative() {
+    let mut deps = mock_dependencies(&[]);
+    let _res = instantiate(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("addr0000", &[]),
+        InstantiateMsg {
+            owner: "owner".to_string(),
+            anchor_token: "anchor_token".to_string(),
+            anchor_voting_escrow: "anchor_voting_escrow".to_string(),
+        },
+    )
+    .unwrap();
+
+    let mut time = BASE_TIME;
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "owner".to_string(),
+        ExecuteMsg::AddGauge {
+            gauge_addr: "gauge_addr_1".to_string(),
+            weight: Uint128::from(0_u64),
+        },
+        time,
+    );
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "user_1".to_string(),
+        ExecuteMsg::VoteForGaugeWeight {
+            gauge_addr: "gauge_addr_1".to_string(),
+            ratio: 10000,
+        },
+        time,
+    );
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "owner".to_string(),
+        ExecuteMsg::ChangeGaugeWeight {
+            gauge_addr: "gauge_addr_1".to_string(),
+            weight: Uint128::from(0_u64),
+        },
+        time,
+    );
+
+    time += 20 * WEEK;
+
+    run_query_msg_expect_ok::<GaugeWeightResponse>(
+        GaugeWeightResponse {
+            gauge_weight: Uint128::from(0_u64),
+        },
+        deps.as_ref(),
+        QueryMsg::GaugeWeight {
+            gauge_addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+}

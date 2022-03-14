@@ -146,9 +146,7 @@ fn change_gauge_weight(
     let latest_checkpoint = fetch_latest_checkpoint(deps.storage, &addr)?;
 
     let pair = latest_checkpoint.unwrap();
-    let (latest_period, latest_weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
-
-    assert_eq!(latest_period, period);
+    let (_, latest_weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
 
     GAUGE_WEIGHT.save(
         deps.storage,

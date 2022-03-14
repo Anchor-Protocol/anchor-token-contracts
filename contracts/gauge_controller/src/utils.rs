@@ -240,8 +240,8 @@ pub(crate) fn get_gauge_weight_at(
         let scheduled_slope_changes = fetch_slope_changes(storage, addr, old_period, period)?;
 
         for (recalc_period, scheduled_change) in scheduled_slope_changes {
-            assert!(recalc_period > old_period);
             let dt = recalc_period - old_period;
+
             weight = calc_new_weight(weight, dt, scheduled_change)?;
             old_period = recalc_period;
         }
