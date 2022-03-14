@@ -58,7 +58,7 @@ pub(crate) fn fetch_latest_checkpoint(
         .range(
             storage,
             None,
-            Some(Bound::Inclusive(U64Key::new(MAX_PERIOD).wrapped.clone())),
+            Some(Bound::Inclusive(U64Key::new(MAX_PERIOD).wrapped)),
             Order::Descending,
         )
         .next()
@@ -102,9 +102,9 @@ pub(crate) fn cancel_scheduled_slope_change(
             Decimal::zero()
         };
         if new_slope.is_zero() {
-            SLOPE_CHANGES.remove(storage, key.clone());
+            SLOPE_CHANGES.remove(storage, key);
         } else {
-            SLOPE_CHANGES.save(storage, key.clone(), &new_slope)?;
+            SLOPE_CHANGES.save(storage, key, &new_slope)?;
         }
     }
 
@@ -145,12 +145,10 @@ pub(crate) fn deserialize_pair<T>(pair: StdResult<Pair<T>>) -> StdResult<(u64, T
 }
 
 pub(crate) fn check_if_exists(storage: &dyn Storage, addr: &Addr) -> bool {
-    if let Ok(last_checkpoint) = fetch_latest_checkpoint(storage, addr) {
-        if let Some(_) = last_checkpoint {
-            return true;
-        }
+    if let Ok(Some(_)) = fetch_latest_checkpoint(storage, addr) {
+        return true;
     }
-    return false;
+    false
 }
 
 /// # Description
@@ -216,7 +214,7 @@ fn fetch_latest_checkpoint_before(
         .range(
             storage,
             None,
-            Some(Bound::Inclusive(U64Key::new(period).wrapped.clone())),
+            Some(Bound::Inclusive(U64Key::new(period).wrapped)),
             Order::Descending,
         )
         .next()
@@ -230,7 +228,7 @@ pub(crate) fn get_gauge_weight_at(
 ) -> Result<Uint128, ContractError> {
     let period = get_period(time);
 
-    let latest_checkpoint_before_period = fetch_latest_checkpoint_before(storage, &addr, period)?;
+    let latest_checkpoint_before_period = fetch_latest_checkpoint_before(storage, addr, period)?;
 
     if let Some(pair) = latest_checkpoint_before_period {
         let (mut old_period, mut weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
@@ -239,7 +237,7 @@ pub(crate) fn get_gauge_weight_at(
             return Ok(weight.bias);
         }
 
-        let scheduled_slope_changes = fetch_slope_changes(storage, &addr, old_period, period)?;
+        let scheduled_slope_changes = fetch_slope_changes(storage, addr, old_period, period)?;
 
         for (recalc_period, scheduled_change) in scheduled_slope_changes {
             assert!(recalc_period > old_period);
@@ -281,7 +279,7 @@ pub(crate) fn checkpoint_gauge(
     addr: &Addr,
     new_period: u64,
 ) -> Result<(), ContractError> {
-    let latest_checkpoint = fetch_latest_checkpoint(storage, &addr)?;
+    let latest_checkpoint = fetch_latest_checkpoint(storage, addr)?;
 
     if let Some(pair) = latest_checkpoint {
         let (mut old_period, mut weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
@@ -296,7 +294,7 @@ pub(crate) fn checkpoint_gauge(
             return Ok(());
         }
 
-        let scheduled_slope_changes = fetch_slope_changes(storage, &addr, old_period, new_period)?;
+        let scheduled_slope_changes = fetch_slope_changes(storage, addr, old_period, new_period)?;
 
         for (recalc_period, scheduled_change) in scheduled_slope_changes {
             let dt = recalc_period - old_period;

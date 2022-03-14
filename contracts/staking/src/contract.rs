@@ -435,7 +435,7 @@ pub fn assert_new_schedules(
     }
 
     let mut new_counts: BTreeMap<(u64, u64, Uint128), u32> = BTreeMap::new();
-    for schedule in distribution_schedule.clone() {
+    for schedule in distribution_schedule {
         let counter = new_counts.entry(schedule).or_insert(0);
         *counter += 1;
     }

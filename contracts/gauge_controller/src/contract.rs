@@ -213,33 +213,30 @@ fn vote_for_gauge_weight(
     let dt = user_unlock_period - current_period;
 
     weight.slope = weight.slope + user_slope;
-    weight.bias = weight.bias + user_slope.checked_mul(dt)?;
+    weight.bias += user_slope.checked_mul(dt)?;
 
     schedule_slope_change(deps.storage, &addr, user_slope, user_unlock_period)?;
 
-    match USER_VOTES.may_load(deps.storage, (sender.clone(), addr.clone()))? {
-        Some(vote) => {
-            if vote.unlock_period > current_period {
-                let dt = vote.unlock_period - current_period;
+    if let Some(vote) = USER_VOTES.may_load(deps.storage, (sender.clone(), addr.clone()))? {
+        if vote.unlock_period > current_period {
+            let dt = vote.unlock_period - current_period;
 
-                weight.slope = if weight.slope > vote.slope {
-                    weight.slope - vote.slope
-                } else {
-                    Decimal::zero()
-                };
-                weight.bias = weight.bias.saturating_sub(vote.slope.checked_mul(dt)?);
+            weight.slope = if weight.slope > vote.slope {
+                weight.slope - vote.slope
+            } else {
+                Decimal::zero()
+            };
+            weight.bias = weight.bias.saturating_sub(vote.slope.checked_mul(dt)?);
 
-                cancel_scheduled_slope_change(deps.storage, &addr, vote.slope, vote.unlock_period)?;
-            }
-
-            USER_RATIO.update(
-                deps.storage,
-                sender.clone(),
-                |ratio_opt| -> Result<u64, ContractError> { Ok(ratio_opt.unwrap() - vote.ratio) },
-            )?;
+            cancel_scheduled_slope_change(deps.storage, &addr, vote.slope, vote.unlock_period)?;
         }
-        None => (),
-    };
+
+        USER_RATIO.update(
+            deps.storage,
+            sender.clone(),
+            |ratio_opt| -> Result<u64, ContractError> { Ok(ratio_opt.unwrap() - vote.ratio) },
+        )?;
+    }
 
     GAUGE_WEIGHT.save(
         deps.storage,
@@ -254,13 +251,13 @@ fn vote_for_gauge_weight(
             slope: user_slope,
             vote_period: current_period,
             unlock_period: user_unlock_period,
-            ratio: ratio,
+            ratio,
         },
     )?;
 
     USER_RATIO.update(
         deps.storage,
-        sender.clone(),
+        sender,
         |ratio_opt| -> Result<u64, ContractError> {
             if let Some(pratio) = ratio_opt {
                 Ok(pratio + ratio)
@@ -372,7 +369,7 @@ fn query_all_gauge_addr(deps: Deps) -> Result<AllGaugeAddrResponse, ContractErro
     }
 
     Ok(AllGaugeAddrResponse {
-        all_gauge_addr: all_gauge_addr,
+        all_gauge_addr,
     })
 }
 

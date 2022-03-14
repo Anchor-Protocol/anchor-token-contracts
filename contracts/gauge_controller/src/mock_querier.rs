@@ -49,25 +49,25 @@ impl WasmMockQuerier {
                 msg,
             }) => match from_binary(msg).unwrap() {
                 VotingEscrowContractQueryMsg::LastUserSlope { user } => {
-                    let slope = if user == String::from("user_1") {
+                    let slope = if user == *"user_1" {
                         Decimal::from_ratio(Uint128::from(998244353_u64), Uint128::from(100_u64))
-                    } else if user == String::from("user_2") {
+                    } else if user == *"user_2" {
                         Decimal::from_ratio(Uint128::from(1000000007_u64), Uint128::from(66_u64))
-                    } else if user == String::from("user_3") {
+                    } else if user == *"user_3" {
                         Decimal::from_ratio(Uint128::from(847426363_u64), Uint128::from(100_u64))
                     } else {
                         panic!("INVALID USER");
                     };
                     SystemResult::Ok(ContractResult::Ok(
-                        to_binary(&UserSlopResponse { slope: slope }).unwrap(),
+                        to_binary(&UserSlopResponse { slope }).unwrap(),
                     ))
                 }
                 VotingEscrowContractQueryMsg::UserUnlockPeriod { user } => {
-                    let time = if user == String::from("user_1") {
+                    let time = if user == *"user_1" {
                         BASE_TIME + WEEK * 100
-                    } else if user == String::from("user_2") {
+                    } else if user == *"user_2" {
                         BASE_TIME + WEEK * 66
-                    } else if user == String::from("user_3") {
+                    } else if user == *"user_3" {
                         BASE_TIME + WEEK * 100
                     } else {
                         panic!("INVALID USER");
@@ -87,6 +87,6 @@ impl WasmMockQuerier {
 
 impl WasmMockQuerier {
     pub fn new(base: MockQuerier<Empty>) -> Self {
-        WasmMockQuerier { base: base }
+        WasmMockQuerier { base }
     }
 }
