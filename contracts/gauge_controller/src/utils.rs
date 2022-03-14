@@ -6,8 +6,8 @@ use crate::state::{
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
-    to_binary, Addr, Decimal, Deps, Fraction, Order, OverflowError, Pair, QueryRequest, Response,
-    StdResult, Storage, Uint128, Uint256, WasmQuery,
+    to_binary, Addr, Decimal, Deps, Fraction, Order, OverflowError, Pair, QueryRequest, StdResult,
+    Storage, Uint128, Uint256, WasmQuery,
 };
 
 use cw_storage_plus::{Bound, U64Key};
@@ -25,11 +25,11 @@ pub(crate) fn get_period(seconds: u64) -> u64 {
 }
 
 pub(crate) fn query_last_user_slope(deps: Deps, user: Addr) -> Result<Decimal, ContractError> {
-    let anchor_voting_escorw = CONFIG.load(deps.storage)?.anchor_voting_escorw;
+    let anchor_voting_escrow = CONFIG.load(deps.storage)?.anchor_voting_escrow;
     Ok(deps
         .querier
         .query::<UserSlopResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: anchor_voting_escorw.to_string(),
+            contract_addr: anchor_voting_escrow.to_string(),
             msg: to_binary(&VotingEscrowContractQueryMsg::LastUserSlope {
                 user: user.to_string(),
             })?,
@@ -38,11 +38,11 @@ pub(crate) fn query_last_user_slope(deps: Deps, user: Addr) -> Result<Decimal, C
 }
 
 pub(crate) fn query_user_unlock_period(deps: Deps, user: Addr) -> Result<u64, ContractError> {
-    let anchor_voting_escorw = CONFIG.load(deps.storage)?.anchor_voting_escorw;
+    let anchor_voting_escrow = CONFIG.load(deps.storage)?.anchor_voting_escrow;
     Ok(deps
         .querier
         .query::<UserUnlockPeriodResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: anchor_voting_escorw.to_string(),
+            contract_addr: anchor_voting_escrow.to_string(),
             msg: to_binary(&VotingEscrowContractQueryMsg::UserUnlockPeriod {
                 user: user.to_string(),
             })?,
@@ -50,7 +50,7 @@ pub(crate) fn query_user_unlock_period(deps: Deps, user: Addr) -> Result<u64, Co
         .unlock_period)
 }
 
-pub(crate) fn fetch_lastest_checkpoint(
+pub(crate) fn fetch_latest_checkpoint(
     storage: &dyn Storage,
     addr: &Addr,
 ) -> Result<Option<Pair<GaugeWeight>>, ContractError> {
@@ -90,9 +90,9 @@ pub(crate) fn cancel_scheduled_slope_change(
     addr: &Addr,
     slope: Decimal,
     period: u64,
-) -> Result<Response, ContractError> {
+) -> Result<(), ContractError> {
     if slope.is_zero() {
-        return Ok(Response::default());
+        return Ok(());
     }
 
     let key = (addr.clone(), U64Key::new(period));
@@ -106,7 +106,7 @@ pub(crate) fn cancel_scheduled_slope_change(
         }
     }
 
-    Ok(Response::default())
+    Ok(())
 }
 
 pub(crate) fn schedule_slope_change(
@@ -114,9 +114,9 @@ pub(crate) fn schedule_slope_change(
     addr: &Addr,
     slope: Decimal,
     period: u64,
-) -> Result<Response, ContractError> {
+) -> Result<(), ContractError> {
     if slope.is_zero() {
-        return Ok(Response::default());
+        return Ok(());
     }
 
     SLOPE_CHANGES.update(
@@ -131,7 +131,7 @@ pub(crate) fn schedule_slope_change(
         },
     )?;
 
-    Ok(Response::default())
+    Ok(())
 }
 
 pub(crate) fn deserialize_pair<T>(pair: StdResult<Pair<T>>) -> Result<(u64, T), ContractError> {
@@ -143,7 +143,7 @@ pub(crate) fn deserialize_pair<T>(pair: StdResult<Pair<T>>) -> Result<(u64, T), 
 }
 
 pub(crate) fn check_if_exists(storage: &dyn Storage, addr: &Addr) -> bool {
-    if let Ok(last_checkpoint) = fetch_lastest_checkpoint(storage, addr) {
+    if let Ok(last_checkpoint) = fetch_latest_checkpoint(storage, addr) {
         if let Some(_) = last_checkpoint {
             return true;
         }
@@ -196,7 +196,7 @@ pub(crate) fn calc_new_weight(weight: GaugeWeight, dt: u64, slope_change: Decima
     }
 }
 
-fn fetch_lastest_checkpoint_before(
+fn fetch_latest_checkpoint_before(
     storage: &dyn Storage,
     addr: &Addr,
     period: u64,
@@ -221,9 +221,9 @@ pub(crate) fn get_gauge_weight_at(
 ) -> Result<Uint128, ContractError> {
     let period = get_period(time);
 
-    let lastest_checkpoint_before_period = fetch_lastest_checkpoint_before(storage, &addr, period)?;
+    let latest_checkpoint_before_period = fetch_latest_checkpoint_before(storage, &addr, period)?;
 
-    if let Some(pair) = lastest_checkpoint_before_period {
+    if let Some(pair) = latest_checkpoint_before_period {
         let (mut old_period, mut weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
 
         if old_period == period {
@@ -271,10 +271,10 @@ pub(crate) fn checkpoint_gauge(
     storage: &mut dyn Storage,
     addr: &Addr,
     new_period: u64,
-) -> Result<Response, ContractError> {
-    let lastest_checkpoint = fetch_lastest_checkpoint(storage, &addr)?;
+) -> Result<(), ContractError> {
+    let latest_checkpoint = fetch_latest_checkpoint(storage, &addr)?;
 
-    if let Some(pair) = lastest_checkpoint {
+    if let Some(pair) = latest_checkpoint {
         let (mut old_period, mut weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
 
         // cannot happen
@@ -284,7 +284,7 @@ pub(crate) fn checkpoint_gauge(
 
         // no need to do checkpoint
         if new_period == old_period {
-            return Ok(Response::default());
+            return Ok(());
         }
 
         let scheduled_slope_changes = fetch_slope_changes(storage, &addr, old_period, new_period)?;
@@ -312,5 +312,5 @@ pub(crate) fn checkpoint_gauge(
         return Err(ContractError::GaugeNotFound {});
     }
 
-    Ok(Response::default())
+    Ok(())
 }

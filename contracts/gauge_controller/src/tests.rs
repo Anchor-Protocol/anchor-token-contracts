@@ -21,7 +21,7 @@ fn proper_initialization() {
     let msg = InstantiateMsg {
         owner: "owner".to_string(),
         anchor_token: "anchor_token".to_string(),
-        anchor_voting_escorw: "anchor_voting_escrow".to_string(),
+        anchor_voting_escrow: "anchor_voting_escrow".to_string(),
     };
     let info = mock_info("addr0000", &[]);
 
@@ -33,7 +33,7 @@ fn proper_initialization() {
         from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
     assert_eq!("owner", config.owner.as_str());
     assert_eq!("anchor_token", config.anchor_token.as_str());
-    assert_eq!("anchor_voting_escrow", config.anchor_voting_escorw.as_str());
+    assert_eq!("anchor_voting_escrow", config.anchor_voting_escrow.as_str());
 }
 
 fn run_execute_msg_expect_ok(deps: DepsMut, sender: String, msg: ExecuteMsg, time: u64) {
@@ -94,7 +94,7 @@ fn test_add_two_gauges_and_change_weight() {
         InstantiateMsg {
             owner: "owner".to_string(),
             anchor_token: "anchor_token".to_string(),
-            anchor_voting_escorw: "anchor_voting_escrow".to_string(),
+            anchor_voting_escrow: "anchor_voting_escrow".to_string(),
         },
     )
     .unwrap();
@@ -105,7 +105,7 @@ fn test_add_two_gauges_and_change_weight() {
         deps.as_mut(),
         "owner".to_string(),
         ExecuteMsg::AddGauge {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
             weight: Uint128::from(100_u64),
         },
         time,
@@ -124,7 +124,7 @@ fn test_add_two_gauges_and_change_weight() {
         },
         deps.as_ref(),
         QueryMsg::GaugeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
         },
         time,
     );
@@ -133,7 +133,7 @@ fn test_add_two_gauges_and_change_weight() {
         ContractError::GaugeNotFound {},
         deps.as_ref(),
         QueryMsg::GaugeWeight {
-            addr: "gauge_addr_2".to_string(),
+            gauge_addr: "gauge_addr_2".to_string(),
         },
         time,
     );
@@ -159,7 +159,7 @@ fn test_add_two_gauges_and_change_weight() {
         deps.as_mut(),
         "owner".to_string(),
         ExecuteMsg::AddGauge {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
             weight: Uint128::from(100_u64),
         },
         time,
@@ -170,7 +170,7 @@ fn test_add_two_gauges_and_change_weight() {
         deps.as_mut(),
         "addr0000".to_string(),
         ExecuteMsg::AddGauge {
-            addr: "gauge_addr_2".to_string(),
+            gauge_addr: "gauge_addr_2".to_string(),
             weight: Uint128::from(100_u64),
         },
         time,
@@ -180,7 +180,7 @@ fn test_add_two_gauges_and_change_weight() {
         deps.as_mut(),
         "owner".to_string(),
         ExecuteMsg::AddGauge {
-            addr: "gauge_addr_2".to_string(),
+            gauge_addr: "gauge_addr_2".to_string(),
             weight: Uint128::from(100_u64),
         },
         time,
@@ -207,7 +207,7 @@ fn test_add_two_gauges_and_change_weight() {
         deps.as_mut(),
         "addr0000".to_string(),
         ExecuteMsg::ChangeGaugeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
             weight: Uint128::from(200_u64),
         },
         time,
@@ -218,7 +218,7 @@ fn test_add_two_gauges_and_change_weight() {
         deps.as_mut(),
         "owner".to_string(),
         ExecuteMsg::ChangeGaugeWeight {
-            addr: "gauge_addr_3".to_string(),
+            gauge_addr: "gauge_addr_3".to_string(),
             weight: Uint128::from(200_u64),
         },
         time,
@@ -228,7 +228,7 @@ fn test_add_two_gauges_and_change_weight() {
         deps.as_mut(),
         "owner".to_string(),
         ExecuteMsg::ChangeGaugeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
             weight: Uint128::from(200_u64),
         },
         time,
@@ -240,7 +240,7 @@ fn test_add_two_gauges_and_change_weight() {
         },
         deps.as_ref(),
         QueryMsg::GaugeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
         },
         time,
     );
@@ -251,7 +251,7 @@ fn test_add_two_gauges_and_change_weight() {
         },
         deps.as_ref(),
         QueryMsg::GaugeRelativeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
         },
         time,
     );
@@ -261,7 +261,7 @@ fn test_add_two_gauges_and_change_weight() {
         deps.as_mut(),
         "owner".to_string(),
         ExecuteMsg::ChangeGaugeWeight {
-            addr: "gauge_addr_2".to_string(),
+            gauge_addr: "gauge_addr_2".to_string(),
             weight: Uint128::from(200_u64),
         },
         time - WEEK,
@@ -278,7 +278,7 @@ fn test_vote_for_single_gauge_by_single_user() {
         InstantiateMsg {
             owner: "owner".to_string(),
             anchor_token: "anchor_token".to_string(),
-            anchor_voting_escorw: "anchor_voting_escrow".to_string(),
+            anchor_voting_escrow: "anchor_voting_escrow".to_string(),
         },
     )
     .unwrap();
@@ -289,7 +289,7 @@ fn test_vote_for_single_gauge_by_single_user() {
         deps.as_mut(),
         "owner".to_string(),
         ExecuteMsg::AddGauge {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
             weight: Uint128::from(23333_u64),
         },
         time,
@@ -300,7 +300,7 @@ fn test_vote_for_single_gauge_by_single_user() {
         deps.as_mut(),
         "user_1".to_string(),
         ExecuteMsg::VoteForGaugeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
             ratio: 10001,
         },
         time,
@@ -310,7 +310,7 @@ fn test_vote_for_single_gauge_by_single_user() {
         deps.as_mut(),
         "user_1".to_string(),
         ExecuteMsg::VoteForGaugeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
             ratio: 10000,
         },
         time,
@@ -323,7 +323,7 @@ fn test_vote_for_single_gauge_by_single_user() {
         deps.as_mut(),
         "user_1".to_string(),
         ExecuteMsg::VoteForGaugeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
             ratio: 10000,
         },
         time,
@@ -335,7 +335,7 @@ fn test_vote_for_single_gauge_by_single_user() {
         },
         deps.as_ref(),
         QueryMsg::GaugeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
         },
         time,
     );
@@ -348,7 +348,7 @@ fn test_vote_for_single_gauge_by_single_user() {
         },
         deps.as_ref(),
         QueryMsg::GaugeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
         },
         time,
     );
@@ -357,7 +357,7 @@ fn test_vote_for_single_gauge_by_single_user() {
         deps.as_mut(),
         "user_1".to_string(),
         ExecuteMsg::VoteForGaugeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
             ratio: 0,
         },
         time,
@@ -369,7 +369,7 @@ fn test_vote_for_single_gauge_by_single_user() {
         },
         deps.as_ref(),
         QueryMsg::GaugeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
         },
         time,
     );
@@ -382,7 +382,7 @@ fn test_vote_for_single_gauge_by_single_user() {
         },
         deps.as_ref(),
         QueryMsg::GaugeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
         },
         time,
     );
@@ -392,7 +392,7 @@ fn test_vote_for_single_gauge_by_single_user() {
         deps.as_mut(),
         "user_1".to_string(),
         ExecuteMsg::VoteForGaugeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
             ratio: 10000,
         },
         time,
@@ -409,7 +409,7 @@ fn test_vote_for_single_gauge_by_multiple_users() {
         InstantiateMsg {
             owner: "owner".to_string(),
             anchor_token: "anchor_token".to_string(),
-            anchor_voting_escorw: "anchor_voting_escrow".to_string(),
+            anchor_voting_escrow: "anchor_voting_escrow".to_string(),
         },
     )
     .unwrap();
@@ -420,7 +420,7 @@ fn test_vote_for_single_gauge_by_multiple_users() {
         deps.as_mut(),
         "owner".to_string(),
         ExecuteMsg::AddGauge {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
             weight: Uint128::from(0_u64),
         },
         time,
@@ -430,7 +430,17 @@ fn test_vote_for_single_gauge_by_multiple_users() {
         ContractError::TotalWeightIsZero {},
         deps.as_ref(),
         QueryMsg::GaugeRelativeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
+        },
+        time,
+    );
+
+    run_query_msg_expect_error(
+        ContractError::TotalWeightIsZero {},
+        deps.as_ref(),
+        QueryMsg::GaugeRelativeWeightAt {
+            gauge_addr: "gauge_addr_1".to_string(),
+            time: time + 100 * WEEK,
         },
         time,
     );
@@ -439,7 +449,7 @@ fn test_vote_for_single_gauge_by_multiple_users() {
         deps.as_mut(),
         "owner".to_string(),
         ExecuteMsg::ChangeGaugeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
             weight: Uint128::from(23333_u64),
         },
         time,
@@ -449,7 +459,7 @@ fn test_vote_for_single_gauge_by_multiple_users() {
         deps.as_mut(),
         "user_1".to_string(),
         ExecuteMsg::VoteForGaugeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
             ratio: 768,
         },
         time,
@@ -461,7 +471,7 @@ fn test_vote_for_single_gauge_by_multiple_users() {
         deps.as_mut(),
         "user_2".to_string(),
         ExecuteMsg::VoteForGaugeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
             ratio: 8453,
         },
         time,
@@ -473,7 +483,7 @@ fn test_vote_for_single_gauge_by_multiple_users() {
         },
         deps.as_ref(),
         QueryMsg::GaugeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
         },
         time,
     );
@@ -484,7 +494,7 @@ fn test_vote_for_single_gauge_by_multiple_users() {
         },
         deps.as_ref(),
         QueryMsg::GaugeWeightAt {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
             time: time + 73 * WEEK,
         },
         time,
@@ -498,7 +508,7 @@ fn test_vote_for_single_gauge_by_multiple_users() {
         },
         deps.as_ref(),
         QueryMsg::GaugeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
         },
         time,
     );
@@ -511,7 +521,7 @@ fn test_vote_for_single_gauge_by_multiple_users() {
         },
         deps.as_ref(),
         QueryMsg::GaugeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
         },
         time,
     );
@@ -524,7 +534,7 @@ fn test_vote_for_single_gauge_by_multiple_users() {
         },
         deps.as_ref(),
         QueryMsg::GaugeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
         },
         time,
     );
@@ -535,7 +545,7 @@ fn test_vote_for_single_gauge_by_multiple_users() {
         },
         deps.as_ref(),
         QueryMsg::GaugeWeightAt {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
             time: time - 73 * WEEK,
         },
         time,
@@ -552,7 +562,7 @@ fn test_vote_for_multiple_gauges_by_single_user() {
         InstantiateMsg {
             owner: "owner".to_string(),
             anchor_token: "anchor_token".to_string(),
-            anchor_voting_escorw: "anchor_voting_escrow".to_string(),
+            anchor_voting_escrow: "anchor_voting_escrow".to_string(),
         },
     )
     .unwrap();
@@ -563,7 +573,7 @@ fn test_vote_for_multiple_gauges_by_single_user() {
         deps.as_mut(),
         "owner".to_string(),
         ExecuteMsg::AddGauge {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
             weight: Uint128::from(23333_u64),
         },
         time,
@@ -573,7 +583,7 @@ fn test_vote_for_multiple_gauges_by_single_user() {
         deps.as_mut(),
         "owner".to_string(),
         ExecuteMsg::AddGauge {
-            addr: "gauge_addr_2".to_string(),
+            gauge_addr: "gauge_addr_2".to_string(),
             weight: Uint128::from(66666_u64),
         },
         time,
@@ -583,7 +593,7 @@ fn test_vote_for_multiple_gauges_by_single_user() {
         deps.as_mut(),
         "user_1".to_string(),
         ExecuteMsg::VoteForGaugeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
             ratio: 4357,
         },
         time,
@@ -594,7 +604,7 @@ fn test_vote_for_multiple_gauges_by_single_user() {
         deps.as_mut(),
         "user_1".to_string(),
         ExecuteMsg::VoteForGaugeWeight {
-            addr: "gauge_addr_2".to_string(),
+            gauge_addr: "gauge_addr_2".to_string(),
             ratio: 5644,
         },
         time,
@@ -604,7 +614,7 @@ fn test_vote_for_multiple_gauges_by_single_user() {
         deps.as_mut(),
         "user_1".to_string(),
         ExecuteMsg::VoteForGaugeWeight {
-            addr: "gauge_addr_2".to_string(),
+            gauge_addr: "gauge_addr_2".to_string(),
             ratio: 5643,
         },
         time,
@@ -619,7 +629,7 @@ fn test_vote_for_multiple_gauges_by_single_user() {
         },
         deps.as_ref(),
         QueryMsg::GaugeRelativeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
         },
         time,
     );
@@ -633,7 +643,7 @@ fn test_vote_for_multiple_gauges_by_single_user() {
         },
         deps.as_ref(),
         QueryMsg::GaugeRelativeWeightAt {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
             time: time + 117 * WEEK,
         },
         time,
@@ -661,7 +671,7 @@ fn test_vote_for_multiple_gauges_by_single_user() {
         },
         deps.as_ref(),
         QueryMsg::GaugeRelativeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
         },
         time,
     );
@@ -677,7 +687,7 @@ fn test_vote_for_multiple_gauges_by_single_user() {
         },
         deps.as_ref(),
         QueryMsg::GaugeRelativeWeight {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
         },
         time,
     );
@@ -700,7 +710,7 @@ fn test_vote_for_multiple_gauges_by_single_user() {
         },
         deps.as_ref(),
         QueryMsg::GaugeRelativeWeightAt {
-            addr: "gauge_addr_1".to_string(),
+            gauge_addr: "gauge_addr_1".to_string(),
             time: time - 117 * WEEK,
         },
         time,

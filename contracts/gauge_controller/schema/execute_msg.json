@@ -11,11 +11,11 @@
         "add_gauge": {
           "type": "object",
           "required": [
-            "addr",
+            "gauge_addr",
             "weight"
           ],
           "properties": {
-            "addr": {
+            "gauge_addr": {
               "type": "string"
             },
             "weight": {
@@ -35,11 +35,11 @@
         "change_gauge_weight": {
           "type": "object",
           "required": [
-            "addr",
+            "gauge_addr",
             "weight"
           ],
           "properties": {
-            "addr": {
+            "gauge_addr": {
               "type": "string"
             },
             "weight": {
@@ -59,11 +59,11 @@
         "vote_for_gauge_weight": {
           "type": "object",
           "required": [
-            "addr",
+            "gauge_addr",
             "ratio"
           ],
           "properties": {
-            "addr": {
+            "gauge_addr": {
               "type": "string"
             },
             "ratio": {

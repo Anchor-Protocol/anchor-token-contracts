@@ -25,7 +25,7 @@ pub struct UserUnlockPeriodResponse {
 pub struct Config {
     pub owner: Addr,
     pub anchor_token: Addr,
-    pub anchor_voting_escorw: Addr,
+    pub anchor_voting_escrow: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

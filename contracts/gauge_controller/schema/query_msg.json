@@ -23,10 +23,10 @@
         "gauge_weight": {
           "type": "object",
           "required": [
-            "addr"
+            "gauge_addr"
           ],
           "properties": {
-            "addr": {
+            "gauge_addr": {
               "type": "string"
             }
           }
@@ -43,11 +43,11 @@
         "gauge_weight_at": {
           "type": "object",
           "required": [
-            "addr",
+            "gauge_addr",
             "time"
           ],
           "properties": {
-            "addr": {
+            "gauge_addr": {
               "type": "string"
             },
             "time": {
@@ -103,10 +103,10 @@
         "gauge_relative_weight": {
           "type": "object",
           "required": [
-            "addr"
+            "gauge_addr"
           ],
           "properties": {
-            "addr": {
+            "gauge_addr": {
               "type": "string"
             }
           }
@@ -123,11 +123,11 @@
         "gauge_relative_weight_at": {
           "type": "object",
           "required": [
-            "addr",
+            "gauge_addr",
             "time"
           ],
           "properties": {
-            "addr": {
+            "gauge_addr": {
               "type": "string"
             },
             "time": {

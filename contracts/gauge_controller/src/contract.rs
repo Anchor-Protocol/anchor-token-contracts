@@ -5,7 +5,7 @@ use crate::state::{
 };
 use crate::utils::{
     cancel_scheduled_slope_change, check_if_exists, checkpoint_gauge, deserialize_pair,
-    fetch_lastest_checkpoint, get_gauge_weight_at, get_period, get_total_weight_at,
+    fetch_latest_checkpoint, get_gauge_weight_at, get_period, get_total_weight_at,
     query_last_user_slope, query_user_unlock_period, schedule_slope_change,
     DecimalRoundedCheckedMul, VOTE_DELAY,
 };
@@ -38,11 +38,11 @@ pub fn instantiate(
         &Config {
             owner: deps.api.addr_validate(&msg.owner)?,
             anchor_token: deps.api.addr_validate(&msg.anchor_token)?,
-            anchor_voting_escorw: deps.api.addr_validate(&msg.anchor_voting_escorw)?,
+            anchor_voting_escrow: deps.api.addr_validate(&msg.anchor_voting_escrow)?,
         },
     )?;
     GAUGE_COUNT.save(deps.storage, &0)?;
-    Ok(Response::default())
+    Ok(Response::new().add_attribute("action", "instantiate"))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -53,12 +53,14 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::AddGauge { addr, weight } => add_gauge(deps, env, info, addr, weight),
-        ExecuteMsg::ChangeGaugeWeight { addr, weight } => {
-            change_gauge_weight(deps, env, info, addr, weight)
+        ExecuteMsg::AddGauge { gauge_addr, weight } => {
+            add_gauge(deps, env, info, gauge_addr, weight)
         }
-        ExecuteMsg::VoteForGaugeWeight { addr, ratio } => {
-            vote_for_gauge_weight(deps, env, info, addr, ratio)
+        ExecuteMsg::ChangeGaugeWeight { gauge_addr, weight } => {
+            change_gauge_weight(deps, env, info, gauge_addr, weight)
+        }
+        ExecuteMsg::VoteForGaugeWeight { gauge_addr, ratio } => {
+            vote_for_gauge_weight(deps, env, info, gauge_addr, ratio)
         }
     }
 }
@@ -67,17 +69,19 @@ pub fn execute(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::GaugeCount {} => Ok(to_binary(&query_gauge_count(deps)?)?),
-        QueryMsg::GaugeWeight { addr } => Ok(to_binary(&query_gauge_weight(deps, env, addr)?)?),
-        QueryMsg::GaugeWeightAt { addr, time } => {
-            Ok(to_binary(&query_gauge_weight_at(deps, addr, time)?)?)
+        QueryMsg::GaugeWeight { gauge_addr } => {
+            Ok(to_binary(&query_gauge_weight(deps, env, gauge_addr)?)?)
+        }
+        QueryMsg::GaugeWeightAt { gauge_addr, time } => {
+            Ok(to_binary(&query_gauge_weight_at(deps, gauge_addr, time)?)?)
         }
         QueryMsg::TotalWeight {} => Ok(to_binary(&query_total_weight(deps, env)?)?),
         QueryMsg::TotalWeightAt { time } => Ok(to_binary(&query_total_weight_at(deps, time)?)?),
-        QueryMsg::GaugeRelativeWeight { addr } => {
-            Ok(to_binary(&query_gauge_relative_weight(deps, env, addr)?)?)
-        }
-        QueryMsg::GaugeRelativeWeightAt { addr, time } => Ok(to_binary(
-            &query_gauge_relative_weight_at(deps, addr, time)?,
+        QueryMsg::GaugeRelativeWeight { gauge_addr } => Ok(to_binary(
+            &query_gauge_relative_weight(deps, env, gauge_addr)?,
+        )?),
+        QueryMsg::GaugeRelativeWeightAt { gauge_addr, time } => Ok(to_binary(
+            &query_gauge_relative_weight_at(deps, gauge_addr, time)?,
         )?),
         QueryMsg::GaugeAddr { gauge_id } => Ok(to_binary(&query_gauge_addr(deps, gauge_id)?)?),
         QueryMsg::AllGaugeAddr {} => Ok(to_binary(&query_all_gauge_addr(deps)?)?),
@@ -89,7 +93,7 @@ fn add_gauge(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    addr: String,
+    gauge_addr: String,
     weight: Uint128,
 ) -> Result<Response, ContractError> {
     let sender = info.sender;
@@ -98,7 +102,7 @@ fn add_gauge(
         return Err(ContractError::Unauthorized {});
     }
 
-    let addr = deps.api.addr_validate(&addr)?;
+    let addr = deps.api.addr_validate(&gauge_addr)?;
 
     if check_if_exists(deps.storage, &addr) {
         return Err(ContractError::GaugeAlreadyExists {});
@@ -120,59 +124,59 @@ fn add_gauge(
         },
     )?;
 
-    Ok(Response::default())
+    Ok(Response::new().add_attribute("action", "add_gauge"))
 }
 
 fn change_gauge_weight(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    addr: String,
+    gauge_addr: String,
     weight: Uint128,
 ) -> Result<Response, ContractError> {
-    let sender = deps.api.addr_validate(info.sender.as_str())?;
+    let sender = info.sender;
 
     if CONFIG.load(deps.storage)?.owner != sender {
         return Err(ContractError::Unauthorized {});
     }
 
-    let addr = deps.api.addr_validate(&addr)?;
+    let addr = deps.api.addr_validate(&gauge_addr)?;
     let period = get_period(env.block.time.seconds());
 
     checkpoint_gauge(deps.storage, &addr, period)?;
 
-    let lastest_checkpoint = fetch_lastest_checkpoint(deps.storage, &addr)?;
+    let latest_checkpoint = fetch_latest_checkpoint(deps.storage, &addr)?;
 
-    let pair = lastest_checkpoint.unwrap();
-    let (lastest_period, lastest_weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
+    let pair = latest_checkpoint.unwrap();
+    let (latest_period, latest_weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
 
-    assert_eq!(lastest_period, period);
+    assert_eq!(latest_period, period);
 
     GAUGE_WEIGHT.save(
         deps.storage,
         (addr.clone(), U64Key::new(period)),
         &GaugeWeight {
             bias: weight,
-            slope: lastest_weight.slope,
+            slope: latest_weight.slope,
         },
     )?;
 
-    Ok(Response::default())
+    Ok(Response::new().add_attribute("action", "change_gauge_weight"))
 }
 
 fn vote_for_gauge_weight(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    addr: String,
+    gauge_addr: String,
     ratio: u64,
 ) -> Result<Response, ContractError> {
     if ratio > 10000_u64 {
         return Err(ContractError::InvalidVotingRatio {});
     }
 
-    let sender = deps.api.addr_validate(info.sender.as_str())?;
-    let addr = deps.api.addr_validate(&addr)?;
+    let sender = info.sender;
+    let addr = deps.api.addr_validate(&gauge_addr)?;
     let current_period = get_period(env.block.time.seconds());
 
     if let Some(vote) = USER_VOTES.may_load(deps.storage, (sender.clone(), addr.clone()))? {
@@ -204,10 +208,8 @@ fn vote_for_gauge_weight(
 
     checkpoint_gauge(deps.storage, &addr, current_period)?;
 
-    let pair = fetch_lastest_checkpoint(deps.storage, &addr)?.unwrap();
-    let (period, mut weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
-
-    assert_eq!(period, current_period);
+    let pair = fetch_latest_checkpoint(deps.storage, &addr)?.unwrap();
+    let (_, mut weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
 
     let dt = user_unlock_period - current_period;
 
@@ -265,15 +267,15 @@ fn vote_for_gauge_weight(
         },
     )?;
 
-    Ok(Response::default())
+    Ok(Response::new().add_attribute("action", "vote_for_gauge_weight"))
 }
 
 fn query_gauge_weight(
     deps: Deps,
     env: Env,
-    addr: String,
+    gauge_addr: String,
 ) -> Result<GaugeWeightResponse, ContractError> {
-    let addr = deps.api.addr_validate(&addr)?;
+    let addr = deps.api.addr_validate(&gauge_addr)?;
     Ok(GaugeWeightResponse {
         gauge_weight: get_gauge_weight_at(deps.storage, &addr, env.block.time.seconds())?,
     })
@@ -288,9 +290,9 @@ fn query_total_weight(deps: Deps, env: Env) -> Result<TotalWeightResponse, Contr
 fn query_gauge_relative_weight(
     deps: Deps,
     env: Env,
-    addr: String,
+    gauge_addr: String,
 ) -> Result<GaugeRelativeWeightResponse, ContractError> {
-    let addr = deps.api.addr_validate(&addr)?;
+    let addr = deps.api.addr_validate(&gauge_addr)?;
     let gauge_weight = get_gauge_weight_at(deps.storage, &addr, env.block.time.seconds())?;
     let total_weight = get_total_weight_at(deps.storage, env.block.time.seconds())?;
 
@@ -305,10 +307,10 @@ fn query_gauge_relative_weight(
 
 fn query_gauge_weight_at(
     deps: Deps,
-    addr: String,
+    gauge_addr: String,
     time: u64,
 ) -> Result<GaugeWeightAtResponse, ContractError> {
-    let addr = deps.api.addr_validate(&addr)?;
+    let addr = deps.api.addr_validate(&gauge_addr)?;
 
     Ok(GaugeWeightAtResponse {
         gauge_weight_at: get_gauge_weight_at(deps.storage, &addr, time)?,
@@ -323,10 +325,10 @@ fn query_total_weight_at(deps: Deps, time: u64) -> Result<TotalWeightAtResponse,
 
 fn query_gauge_relative_weight_at(
     deps: Deps,
-    addr: String,
+    gauge_addr: String,
     time: u64,
 ) -> Result<GaugeRelativeWeightAtResponse, ContractError> {
-    let addr = deps.api.addr_validate(&addr)?;
+    let addr = deps.api.addr_validate(&gauge_addr)?;
     let gauge_weight = get_gauge_weight_at(deps.storage, &addr, time)?;
     let total_weight = get_total_weight_at(deps.storage, time)?;
 
@@ -377,6 +379,6 @@ fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
     Ok(ConfigResponse {
         owner: config.owner.to_string(),
         anchor_token: config.anchor_token.to_string(),
-        anchor_voting_escorw: config.anchor_voting_escorw.to_string(),
+        anchor_voting_escrow: config.anchor_voting_escrow.to_string(),
     })
 }

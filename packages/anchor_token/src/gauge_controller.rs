@@ -6,27 +6,27 @@ use serde::{Deserialize, Serialize};
 pub struct InstantiateMsg {
     pub owner: String,
     pub anchor_token: String,
-    pub anchor_voting_escorw: String,
+    pub anchor_voting_escrow: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    AddGauge { addr: String, weight: Uint128 },
-    ChangeGaugeWeight { addr: String, weight: Uint128 },
-    VoteForGaugeWeight { addr: String, ratio: u64 },
+    AddGauge { gauge_addr: String, weight: Uint128 },
+    ChangeGaugeWeight { gauge_addr: String, weight: Uint128 },
+    VoteForGaugeWeight { gauge_addr: String, ratio: u64 },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     GaugeCount {},
-    GaugeWeight { addr: String },
-    GaugeWeightAt { addr: String, time: u64 },
+    GaugeWeight { gauge_addr: String },
+    GaugeWeightAt { gauge_addr: String, time: u64 },
     TotalWeight {},
     TotalWeightAt { time: u64 },
-    GaugeRelativeWeight { addr: String },
-    GaugeRelativeWeightAt { addr: String, time: u64 },
+    GaugeRelativeWeight { gauge_addr: String },
+    GaugeRelativeWeightAt { gauge_addr: String, time: u64 },
     GaugeAddr { gauge_id: u64 },
     AllGaugeAddr {},
     Config {},
@@ -81,5 +81,5 @@ pub struct AllGaugeAddrResponse {
 pub struct ConfigResponse {
     pub owner: String,
     pub anchor_token: String,
-    pub anchor_voting_escorw: String,
+    pub anchor_voting_escrow: String,
 }

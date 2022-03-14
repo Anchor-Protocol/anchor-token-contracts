@@ -4,14 +4,14 @@
   "type": "object",
   "required": [
     "anchor_token",
-    "anchor_voting_escorw",
+    "anchor_voting_escrow",
     "owner"
   ],
   "properties": {
     "anchor_token": {
       "type": "string"
     },
-    "anchor_voting_escorw": {
+    "anchor_voting_escrow": {
       "type": "string"
     },
     "owner": {
