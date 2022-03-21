@@ -1,6 +1,8 @@
 use crate::error::ContractError;
 use crate::migration::migrate_config;
-use crate::staking::{query_staker, stake_voting_tokens, withdraw_voting_tokens};
+use crate::staking::{
+    create_lock, extend_lock_amount, extend_lock_time, query_staker, withdraw_voting_tokens,
+};
 use crate::state::{
     bank_read, bank_store, config_read, config_store, poll_indexer_store, poll_read, poll_store,
     poll_voter_read, poll_voter_store, read_poll_voters, read_polls, read_tmp_poll_id, state_read,
@@ -76,6 +78,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        ExecuteMsg::ExtendLockTime { time } => extend_lock_time(deps, info.sender, time),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::ExecutePollMsgs { poll_id } => execute_poll_messages(deps, env, info, poll_id),
         ExecuteMsg::RegisterContracts {
@@ -158,9 +161,18 @@ pub fn receive_cw20(
     }
 
     match from_binary(&cw20_msg.msg) {
-        Ok(Cw20HookMsg::StakeVotingTokens {}) => {
+        Ok(Cw20HookMsg::CreateLock { time }) => {
             let api = deps.api;
-            stake_voting_tokens(deps, api.addr_validate(&cw20_msg.sender)?, cw20_msg.amount)
+            create_lock(
+                deps,
+                api.addr_validate(&cw20_msg.sender)?,
+                cw20_msg.amount,
+                time,
+            )
+        }
+        Ok(Cw20HookMsg::ExtendLockAmount {}) => {
+            let api = deps.api;
+            extend_lock_amount(deps, api.addr_validate(&cw20_msg.sender)?, cw20_msg.amount)
         }
         Ok(Cw20HookMsg::CreatePoll {
             title,

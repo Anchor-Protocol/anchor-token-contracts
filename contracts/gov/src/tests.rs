@@ -726,7 +726,7 @@ fn happy_days_end_poll() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(stake_amount as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -1034,7 +1034,7 @@ fn fail_poll() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(stake_amount as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -1218,7 +1218,7 @@ fn end_poll_zero_quorum() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(stake_amount as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -1324,7 +1324,7 @@ fn end_poll_quorum_rejected() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(stake_amount as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -1457,7 +1457,7 @@ fn end_poll_nay_rejected() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(voter1_stake as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -1482,7 +1482,7 @@ fn end_poll_nay_rejected() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER_2.to_string(),
         amount: Uint128::from(voter2_stake as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -1551,7 +1551,7 @@ fn fails_cast_vote_not_enough_staked() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(10u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -1612,7 +1612,7 @@ fn happy_days_cast_vote() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(11u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -1723,7 +1723,7 @@ fn happy_days_withdraw_voting_tokens() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(11u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -1794,7 +1794,7 @@ fn happy_days_withdraw_voting_tokens_all() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(11u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -1863,7 +1863,7 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(11u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -2027,7 +2027,7 @@ fn fails_withdraw_too_many_tokens() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(10u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -2079,7 +2079,7 @@ fn fails_cast_vote_twice() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(11u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -2154,7 +2154,7 @@ fn happy_days_stake_voting_tokens() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(11u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -2174,7 +2174,7 @@ fn fails_insufficient_funds() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(0u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -2204,7 +2204,7 @@ fn fails_staking_wrong_token() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(11u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(&(VOTING_TOKEN.to_string() + "2"), &[]);
@@ -2234,7 +2234,7 @@ fn share_calculation() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(100u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -2252,7 +2252,7 @@ fn share_calculation() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(100u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -2260,7 +2260,7 @@ fn share_calculation() {
     assert_eq!(
         res.attributes,
         vec![
-            attr("action", "staking"),
+            attr("action", "create_lock"),
             attr("sender", TEST_VOTER),
             attr("share", "50"),
             attr("amount", "100"),
@@ -2616,7 +2616,7 @@ fn execute_poll_with_order() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(stake_amount as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -2788,7 +2788,7 @@ fn poll_with_empty_execute_data_marked_as_executed() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(stake_amount as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -2950,7 +2950,7 @@ fn poll_with_none_execute_data_marked_as_executed() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(stake_amount as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -3178,7 +3178,7 @@ fn happy_days_cast_vote_with_snapshot() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(11u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -3224,7 +3224,7 @@ fn happy_days_cast_vote_with_snapshot() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER_2.to_string(),
         amount: Uint128::from(11u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -3268,7 +3268,7 @@ fn happy_days_cast_vote_with_snapshot() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER_3.to_string(),
         amount: Uint128::from(11u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -3354,7 +3354,7 @@ fn fails_end_poll_quorum_inflation_without_snapshot_poll() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(stake_amount as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -3405,7 +3405,7 @@ fn fails_end_poll_quorum_inflation_without_snapshot_poll() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER_2.to_string(),
         amount: Uint128::from(8 * stake_amount as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -3523,7 +3523,7 @@ fn happy_days_end_poll_with_controlled_quorum() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(stake_amount as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -3590,7 +3590,7 @@ fn happy_days_end_poll_with_controlled_quorum() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER_2.to_string(),
         amount: Uint128::from(8 * stake_amount as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: 10000000 }).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);

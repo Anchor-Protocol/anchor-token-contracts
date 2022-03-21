@@ -3,13 +3,34 @@
   "title": "Cw20HookMsg",
   "oneOf": [
     {
-      "description": "StakeVotingTokens a user can stake their mirror token to receive rewards or do vote on polls",
       "type": "object",
       "required": [
-        "stake_voting_tokens"
+        "create_lock"
       ],
       "properties": {
-        "stake_voting_tokens": {
+        "create_lock": {
+          "type": "object",
+          "required": [
+            "time"
+          ],
+          "properties": {
+            "time": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "extend_lock_amount"
+      ],
+      "properties": {
+        "extend_lock_amount": {
           "type": "object"
         }
       },

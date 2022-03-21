@@ -3,6 +3,9 @@ use crate::state::{
     bank_read, bank_store, config_read, config_store, poll_read, poll_voter_store, state_read,
     state_store, Config, Poll, State, TokenManager,
 };
+use crate::voting_escrow::{
+    execute_create_lock, execute_extend_lock_amount, execute_extend_lock_time,
+};
 
 use anchor_token::gov::{PollStatus, StakerResponse};
 use astroport::querier::query_token_balance;
@@ -12,8 +15,10 @@ use cosmwasm_std::{
 };
 use cw20::Cw20ExecuteMsg;
 
-pub fn stake_voting_tokens(
+fn stake_voting_tokens(
     deps: DepsMut,
+    action: &str,
+    anchor_token: CanonicalAddr,
     sender: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
@@ -25,13 +30,12 @@ pub fn stake_voting_tokens(
     let key = &sender_address_raw.as_slice();
 
     let mut token_manager = bank_read(deps.storage).may_load(key)?.unwrap_or_default();
-    let config: Config = config_store(deps.storage).load()?;
     let mut state: State = state_store(deps.storage).load()?;
 
     // balance already increased, so subtract deposit amount
     let total_balance = query_token_balance(
         &deps.querier,
-        deps.api.addr_humanize(&config.anchor_token)?,
+        deps.api.addr_humanize(&anchor_token)?,
         deps.api.addr_humanize(&state.contract_addr)?,
     )?
     .checked_sub(state.total_deposit + amount)?;
@@ -49,11 +53,69 @@ pub fn stake_voting_tokens(
     bank_store(deps.storage).save(key, &token_manager)?;
 
     Ok(Response::new().add_attributes(vec![
-        ("action", "staking"),
+        ("action", action),
         ("sender", sender.as_str()),
         ("share", share.to_string().as_str()),
         ("amount", amount.to_string().as_str()),
     ]))
+}
+
+pub fn create_lock(
+    deps: DepsMut,
+    sender: Addr,
+    amount: Uint128,
+    time: u64,
+) -> Result<Response, ContractError> {
+    let config: Config = config_store(deps.storage).load()?;
+    let create_lock_message = execute_create_lock(
+        deps.as_ref(),
+        &config.anchor_voting_escrow,
+        &deps.api.addr_canonicalize(sender.as_str())?,
+        time,
+    )?;
+    Ok(
+        stake_voting_tokens(deps, "create_lock", config.anchor_token, sender, amount)?
+            .add_message(create_lock_message),
+    )
+}
+
+pub fn extend_lock_amount(
+    deps: DepsMut,
+    sender: Addr,
+    amount: Uint128,
+) -> Result<Response, ContractError> {
+    let config: Config = config_store(deps.storage).load()?;
+    let extend_lock_amount_message = execute_extend_lock_amount(
+        deps.as_ref(),
+        &config.anchor_voting_escrow,
+        &deps.api.addr_canonicalize(sender.as_str())?,
+        amount,
+    )?;
+    Ok(stake_voting_tokens(
+        deps,
+        "extend_lock_amount",
+        config.anchor_token,
+        sender,
+        amount,
+    )?
+    .add_message(extend_lock_amount_message))
+}
+
+pub fn extend_lock_time(deps: DepsMut, sender: Addr, time: u64) -> Result<Response, ContractError> {
+    let config: Config = config_store(deps.storage).load()?;
+    let extend_lock_time_message = execute_extend_lock_time(
+        deps.as_ref(),
+        &config.anchor_voting_escrow,
+        &deps.api.addr_canonicalize(sender.as_str())?,
+        time,
+    )?;
+    Ok(Response::new()
+        .add_message(extend_lock_time_message)
+        .add_attributes(vec![
+            ("action", "extend_lock_time"),
+            ("sender", sender.as_str()),
+            ("time", time.to_string().as_str()),
+        ]))
 }
 
 // Withdraw amount if not staked. By default all funds will be withdrawn.

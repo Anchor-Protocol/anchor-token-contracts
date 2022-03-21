@@ -19,6 +19,9 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
+    ExtendLockTime {
+        time: u64,
+    },
     Receive(Cw20ReceiveMsg),
     ExecutePollMsgs {
         poll_id: u64,
@@ -58,9 +61,10 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
-    /// StakeVotingTokens a user can stake their mirror token to receive rewards
-    /// or do vote on polls
-    StakeVotingTokens {},
+    CreateLock {
+        time: u64,
+    },
+    ExtendLockAmount {},
     /// CreatePoll need to receive deposit from a proposer
     CreatePoll {
         title: String,

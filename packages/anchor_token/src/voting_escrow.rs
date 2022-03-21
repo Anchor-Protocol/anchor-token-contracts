@@ -1,5 +1,5 @@
 use cosmwasm_std::{Decimal, Uint128};
-use cw20::{Cw20ReceiveMsg, Logo};
+use cw20::{Logo};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -30,12 +30,20 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
+    CreateLock {
+        user: String,
+        time: u64
+    },
+    ExtendLockAmount {
+        user: String,
+        amount: Uint128,
+    },
     ExtendLockTime {
+        user: String,
         time: u64,
     },
     /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received
     /// template.
-    Receive(Cw20ReceiveMsg),
     Withdraw {},
     UpdateMarketing {
         /// A URL pointing to the project behind this token.
@@ -46,16 +54,6 @@ pub enum ExecuteMsg {
         marketing: Option<String>,
     },
     UploadLogo(Logo),
-}
-
-/// ## Description
-/// This structure describes a CW20 hook message.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum Cw20HookMsg {
-    CreateLock { time: u64 },
-    DepositFor { user: String },
-    ExtendLockAmount {},
 }
 
 /// ## Description
