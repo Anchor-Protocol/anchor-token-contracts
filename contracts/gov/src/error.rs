@@ -68,7 +68,4 @@ pub enum ContractError {
 
     #[error("Invalid Reply Id")]
     InvalidReplyId {},
-
-    #[error("The lock time has not yet expired")]
-    LockHasNotExpired {},
 }

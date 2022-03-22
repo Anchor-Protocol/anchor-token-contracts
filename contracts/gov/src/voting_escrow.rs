@@ -35,7 +35,7 @@ pub fn query_total_voting_power(
     Ok(voting_power_res.voting_power)
 }
 
-pub fn generate_extend_lock_amount_message(
+pub fn generate_extend_lock_amount_to_message(
     deps: Deps,
     anchor_voting_escrow: &CanonicalAddr,
     user: &CanonicalAddr,
@@ -43,7 +43,7 @@ pub fn generate_extend_lock_amount_message(
 ) -> StdResult<CosmosMsg> {
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: deps.api.addr_humanize(&anchor_voting_escrow)?.to_string(),
-        msg: to_binary(&VotingEscrowContractExecuteMsg::ExtendLockAmount {
+        msg: to_binary(&VotingEscrowContractExecuteMsg::ExtendLockAmountTo {
             user: user.to_string(),
             amount,
         })?,
@@ -62,6 +62,22 @@ pub fn generate_extend_lock_time_message(
         msg: to_binary(&VotingEscrowContractExecuteMsg::ExtendLockTime {
             user: user.to_string(),
             time,
+        })?,
+        funds: vec![],
+    }))
+}
+
+pub fn generate_withdraw_message(
+    deps: Deps,
+    anchor_voting_escrow: &CanonicalAddr,
+    user: &CanonicalAddr,
+    amount: Uint128,
+) -> StdResult<CosmosMsg> {
+    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: deps.api.addr_humanize(&anchor_voting_escrow)?.to_string(),
+        msg: to_binary(&VotingEscrowContractExecuteMsg::Withdraw {
+            user: user.to_string(),
+            amount,
         })?,
         funds: vec![],
     }))

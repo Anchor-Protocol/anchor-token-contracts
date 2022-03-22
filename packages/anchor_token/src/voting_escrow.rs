@@ -34,7 +34,7 @@ pub enum ExecuteMsg {
         user: String,
         time: u64
     },
-    ExtendLockAmount {
+    ExtendLockAmountTo {
         user: String,
         amount: Uint128,
     },
@@ -44,7 +44,10 @@ pub enum ExecuteMsg {
     },
     /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received
     /// template.
-    Withdraw {},
+    Withdraw {
+        user: String,
+        amount: Uint128,
+    },
     UpdateMarketing {
         /// A URL pointing to the project behind this token.
         project: Option<String>,
