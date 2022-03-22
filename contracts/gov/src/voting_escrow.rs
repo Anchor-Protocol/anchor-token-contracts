@@ -8,7 +8,7 @@ use cosmwasm_std::{
 
 pub fn query_user_voting_power(
     deps: Deps,
-    anchor_voting_escrow: CanonicalAddr,
+    anchor_voting_escrow: &CanonicalAddr,
     user: &CanonicalAddr,
 ) -> StdResult<Uint128> {
     let voting_power_res: VotingPowerResponse =
@@ -22,23 +22,20 @@ pub fn query_user_voting_power(
     Ok(voting_power_res.voting_power)
 }
 
-pub fn execute_create_lock(
+pub fn query_total_voting_power(
     deps: Deps,
     anchor_voting_escrow: &CanonicalAddr,
-    user: &CanonicalAddr,
-    time: u64,
-) -> StdResult<CosmosMsg> {
-    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: deps.api.addr_humanize(&anchor_voting_escrow)?.to_string(),
-        msg: to_binary(&VotingEscrowContractExecuteMsg::CreateLock {
-            user: user.to_string(),
-            time,
-        })?,
-        funds: vec![],
-    }))
+) -> StdResult<Uint128> {
+    let voting_power_res: VotingPowerResponse =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: deps.api.addr_humanize(&anchor_voting_escrow)?.to_string(),
+            msg: to_binary(&VotingEscrowContractQueryMsg::TotalVotingPower {})?,
+        }))?;
+
+    Ok(voting_power_res.voting_power)
 }
 
-pub fn execute_extend_lock_amount(
+pub fn generate_extend_lock_amount_message(
     deps: Deps,
     anchor_voting_escrow: &CanonicalAddr,
     user: &CanonicalAddr,
@@ -54,7 +51,7 @@ pub fn execute_extend_lock_amount(
     }))
 }
 
-pub fn execute_extend_lock_time(
+pub fn generate_extend_lock_time_message(
     deps: Deps,
     anchor_voting_escrow: &CanonicalAddr,
     user: &CanonicalAddr,

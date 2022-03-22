@@ -61,9 +61,6 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
-    CreateLock {
-        time: u64,
-    },
     ExtendLockAmount {},
     /// CreatePoll need to receive deposit from a proposer
     CreatePoll {
