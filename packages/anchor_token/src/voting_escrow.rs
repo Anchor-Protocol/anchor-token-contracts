@@ -1,5 +1,5 @@
 use cosmwasm_std::{Decimal, Uint128};
-use cw20::{Logo};
+use cw20::Logo;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -30,16 +30,13 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    CreateLock {
-        user: String,
-        time: u64
-    },
-    ExtendLockAmountTo {
+    ExtendLockAmount {
         user: String,
         amount: Uint128,
     },
     ExtendLockTime {
         user: String,
+        amount: Uint128,
         time: u64,
     },
     /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received

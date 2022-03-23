@@ -4,7 +4,7 @@ use crate::state::{
     state_store, Config, Poll, State,
 };
 use crate::voting_escrow::{
-    generate_extend_lock_amount_to_message, generate_extend_lock_time_message,
+    generate_extend_lock_amount_message, generate_extend_lock_time_message,
     generate_withdraw_message,
 };
 
@@ -16,6 +16,7 @@ use cosmwasm_std::{
 };
 use cw20::Cw20ExecuteMsg;
 
+// can only be called when user's unlock_time > current_time
 pub fn extend_lock_amount(
     deps: DepsMut,
     sender: CanonicalAddr,
@@ -51,15 +52,15 @@ pub fn extend_lock_amount(
     state_store(deps.storage).save(&state)?;
     bank_store(deps.storage).save(key, &token_manager)?;
 
-    let extend_lock_amount_to_message = generate_extend_lock_amount_to_message(
+    let extend_lock_amount_message = generate_extend_lock_amount_message(
         deps.as_ref(),
         &config.anchor_voting_escrow,
         &sender,
-        token_manager.share,
+        share,
     )?;
 
     Ok(Response::new()
-        .add_message(extend_lock_amount_to_message)
+        .add_message(extend_lock_amount_message)
         .add_attributes(vec![
             ("action", "extend_lock_amount"),
             (
@@ -71,7 +72,7 @@ pub fn extend_lock_amount(
         ]))
 }
 
-// can only be called when user's amount(sANC) != 0.
+// can be called anytime.
 pub fn extend_lock_time(
     deps: DepsMut,
     sender: CanonicalAddr,
@@ -86,26 +87,16 @@ pub fn extend_lock_time(
         return Err(ContractError::InsufficientFunds {});
     }
 
-    // for migration.
-    let extend_lock_amount_to_message = generate_extend_lock_amount_to_message(
-        deps.as_ref(),
-        &config.anchor_voting_escrow,
-        &sender,
-        token_manager.share,
-    )?;
-
     let extend_lock_time_message = generate_extend_lock_time_message(
         deps.as_ref(),
         &config.anchor_voting_escrow,
         &sender,
+        token_manager.share,
         time,
     )?;
 
     Ok(Response::new()
-        .add_messages(vec![
-            extend_lock_amount_to_message,
-            extend_lock_time_message,
-        ])
+        .add_message(extend_lock_time_message)
         .add_attributes(vec![
             ("action", "extend_lock_time"),
             ("sender", sender.to_string().as_str()),

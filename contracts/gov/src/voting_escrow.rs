@@ -13,7 +13,7 @@ pub fn query_user_voting_power(
 ) -> StdResult<Uint128> {
     let voting_power_res: VotingPowerResponse =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps.api.addr_humanize(&anchor_voting_escrow)?.to_string(),
+            contract_addr: deps.api.addr_humanize(anchor_voting_escrow)?.to_string(),
             msg: to_binary(&VotingEscrowContractQueryMsg::UserVotingPower {
                 user: deps.api.addr_humanize(user)?.to_string(),
             })?,
@@ -28,22 +28,22 @@ pub fn query_total_voting_power(
 ) -> StdResult<Uint128> {
     let voting_power_res: VotingPowerResponse =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: deps.api.addr_humanize(&anchor_voting_escrow)?.to_string(),
+            contract_addr: deps.api.addr_humanize(anchor_voting_escrow)?.to_string(),
             msg: to_binary(&VotingEscrowContractQueryMsg::TotalVotingPower {})?,
         }))?;
 
     Ok(voting_power_res.voting_power)
 }
 
-pub fn generate_extend_lock_amount_to_message(
+pub fn generate_extend_lock_amount_message(
     deps: Deps,
     anchor_voting_escrow: &CanonicalAddr,
     user: &CanonicalAddr,
     amount: Uint128,
 ) -> StdResult<CosmosMsg> {
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: deps.api.addr_humanize(&anchor_voting_escrow)?.to_string(),
-        msg: to_binary(&VotingEscrowContractExecuteMsg::ExtendLockAmountTo {
+        contract_addr: deps.api.addr_humanize(anchor_voting_escrow)?.to_string(),
+        msg: to_binary(&VotingEscrowContractExecuteMsg::ExtendLockAmount {
             user: user.to_string(),
             amount,
         })?,
@@ -55,12 +55,14 @@ pub fn generate_extend_lock_time_message(
     deps: Deps,
     anchor_voting_escrow: &CanonicalAddr,
     user: &CanonicalAddr,
+    amount: Uint128,
     time: u64,
 ) -> StdResult<CosmosMsg> {
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: deps.api.addr_humanize(&anchor_voting_escrow)?.to_string(),
+        contract_addr: deps.api.addr_humanize(anchor_voting_escrow)?.to_string(),
         msg: to_binary(&VotingEscrowContractExecuteMsg::ExtendLockTime {
             user: user.to_string(),
+            amount,
             time,
         })?,
         funds: vec![],
@@ -74,7 +76,7 @@ pub fn generate_withdraw_message(
     amount: Uint128,
 ) -> StdResult<CosmosMsg> {
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: deps.api.addr_humanize(&anchor_voting_escrow)?.to_string(),
+        contract_addr: deps.api.addr_humanize(anchor_voting_escrow)?.to_string(),
         msg: to_binary(&VotingEscrowContractExecuteMsg::Withdraw {
             user: user.to_string(),
             amount,

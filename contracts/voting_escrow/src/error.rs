@@ -29,4 +29,7 @@ pub enum ContractError {
 
     #[error("The lock expired. Withdraw and create new lock")]
     LockExpired {},
+
+    #[error("InsufficientStaked")]
+    InsufficientStaked {},
 }

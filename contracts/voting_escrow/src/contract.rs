@@ -1,13 +1,11 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, Uint128, WasmMsg,
+    to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError,
+    StdResult, Uint128,
 };
 use cw2::set_contract_version;
-use cw20::{
-    Cw20ExecuteMsg, Cw20ReceiveMsg, Logo, LogoInfo, MarketingInfoResponse, TokenInfoResponse,
-};
+use cw20::{Logo, LogoInfo, MarketingInfoResponse, TokenInfoResponse};
 use cw20_base::contract::{
     execute_update_marketing, execute_upload_logo, query_download_logo, query_marketing_info,
 };
@@ -18,13 +16,14 @@ use crate::checkpoint::checkpoint;
 use crate::error::ContractError;
 use crate::state::{Config, Lock, Point, CONFIG, HISTORY, LOCKED};
 use crate::utils::{
-    addr_validate_to_lower, anc_token_check, calc_coefficient, calc_voting_power,
-    fetch_last_checkpoint, fetch_slope_changes, get_period, time_limits_check, WEEK,
+    addr_validate_to_lower, calc_coefficient, calc_voting_power, fetch_last_checkpoint,
+    fetch_slope_changes, get_period, time_limits_check, WEEK,
 };
 use anchor_token::voting_escrow::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, QueryMsg,
-    UserSlopeResponse, UserUnlockPeriodResponse, VotingPowerResponse,
+    ConfigResponse, ExecuteMsg, InstantiateMsg, LockInfoResponse, QueryMsg, UserSlopeResponse,
+    UserUnlockPeriodResponse, VotingPowerResponse,
 };
+use std::cmp::max;
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "anchor-voting-escrow";
@@ -96,9 +95,18 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::ExtendLockTime { time } => extend_lock_time(deps, env, info, time),
-        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
-        ExecuteMsg::Withdraw {} => withdraw(deps, env, info),
+        ExecuteMsg::ExtendLockAmount { user, amount } => {
+            let user = deps.api.addr_validate(&user)?;
+            extend_lock_amount(deps, env, user, amount)
+        }
+        ExecuteMsg::ExtendLockTime { user, amount, time } => {
+            let user = deps.api.addr_validate(&user)?;
+            extend_lock_time(deps, env, user, amount, time)
+        }
+        ExecuteMsg::Withdraw { user, amount } => {
+            let user = deps.api.addr_validate(&user)?;
+            withdraw(deps, env, user, amount)
+        }
         ExecuteMsg::UpdateMarketing {
             project,
             description,
@@ -112,76 +120,18 @@ pub fn execute(
 }
 
 /// ## Description
-/// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
-/// If the template is not found in the received message, then an [`ContractError`] is returned,
-/// otherwise returns the [`Response`] with the specified attributes if the operation was successful
-fn receive_cw20(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    cw20_msg: Cw20ReceiveMsg,
-) -> Result<Response, ContractError> {
-    anc_token_check(deps.as_ref(), info.sender)?;
-    let sender = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
-
-    match from_binary(&cw20_msg.msg)? {
-        Cw20HookMsg::CreateLock { time } => create_lock(deps, env, sender, cw20_msg.amount, time),
-        Cw20HookMsg::ExtendLockAmount {} => deposit_for(deps, env, cw20_msg.amount, sender),
-        Cw20HookMsg::DepositFor { user } => {
-            let addr = addr_validate_to_lower(deps.api, &user)?;
-            deposit_for(deps, env, cw20_msg.amount, addr)
-        }
-    }
-}
-
-/// ## Description
-/// Creates a lock for the user for specified time. The time value is in seconds.
-/// Evaluates that the time is within [`WEEK`]..[`MAX_LOCK_TIME`] limits.
-/// Creates lock if it doesn't exist and triggers [`checkpoint`].
-/// If lock is already exists, then an [`ContractError`] is returned,
-/// otherwise returns the [`Response`] with the specified attributes if the operation was successful
-fn create_lock(
-    deps: DepsMut,
-    env: Env,
-    user: Addr,
-    amount: Uint128,
-    time: u64,
-) -> Result<Response, ContractError> {
-    time_limits_check(time)?;
-
-    let block_period = get_period(env.block.time.seconds());
-    let end = block_period + get_period(time);
-
-    LOCKED.update(deps.storage, user.clone(), |lock_opt| {
-        if lock_opt.is_some() && !lock_opt.unwrap().amount.is_zero() {
-            return Err(ContractError::LockAlreadyExists {});
-        }
-        Ok(Lock {
-            amount,
-            start: block_period,
-            end,
-            last_extend_lock_period: block_period,
-        })
-    })?;
-
-    checkpoint(deps, env, user, Some(amount), Some(end))?;
-
-    Ok(Response::default().add_attribute("action", "create_lock"))
-}
-
-/// ## Description
 /// Deposits 'amount' tokens to 'user' lock.
 /// Triggers [`checkpoint`].
 /// If lock is already expired, then an [`ContractError`] is returned,
 /// otherwise returns the [`Response`] with the specified attributes if the operation was successful
-fn deposit_for(
+fn extend_lock_amount(
     deps: DepsMut,
     env: Env,
-    amount: Uint128,
     user: Addr,
+    amount: Uint128,
 ) -> Result<Response, ContractError> {
     LOCKED.update(deps.storage, user.clone(), |lock_opt| match lock_opt {
-        Some(mut lock) if !lock.amount.is_zero() => {
+        Some(mut lock) => {
             if lock.end <= get_period(env.block.time.seconds()) {
                 Err(ContractError::LockExpired {})
             } else {
@@ -200,34 +150,32 @@ fn deposit_for(
 /// Withdraws whole amount of locked ANC.
 /// If lock doesn't exist or it has not yet expired, then an [`ContractError`] is returned,
 /// otherwise returns the [`Response`] with the specified attributes if the operation was successful
-fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
-    let sender = info.sender;
+fn withdraw(
+    deps: DepsMut,
+    env: Env,
+    user: Addr,
+    amount: Uint128,
+) -> Result<Response, ContractError> {
     // 'LockDoesntExist' is either a lock does not exist in LOCKED or a lock exits but lock.amount == 0
     let mut lock = LOCKED
-        .may_load(deps.storage, sender.clone())?
-        .filter(|lock| !lock.amount.is_zero())
+        .may_load(deps.storage, user.clone())?
         .ok_or(ContractError::LockDoesntExist {})?;
 
     let cur_period = get_period(env.block.time.seconds());
     if lock.end > cur_period {
         Err(ContractError::LockHasNotExpired {})
     } else {
-        let config = CONFIG.load(deps.storage)?;
-        let transfer_msg = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: sender.to_string(),
-                amount: lock.amount,
-            })?,
-            funds: vec![],
-        });
-        lock.amount = Uint128::zero();
-        LOCKED.save(deps.storage, sender.clone(), &lock)?;
+        if amount > lock.amount {
+            return Err(ContractError::InsufficientStaked {});
+        }
+
+        lock.amount -= amount;
+        LOCKED.save(deps.storage, user.clone(), &lock)?;
 
         // we need to set point to eliminate the slope influence on a future lock
         HISTORY.save(
             deps.storage,
-            (sender, U64Key::new(cur_period)),
+            (user, U64Key::new(cur_period)),
             &Point {
                 power: Uint128::zero(),
                 start: cur_period,
@@ -236,9 +184,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
             },
         )?;
 
-        Ok(Response::default()
-            .add_message(transfer_msg)
-            .add_attribute("action", "withdraw"))
+        Ok(Response::default().add_attribute("action", "withdraw"))
     }
 }
 
@@ -255,25 +201,30 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
 fn extend_lock_time(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
+    user: Addr,
+    amount: Uint128,
     time: u64,
 ) -> Result<Response, ContractError> {
-    let user = info.sender;
-    let mut lock = LOCKED
-        .may_load(deps.storage, user.clone())?
-        .filter(|lock| !lock.amount.is_zero())
-        .ok_or(ContractError::LockDoesntExist {})?;
+    let block_period = get_period(env.block.time.seconds());
+    let unlock_time;
 
-    // disabling ability to extend lock time by less than a week
-    time_limits_check(time)?;
-
-    if lock.end <= get_period(env.block.time.seconds()) {
-        return Err(ContractError::LockExpired {});
+    let lock = if let Some(mut lock) = LOCKED.may_load(deps.storage, user.clone())? {
+        unlock_time = max(lock.end * WEEK, env.block.time.seconds()) + time;
+        lock.end = get_period(unlock_time);
+        lock
+    } else {
+        unlock_time = env.block.time.seconds() + time;
+        Lock {
+            amount,
+            start: block_period,
+            end: get_period(unlock_time),
+            last_extend_lock_period: block_period,
+        }
     };
 
     // should not exceed MAX_LOCK_TIME
-    time_limits_check(lock.end * WEEK + time - env.block.time.seconds())?;
-    lock.end += get_period(time);
+    time_limits_check(unlock_time - env.block.time.seconds())?;
+
     LOCKED.save(deps.storage, user.clone(), &lock)?;
 
     checkpoint(deps, env, user, None, Some(lock.end))?;
