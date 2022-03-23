@@ -44,6 +44,8 @@ serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 astroport = "0.3.1"
 thiserror = { version = "1.0.20" }
 hex = "0.4"
+terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra"}
 
 [dev-dependencies]
 cosmwasm-schema = "0.16.0"
+anchor-voting-escrow = {path = "../voting_escrow"}
