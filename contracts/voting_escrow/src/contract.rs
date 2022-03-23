@@ -97,15 +97,15 @@ pub fn execute(
     match msg {
         ExecuteMsg::ExtendLockAmount { user, amount } => {
             let user = deps.api.addr_validate(&user)?;
-            extend_lock_amount(deps, env, user, amount)
+            extend_lock_amount(deps, env, info, user, amount)
         }
         ExecuteMsg::ExtendLockTime { user, amount, time } => {
             let user = deps.api.addr_validate(&user)?;
-            extend_lock_time(deps, env, user, amount, time)
+            extend_lock_time(deps, env, info, user, amount, time)
         }
         ExecuteMsg::Withdraw { user, amount } => {
             let user = deps.api.addr_validate(&user)?;
-            withdraw(deps, env, user, amount)
+            withdraw(deps, env, info, user, amount)
         }
         ExecuteMsg::UpdateMarketing {
             project,
@@ -127,9 +127,15 @@ pub fn execute(
 fn extend_lock_amount(
     deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     user: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
+        return Err(ContractError::Unauthorized {});
+    }
+
     LOCKED.update(deps.storage, user.clone(), |lock_opt| match lock_opt {
         Some(mut lock) => {
             if lock.end <= get_period(env.block.time.seconds()) {
@@ -153,9 +159,15 @@ fn extend_lock_amount(
 fn withdraw(
     deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     user: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
+        return Err(ContractError::Unauthorized {});
+    }
+
     // 'LockDoesntExist' is either a lock does not exist in LOCKED or a lock exits but lock.amount == 0
     let mut lock = LOCKED
         .may_load(deps.storage, user.clone())?
@@ -201,10 +213,16 @@ fn withdraw(
 fn extend_lock_time(
     deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     user: Addr,
     amount: Uint128,
     time: u64,
 ) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
+        return Err(ContractError::Unauthorized {});
+    }
+
     let block_period = get_period(env.block.time.seconds());
     let unlock_time;
 
