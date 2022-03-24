@@ -44,7 +44,7 @@ pub fn generate_extend_lock_amount_message(
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: deps.api.addr_humanize(anchor_voting_escrow)?.to_string(),
         msg: to_binary(&VotingEscrowContractExecuteMsg::ExtendLockAmount {
-            user: user.to_string(),
+            user: deps.api.addr_humanize(user)?.to_string(),
             amount,
         })?,
         funds: vec![],
@@ -60,7 +60,7 @@ pub fn generate_extend_lock_time_message(
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: deps.api.addr_humanize(anchor_voting_escrow)?.to_string(),
         msg: to_binary(&VotingEscrowContractExecuteMsg::ExtendLockTime {
-            user: user.to_string(),
+            user: deps.api.addr_humanize(user)?.to_string(),
             time,
         })?,
         funds: vec![],
@@ -76,7 +76,7 @@ pub fn generate_withdraw_message(
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: deps.api.addr_humanize(anchor_voting_escrow)?.to_string(),
         msg: to_binary(&VotingEscrowContractExecuteMsg::Withdraw {
-            user: user.to_string(),
+            user: deps.api.addr_humanize(user)?.to_string(),
             amount,
         })?,
         funds: vec![],

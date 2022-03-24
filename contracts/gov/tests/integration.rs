@@ -1,12 +1,22 @@
-use anchor_token::gov::{ExecuteMsg, InstantiateMsg as GovInstantiateMsg};
-use anchor_token::voting_escrow::InstantiateMsg as VotingEscrowInstantiateMsg;
+use anchor_token::gov::{
+    Cw20HookMsg, ExecuteMsg as GovExecuteMsg, InstantiateMsg as GovInstantiateMsg,
+};
+use anchor_token::voting_escrow::{
+    ExecuteMsg as VotingEscrowExecuteMsg, InstantiateMsg as VotingEscrowInstantiateMsg,
+    QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse,
+};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{Addr, Decimal, Uint128};
-use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
+use cosmwasm_std::{to_binary, Addr, Decimal, Uint128};
+use cw20::{Cw20ExecuteMsg, MinterResponse};
 use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
 
 const OWNER: &str = "owner";
+const ALICE: &str = "alice";
+
+const WEEK: u64 = 7 * 86400;
+const YEAR: u64 = 365 * 86400;
+const BLOCKS_PER_DAY: u64 = 17280;
 
 fn mock_app() -> TerraApp {
     let env = mock_env();
@@ -69,10 +79,7 @@ fn create_contracts() -> (TerraApp, Addr, Addr, Addr) {
         name: "anchor_token".to_string(),
         symbol: "ANC".to_string(),
         decimals: 5,
-        initial_balances: vec![Cw20Coin {
-            address: owner.to_string(),
-            amount: Uint128::new(9982_44353),
-        }],
+        initial_balances: vec![],
         mint: Some(MinterResponse {
             minter: String::from(owner.clone()),
             cap: None,
@@ -127,7 +134,7 @@ fn create_contracts() -> (TerraApp, Addr, Addr, Addr) {
         )
         .unwrap();
 
-    let msg = ExecuteMsg::RegisterContracts {
+    let msg = GovExecuteMsg::RegisterContracts {
         anchor_token: anchor_token.to_string(),
         anchor_voting_escrow: ve.to_string(),
     };
@@ -139,12 +146,28 @@ fn create_contracts() -> (TerraApp, Addr, Addr, Addr) {
     return (router, anchor_token, gov, ve);
 }
 
+fn mint_token(
+    router: &mut TerraApp,
+    token: &Addr,
+    owner: &Addr,
+    recipient: &Addr,
+    amount: Uint128,
+) {
+    let msg = Cw20ExecuteMsg::Mint {
+        recipient: recipient.to_string(),
+        amount,
+    };
+    router
+        .execute_contract(owner.clone(), token.clone(), &msg, &[])
+        .unwrap();
+}
+
 #[test]
-fn test_gov_register_contracts_twice() {
+fn test_register_contracts_twice() {
     let owner = Addr::unchecked(OWNER);
     let (mut router, anchor_token, gov, ve) = create_contracts();
 
-    let msg = ExecuteMsg::RegisterContracts {
+    let msg = GovExecuteMsg::RegisterContracts {
         anchor_token: anchor_token.to_string(),
         anchor_voting_escrow: ve.to_string(),
     };
@@ -154,4 +177,374 @@ fn test_gov_register_contracts_twice() {
         .unwrap_err();
 
     assert_eq!(res.to_string(), "Unauthorized");
+}
+
+#[test]
+fn test_deposit_without_setting_lock_time() {
+    let owner = Addr::unchecked(OWNER);
+    let alice = Addr::unchecked(ALICE);
+    let (mut router, anchor_token, gov, _ve) = create_contracts();
+
+    mint_token(
+        &mut router,
+        &anchor_token,
+        &owner,
+        &alice,
+        Uint128::from(100_u64),
+    );
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: gov.to_string(),
+        amount: Uint128::from(100_u64),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
+    };
+
+    let res = router
+        .execute_contract(alice.clone(), anchor_token.clone(), &msg, &[])
+        .unwrap_err();
+
+    assert_eq!(res.to_string(), "Lock does not exist");
+}
+
+#[test]
+fn test_invalid_unlocking_time() {
+    let alice = Addr::unchecked(ALICE);
+    let (mut router, _anchor_token, gov, _ve) = create_contracts();
+
+    let msg = GovExecuteMsg::ExtendLockTime { time: YEAR / 2 };
+
+    let res = router
+        .execute_contract(alice.clone(), gov.clone(), &msg, &[])
+        .unwrap_err();
+
+    assert_eq!(res.to_string(), "Lock time must be within the limits");
+
+    let msg = GovExecuteMsg::ExtendLockTime { time: YEAR * 6 };
+
+    let res = router
+        .execute_contract(alice.clone(), gov.clone(), &msg, &[])
+        .unwrap_err();
+
+    assert_eq!(res.to_string(), "Lock time must be within the limits");
+
+    let msg = GovExecuteMsg::ExtendLockTime { time: YEAR * 3 };
+
+    let _res = router
+        .execute_contract(alice.clone(), gov.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = GovExecuteMsg::ExtendLockTime { time: YEAR + WEEK };
+
+    let res = router
+        .execute_contract(alice.clone(), gov.clone(), &msg, &[])
+        .unwrap_err();
+
+    assert_eq!(res.to_string(), "Lock time must be within the limits");
+}
+
+#[test]
+fn check_permission_of_ve_contract() {
+    let alice = Addr::unchecked(ALICE);
+    let (mut router, _anchor_token, _gov, ve) = create_contracts();
+
+    let msg = VotingEscrowExecuteMsg::ExtendLockTime {
+        user: alice.to_string(),
+        time: YEAR * 2,
+    };
+
+    let res = router
+        .execute_contract(alice.clone(), ve.clone(), &msg, &[])
+        .unwrap_err();
+
+    assert_eq!(res.to_string(), "Unauthorized");
+
+    let msg = VotingEscrowExecuteMsg::ExtendLockAmount {
+        user: alice.to_string(),
+        amount: Uint128::from(100_u64),
+    };
+
+    let res = router
+        .execute_contract(alice.clone(), ve.clone(), &msg, &[])
+        .unwrap_err();
+
+    assert_eq!(res.to_string(), "Unauthorized");
+}
+
+#[test]
+fn test_set_unlocking_time_and_stake_several_times() {
+    let owner = Addr::unchecked(OWNER);
+    let alice = Addr::unchecked(ALICE);
+    let (mut router, anchor_token, gov, ve) = create_contracts();
+
+    let msg = GovExecuteMsg::ExtendLockTime { time: YEAR * 2 };
+
+    let _res = router
+        .execute_contract(alice.clone(), gov.clone(), &msg, &[])
+        .unwrap();
+
+    mint_token(
+        &mut router,
+        &anchor_token,
+        &owner,
+        &alice,
+        Uint128::from(200_u64),
+    );
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: gov.to_string(),
+        amount: Uint128::from(100_u64),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
+    };
+
+    let _res = router
+        .execute_contract(alice.clone(), anchor_token.clone(), &msg, &[])
+        .unwrap();
+
+    let res: VotingPowerResponse = router
+        .wrap()
+        .query_wasm_smart(
+            ve.clone(),
+            &VotingEscrowQueryMsg::UserVotingPower {
+                user: alice.to_string(),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(res.voting_power, Uint128::from(126_u64));
+
+    router.update_block(|b| {
+        b.height += BLOCKS_PER_DAY * 365 / 2;
+        b.time = b.time.plus_seconds(YEAR / 2);
+    });
+
+    let res: VotingPowerResponse = router
+        .wrap()
+        .query_wasm_smart(
+            ve.clone(),
+            &VotingEscrowQueryMsg::UserVotingPower {
+                user: alice.to_string(),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(res.voting_power, Uint128::from(95_u64));
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: gov.to_string(),
+        amount: Uint128::from(100_u64),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
+    };
+
+    let _res = router
+        .execute_contract(alice.clone(), anchor_token.clone(), &msg, &[])
+        .unwrap();
+
+    let res: VotingPowerResponse = router
+        .wrap()
+        .query_wasm_smart(
+            ve.clone(),
+            &VotingEscrowQueryMsg::UserVotingPower {
+                user: alice.to_string(),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(res.voting_power, Uint128::from(189_u64));
+
+    let msg = GovExecuteMsg::ExtendLockTime { time: YEAR };
+
+    let _res = router
+        .execute_contract(alice.clone(), gov.clone(), &msg, &[])
+        .unwrap();
+
+    let res: VotingPowerResponse = router
+        .wrap()
+        .query_wasm_smart(
+            ve.clone(),
+            &VotingEscrowQueryMsg::UserVotingPower {
+                user: alice.to_string(),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(res.voting_power, Uint128::from(314_u64));
+}
+
+#[test]
+fn test_lock_token_and_withdraw_and_lock_again() {
+    let owner = Addr::unchecked(OWNER);
+    let alice = Addr::unchecked(ALICE);
+    let (mut router, anchor_token, gov, ve) = create_contracts();
+
+    let msg = GovExecuteMsg::ExtendLockTime { time: YEAR };
+
+    let _res = router
+        .execute_contract(alice.clone(), gov.clone(), &msg, &[])
+        .unwrap();
+
+    mint_token(
+        &mut router,
+        &anchor_token,
+        &owner,
+        &alice,
+        Uint128::from(200_u64),
+    );
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: gov.to_string(),
+        amount: Uint128::from(200_u64),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
+    };
+
+    let _res = router
+        .execute_contract(alice.clone(), anchor_token.clone(), &msg, &[])
+        .unwrap();
+
+    router.update_block(|b| {
+        b.height += BLOCKS_PER_DAY * 365 / 2;
+        b.time = b.time.plus_seconds(YEAR / 2);
+    });
+
+    let msg = GovExecuteMsg::WithdrawVotingTokens {
+        amount: Some(Uint128::from(100_u64)),
+    };
+
+    let res = router
+        .execute_contract(alice.clone(), gov.clone(), &msg, &[])
+        .unwrap_err();
+
+    assert_eq!(res.to_string(), "The lock time has not yet expired");
+
+    let res: VotingPowerResponse = router
+        .wrap()
+        .query_wasm_smart(
+            ve.clone(),
+            &VotingEscrowQueryMsg::UserVotingPower {
+                user: alice.to_string(),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(res.voting_power, Uint128::from(65_u64));
+
+    router.update_block(|b| {
+        b.height += BLOCKS_PER_DAY * 365 / 2;
+        b.time = b.time.plus_seconds(YEAR / 2);
+    });
+
+    let res: VotingPowerResponse = router
+        .wrap()
+        .query_wasm_smart(
+            ve.clone(),
+            &VotingEscrowQueryMsg::UserVotingPower {
+                user: alice.to_string(),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(res.voting_power, Uint128::from(0_u64));
+
+    let msg = GovExecuteMsg::WithdrawVotingTokens {
+        amount: Some(Uint128::from(100_u64)),
+    };
+
+    let _res = router
+        .execute_contract(alice.clone(), gov.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = GovExecuteMsg::ExtendLockTime { time: YEAR * 4 };
+
+    let _res = router
+        .execute_contract(alice.clone(), gov.clone(), &msg, &[])
+        .unwrap();
+
+    let res: VotingPowerResponse = router
+        .wrap()
+        .query_wasm_smart(
+            ve.clone(),
+            &VotingEscrowQueryMsg::UserVotingPower {
+                user: alice.to_string(),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(res.voting_power, Uint128::from(250_u64));
+}
+
+#[test]
+fn test_lock_token_and_withdraw_multiple_times() {
+    let owner = Addr::unchecked(OWNER);
+    let alice = Addr::unchecked(ALICE);
+    let (mut router, anchor_token, gov, _ve) = create_contracts();
+
+    let msg = GovExecuteMsg::ExtendLockTime { time: YEAR };
+
+    let _res = router
+        .execute_contract(alice.clone(), gov.clone(), &msg, &[])
+        .unwrap();
+
+    mint_token(
+        &mut router,
+        &anchor_token,
+        &owner,
+        &alice,
+        Uint128::from(100_u64),
+    );
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: gov.to_string(),
+        amount: Uint128::from(100_u64),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
+    };
+
+    let _res = router
+        .execute_contract(alice.clone(), anchor_token.clone(), &msg, &[])
+        .unwrap();
+
+    router.update_block(|b| {
+        b.height += BLOCKS_PER_DAY * 365;
+        b.time = b.time.plus_seconds(YEAR);
+    });
+
+    let msg = GovExecuteMsg::WithdrawVotingTokens {
+        amount: Some(Uint128::from(20_u64)),
+    };
+
+    let _res = router
+        .execute_contract(alice.clone(), gov.clone(), &msg, &[])
+        .unwrap();
+
+    router.update_block(|b| {
+        b.height += BLOCKS_PER_DAY * 7;
+        b.time = b.time.plus_seconds(WEEK);
+    });
+
+    let msg = GovExecuteMsg::WithdrawVotingTokens {
+        amount: Some(Uint128::from(70_u64)),
+    };
+
+    let _res = router
+        .execute_contract(alice.clone(), gov.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = GovExecuteMsg::WithdrawVotingTokens {
+        amount: Some(Uint128::from(11_u64)),
+    };
+
+    let res = router
+        .execute_contract(alice.clone(), gov.clone(), &msg, &[])
+        .unwrap_err();
+
+    assert_eq!(
+        res.to_string(),
+        "User is trying to withdraw too many tokens"
+    );
+
+    let msg = GovExecuteMsg::WithdrawVotingTokens {
+        amount: Some(Uint128::from(10_u64)),
+    };
+
+    let _res = router
+        .execute_contract(alice.clone(), gov.clone(), &msg, &[])
+        .unwrap();
 }

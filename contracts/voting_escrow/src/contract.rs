@@ -135,7 +135,6 @@ fn extend_lock_amount(
     if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(ContractError::Unauthorized {});
     }
-
     LOCKED.update(deps.storage, user.clone(), |lock_opt| match lock_opt {
         Some(mut lock) => {
             if lock.end <= get_period(env.block.time.seconds()) {
