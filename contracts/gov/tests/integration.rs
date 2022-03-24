@@ -144,7 +144,7 @@ fn create_contracts() -> (TerraApp, Addr, Addr, Addr) {
         anchor_voting_escrow: ve.to_string(),
     };
 
-    let _res = router
+    router
         .execute_contract(owner.clone(), gov.clone(), &msg, &[])
         .unwrap();
 
@@ -221,7 +221,7 @@ fn collect_rewards(router: &mut TerraApp, anchor_token: &Addr, gov: &Addr, amoun
         amount,
     };
 
-    let _res = router
+    router
         .execute_contract(Addr::unchecked(COLLECTOR), anchor_token.clone(), &msg, &[])
         .unwrap();
 }
@@ -293,7 +293,7 @@ fn test_invalid_unlocking_time() {
     let res = extend_lock_time(&mut router, &gov, &alice, YEAR * 6).unwrap_err();
     assert_eq!(res.to_string(), "Lock time must be within the limits");
 
-    let _res = extend_lock_time(&mut router, &gov, &alice, YEAR * 3).unwrap();
+    extend_lock_time(&mut router, &gov, &alice, YEAR * 3).unwrap();
 
     let res = extend_lock_time(&mut router, &gov, &alice, YEAR + WEEK).unwrap_err();
     assert_eq!(res.to_string(), "Lock time must be within the limits");
@@ -333,7 +333,7 @@ fn test_set_unlocking_time_and_stake_several_times() {
     let alice = Addr::unchecked(ALICE);
     let (mut router, anchor_token, gov, ve) = create_contracts();
 
-    let _res = extend_lock_time(&mut router, &gov, &alice, YEAR * 2).unwrap();
+    extend_lock_time(&mut router, &gov, &alice, YEAR * 2).unwrap();
 
     mint_token(
         &mut router,
@@ -343,7 +343,7 @@ fn test_set_unlocking_time_and_stake_several_times() {
         Uint128::from(200_u64),
     );
 
-    let _res = extend_lock_amount(
+    extend_lock_amount(
         &mut router,
         &anchor_token,
         &gov,
@@ -367,7 +367,7 @@ fn test_set_unlocking_time_and_stake_several_times() {
         Uint128::from(95_u64)
     );
 
-    let _res = extend_lock_amount(
+    extend_lock_amount(
         &mut router,
         &anchor_token,
         &gov,
@@ -381,7 +381,7 @@ fn test_set_unlocking_time_and_stake_several_times() {
         Uint128::from(190_u64)
     );
 
-    let _res = extend_lock_time(&mut router, &gov, &alice, YEAR).unwrap();
+    extend_lock_time(&mut router, &gov, &alice, YEAR).unwrap();
 
     assert_eq!(
         query_voting_power(&router, &ve, &alice),
@@ -395,7 +395,7 @@ fn test_lock_token_and_withdraw_and_lock_again() {
     let alice = Addr::unchecked(ALICE);
     let (mut router, anchor_token, gov, ve) = create_contracts();
 
-    let _res = extend_lock_time(&mut router, &gov, &alice, YEAR).unwrap();
+    extend_lock_time(&mut router, &gov, &alice, YEAR).unwrap();
 
     mint_token(
         &mut router,
@@ -405,7 +405,7 @@ fn test_lock_token_and_withdraw_and_lock_again() {
         Uint128::from(200_u64),
     );
 
-    let _res = extend_lock_amount(
+    extend_lock_amount(
         &mut router,
         &anchor_token,
         &gov,
@@ -438,9 +438,9 @@ fn test_lock_token_and_withdraw_and_lock_again() {
         Uint128::from(0_u64)
     );
 
-    let _res = withdraw_voting_tokens(&mut router, &gov, &alice, Uint128::from(100_u64)).unwrap();
+    withdraw_voting_tokens(&mut router, &gov, &alice, Uint128::from(100_u64)).unwrap();
 
-    let _res = extend_lock_time(&mut router, &gov, &alice, YEAR * 4).unwrap();
+    extend_lock_time(&mut router, &gov, &alice, YEAR * 4).unwrap();
 
     assert_eq!(
         query_voting_power(&router, &ve, &alice),
@@ -454,7 +454,7 @@ fn test_lock_token_and_withdraw_multiple_times() {
     let alice = Addr::unchecked(ALICE);
     let (mut router, anchor_token, gov, _ve) = create_contracts();
 
-    let _res = extend_lock_time(&mut router, &gov, &alice, YEAR).unwrap();
+    extend_lock_time(&mut router, &gov, &alice, YEAR).unwrap();
 
     mint_token(
         &mut router,
@@ -464,7 +464,7 @@ fn test_lock_token_and_withdraw_multiple_times() {
         Uint128::from(100_u64),
     );
 
-    let _res = extend_lock_amount(
+    extend_lock_amount(
         &mut router,
         &anchor_token,
         &gov,
@@ -478,14 +478,14 @@ fn test_lock_token_and_withdraw_multiple_times() {
         b.time = b.time.plus_seconds(YEAR);
     });
 
-    let _res = withdraw_voting_tokens(&mut router, &gov, &alice, Uint128::from(20_u64)).unwrap();
+    withdraw_voting_tokens(&mut router, &gov, &alice, Uint128::from(20_u64)).unwrap();
 
     router.update_block(|b| {
         b.height += BLOCKS_PER_DAY * 7;
         b.time = b.time.plus_seconds(WEEK);
     });
 
-    let _res = withdraw_voting_tokens(&mut router, &gov, &alice, Uint128::from(70_u64)).unwrap();
+    withdraw_voting_tokens(&mut router, &gov, &alice, Uint128::from(70_u64)).unwrap();
 
     let res = withdraw_voting_tokens(&mut router, &gov, &alice, Uint128::from(11_u64)).unwrap_err();
 
@@ -494,7 +494,7 @@ fn test_lock_token_and_withdraw_multiple_times() {
         "User is trying to withdraw too many tokens"
     );
 
-    let _res = withdraw_voting_tokens(&mut router, &gov, &alice, Uint128::from(10_u64)).unwrap();
+    withdraw_voting_tokens(&mut router, &gov, &alice, Uint128::from(10_u64)).unwrap();
 }
 
 #[test]
@@ -504,7 +504,7 @@ fn test_lock_token_and_get_rewards() {
     let bob = Addr::unchecked(BOB);
     let (mut router, anchor_token, gov, ve) = create_contracts();
 
-    let _res = extend_lock_time(&mut router, &gov, &alice, YEAR).unwrap();
+    extend_lock_time(&mut router, &gov, &alice, YEAR).unwrap();
 
     mint_token(
         &mut router,
@@ -514,7 +514,7 @@ fn test_lock_token_and_get_rewards() {
         Uint128::from(100_u64),
     );
 
-    let _res = extend_lock_amount(
+    extend_lock_amount(
         &mut router,
         &anchor_token,
         &gov,
@@ -525,7 +525,7 @@ fn test_lock_token_and_get_rewards() {
 
     collect_rewards(&mut router, &anchor_token, &gov, Uint128::from(50_u64));
 
-    let _res = extend_lock_time(&mut router, &gov, &bob, YEAR).unwrap();
+    extend_lock_time(&mut router, &gov, &bob, YEAR).unwrap();
 
     mint_token(
         &mut router,
@@ -535,7 +535,7 @@ fn test_lock_token_and_get_rewards() {
         Uint128::from(100_u64),
     );
 
-    let _res = extend_lock_amount(
+    extend_lock_amount(
         &mut router,
         &anchor_token,
         &gov,
@@ -561,9 +561,8 @@ fn test_lock_token_and_get_rewards() {
 
     collect_rewards(&mut router, &anchor_token, &gov, Uint128::from(50_u64));
 
-    let _res = withdraw_voting_tokens(&mut router, &gov, &alice, Uint128::from(180_u64)).unwrap();
-    let _res =
-        withdraw_voting_tokens(&mut router, &gov, &alice, Uint128::from(181_u64)).unwrap_err();
-    let _res = withdraw_voting_tokens(&mut router, &gov, &bob, Uint128::from(119_u64)).unwrap();
-    let _res = withdraw_voting_tokens(&mut router, &gov, &bob, Uint128::from(120_u64)).unwrap_err();
+    withdraw_voting_tokens(&mut router, &gov, &alice, Uint128::from(180_u64)).unwrap();
+    withdraw_voting_tokens(&mut router, &gov, &alice, Uint128::from(181_u64)).unwrap_err();
+    withdraw_voting_tokens(&mut router, &gov, &bob, Uint128::from(119_u64)).unwrap();
+    withdraw_voting_tokens(&mut router, &gov, &bob, Uint128::from(120_u64)).unwrap_err();
 }
