@@ -1,7 +1,7 @@
 use crate::error::ContractError;
 use crate::state::{
-    bank_read, bank_store, config_read, config_store, poll_read, poll_voter_store, state_read,
-    state_store, Config, Poll, State,
+    bank_read, bank_store, config_read, config_store, is_synced_read, is_synced_store, poll_read,
+    poll_voter_store, state_read, state_store, Config, Poll, State,
 };
 use crate::voting_escrow::{
     generate_extend_lock_amount_message, generate_extend_lock_time_message,
@@ -81,27 +81,34 @@ pub fn extend_lock_time(
     let config: Config = config_store(deps.storage).load()?;
     let key = &sender.as_slice();
 
-    let token_manager = bank_read(deps.storage).may_load(key)?.unwrap_or_default();
-
-    if token_manager.share == Uint128::zero() {
-        return Err(ContractError::InsufficientFunds {});
-    }
-
-    let extend_lock_time_message = generate_extend_lock_time_message(
+    let mut messages: Vec<CosmosMsg> = vec![generate_extend_lock_time_message(
         deps.as_ref(),
         &config.anchor_voting_escrow,
         &sender,
-        token_manager.share,
         time,
-    )?;
+    )?];
 
-    Ok(Response::new()
-        .add_message(extend_lock_time_message)
-        .add_attributes(vec![
-            ("action", "extend_lock_time"),
-            ("sender", sender.to_string().as_str()),
-            ("time", time.to_string().as_str()),
-        ]))
+    let is_synced = is_synced_read(deps.storage)
+        .may_load(key)?
+        .unwrap_or_default();
+
+    if !is_synced {
+        let token_manager = bank_read(deps.storage).may_load(key)?.unwrap_or_default();
+
+        messages.push(generate_extend_lock_amount_message(
+            deps.as_ref(),
+            &config.anchor_voting_escrow,
+            &sender,
+            token_manager.share,
+        )?);
+        is_synced_store(deps.storage).save(key, &true)?;
+    }
+
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        ("action", "extend_lock_time"),
+        ("sender", sender.to_string().as_str()),
+        ("time", time.to_string().as_str()),
+    ]))
 }
 
 // Withdraw amount if not staked. By default all funds will be withdrawn.
@@ -160,12 +167,20 @@ pub fn withdraw_voting_tokens(
             state.total_share = Uint128::from(total_share - withdraw_share);
             state_store(deps.storage).save(&state)?;
 
-            let withdraw_message = generate_withdraw_message(
-                deps.as_ref(),
-                &config.anchor_voting_escrow,
-                &sender_address_raw,
-                Uint128::from(withdraw_share),
-            )?;
+            let is_synced = is_synced_read(deps.storage)
+                .may_load(key)?
+                .unwrap_or_default();
+
+            let mut messages: Vec<CosmosMsg> = vec![];
+
+            if is_synced {
+                messages.push(generate_withdraw_message(
+                    deps.as_ref(),
+                    &config.anchor_voting_escrow,
+                    &sender_address_raw,
+                    Uint128::from(withdraw_share),
+                )?);
+            }
 
             Ok(send_tokens(
                 deps,
@@ -174,7 +189,7 @@ pub fn withdraw_voting_tokens(
                 withdraw_amount,
                 "withdraw",
             )?
-            .add_message(withdraw_message))
+            .add_messages(messages))
         }
     } else {
         Err(ContractError::NothingStaked {})

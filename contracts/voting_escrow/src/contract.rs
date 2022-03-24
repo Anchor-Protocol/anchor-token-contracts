@@ -99,9 +99,9 @@ pub fn execute(
             let user = deps.api.addr_validate(&user)?;
             extend_lock_amount(deps, env, info, user, amount)
         }
-        ExecuteMsg::ExtendLockTime { user, amount, time } => {
+        ExecuteMsg::ExtendLockTime { user, time } => {
             let user = deps.api.addr_validate(&user)?;
-            extend_lock_time(deps, env, info, user, amount, time)
+            extend_lock_time(deps, env, info, user, time)
         }
         ExecuteMsg::Withdraw { user, amount } => {
             let user = deps.api.addr_validate(&user)?;
@@ -215,7 +215,6 @@ fn extend_lock_time(
     env: Env,
     info: MessageInfo,
     user: Addr,
-    amount: Uint128,
     time: u64,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
@@ -233,7 +232,7 @@ fn extend_lock_time(
     } else {
         unlock_time = env.block.time.seconds() + time;
         Lock {
-            amount,
+            amount: Uint128::zero(),
             start: block_period,
             end: get_period(unlock_time),
             last_extend_lock_period: block_period,

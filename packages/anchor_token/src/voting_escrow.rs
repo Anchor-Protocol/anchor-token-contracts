@@ -36,7 +36,6 @@ pub enum ExecuteMsg {
     },
     ExtendLockTime {
         user: String,
-        amount: Uint128,
         time: u64,
     },
     /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received

@@ -36,14 +36,10 @@
         "extend_lock_time": {
           "type": "object",
           "required": [
-            "amount",
             "time",
             "user"
           ],
           "properties": {
-            "amount": {
-              "$ref": "#/definitions/Uint128"
-            },
             "time": {
               "type": "integer",
               "format": "uint64",

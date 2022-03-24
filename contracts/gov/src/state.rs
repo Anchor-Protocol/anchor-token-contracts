@@ -18,6 +18,7 @@ static PREFIX_POLL_INDEXER: &[u8] = b"poll_indexer";
 static PREFIX_POLL_VOTER: &[u8] = b"poll_voter";
 static PREFIX_POLL: &[u8] = b"poll";
 static PREFIX_BANK: &[u8] = b"bank";
+static PREFIX_IS_SYNCED: &[u8] = b"is_synced";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -113,6 +114,14 @@ pub fn store_tmp_poll_id(storage: &mut dyn Storage, tmp_poll_id: u64) -> StdResu
 
 pub fn read_tmp_poll_id(storage: &dyn Storage) -> StdResult<u64> {
     singleton_read(storage, KEY_TMP_POLL_ID).load()
+}
+
+pub fn is_synced_store(storage: &mut dyn Storage) -> Bucket<bool> {
+    bucket(storage, PREFIX_IS_SYNCED)
+}
+
+pub fn is_synced_read(storage: &dyn Storage) -> ReadonlyBucket<bool> {
+    bucket_read(storage, PREFIX_IS_SYNCED)
 }
 
 pub fn poll_store(storage: &mut dyn Storage) -> Bucket<Poll> {

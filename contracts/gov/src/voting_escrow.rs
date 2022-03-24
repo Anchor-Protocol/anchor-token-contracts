@@ -55,14 +55,12 @@ pub fn generate_extend_lock_time_message(
     deps: Deps,
     anchor_voting_escrow: &CanonicalAddr,
     user: &CanonicalAddr,
-    amount: Uint128,
     time: u64,
 ) -> StdResult<CosmosMsg> {
     Ok(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: deps.api.addr_humanize(anchor_voting_escrow)?.to_string(),
         msg: to_binary(&VotingEscrowContractExecuteMsg::ExtendLockTime {
             user: user.to_string(),
-            amount,
             time,
         })?,
         funds: vec![],
