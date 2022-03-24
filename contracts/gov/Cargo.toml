@@ -47,6 +47,7 @@ thiserror = { version = "1.0.20" }
 hex = "0.4"
 terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra"}
 astroport-token = {git = "https://github.com/astroport-fi/astroport-core.git", tag = "v1.2.0"}
+anyhow = { version = "1.0", default-features = false }
 
 [dev-dependencies]
 cosmwasm-schema = "0.16.0"
