@@ -395,7 +395,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, Contr
     let tallied_weight = yes + no;
 
     let mut poll_status = PollStatus::Rejected;
-    let mut rejected_reason = "";
+    let mut rejected_reason = "None";
     let mut passed = false;
 
     let mut messages: Vec<CosmosMsg> = vec![];

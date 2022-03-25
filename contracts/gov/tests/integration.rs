@@ -876,3 +876,273 @@ fn test_total_voting_power_counting() {
 
     assert_eq!(res.staked_amount, Some(Uint128::from(2697_115385_u64)));
 }
+
+#[test]
+fn test_rejected_poll_quorum_not_reached() {
+    let alice = Addr::unchecked(ALICE);
+    let bob = Addr::unchecked(BOB);
+    let (mut router, anchor_token, gov, ve) = create_contracts();
+
+    extend_lock_time(&mut router, &gov, &alice, YEAR * 4 - WEEK).unwrap();
+
+    mint_token(&mut router, &anchor_token, &alice, Uint128::from(1000_u64));
+
+    extend_lock_amount(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &alice,
+        Uint128::from(1000_u64),
+    )
+    .unwrap();
+
+    let poll_id = create_poll_with_id(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &alice,
+        Uint128::from(1000_u64),
+    );
+
+    assert_eq!(
+        query_voting_power(&router, &ve, &alice),
+        Uint128::from(2500_u64)
+    );
+
+    extend_lock_time(&mut router, &gov, &bob, YEAR * 4 - WEEK).unwrap();
+
+    mint_token(&mut router, &anchor_token, &bob, Uint128::from(100_u64));
+
+    extend_lock_amount(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &bob,
+        Uint128::from(100_u64),
+    )
+    .unwrap();
+
+    assert_eq!(
+        query_voting_power(&router, &ve, &bob),
+        Uint128::from(250_u64)
+    );
+
+    cast_vote(
+        &mut router,
+        &gov,
+        &bob,
+        poll_id,
+        VoteOption::Yes,
+        Uint128::from(24_u64),
+    )
+    .unwrap();
+
+    cast_vote(
+        &mut router,
+        &gov,
+        &alice,
+        poll_id,
+        VoteOption::Yes,
+        Uint128::from(240_u64),
+    )
+    .unwrap();
+
+    router.update_block(|b| {
+        b.height += BLOCKS_PER_DAY * 28;
+        b.time = b.time.plus_seconds(WEEK * 4);
+    });
+
+    let events = end_poll(&mut router, &gov, &alice, poll_id).unwrap().events;
+
+    for event in events {
+        for attr in event.attributes {
+            if attr.key == "poll_id" {
+                assert_eq!(attr.value, "1");
+            } else if attr.key == "passed" {
+                assert_eq!(attr.value, "false");
+            } else if attr.key == "rejected_reason" {
+                assert_eq!(attr.value, "Quorum not reached");
+            }
+        }
+    }
+}
+
+#[test]
+fn test_rejected_poll_threshold_not_reached() {
+    let alice = Addr::unchecked(ALICE);
+    let bob = Addr::unchecked(BOB);
+    let (mut router, anchor_token, gov, ve) = create_contracts();
+
+    extend_lock_time(&mut router, &gov, &alice, YEAR * 4 - WEEK).unwrap();
+
+    mint_token(&mut router, &anchor_token, &alice, Uint128::from(1000_u64));
+
+    extend_lock_amount(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &alice,
+        Uint128::from(1000_u64),
+    )
+    .unwrap();
+
+    let poll_id = create_poll_with_id(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &alice,
+        Uint128::from(1000_u64),
+    );
+
+    assert_eq!(
+        query_voting_power(&router, &ve, &alice),
+        Uint128::from(2500_u64)
+    );
+
+    extend_lock_time(&mut router, &gov, &bob, YEAR * 4 - WEEK).unwrap();
+
+    mint_token(&mut router, &anchor_token, &bob, Uint128::from(100_u64));
+
+    extend_lock_amount(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &bob,
+        Uint128::from(100_u64),
+    )
+    .unwrap();
+
+    assert_eq!(
+        query_voting_power(&router, &ve, &bob),
+        Uint128::from(250_u64)
+    );
+
+    cast_vote(
+        &mut router,
+        &gov,
+        &bob,
+        poll_id,
+        VoteOption::Yes,
+        Uint128::from(25_u64),
+    )
+    .unwrap();
+
+    cast_vote(
+        &mut router,
+        &gov,
+        &alice,
+        poll_id,
+        VoteOption::No,
+        Uint128::from(250_u64),
+    )
+    .unwrap();
+
+    router.update_block(|b| {
+        b.height += BLOCKS_PER_DAY * 28;
+        b.time = b.time.plus_seconds(WEEK * 4);
+    });
+
+    let events = end_poll(&mut router, &gov, &alice, poll_id).unwrap().events;
+
+    for event in events {
+        for attr in event.attributes {
+            if attr.key == "poll_id" {
+                assert_eq!(attr.value, "1");
+            } else if attr.key == "passed" {
+                assert_eq!(attr.value, "false");
+            } else if attr.key == "rejected_reason" {
+                assert_eq!(attr.value, "Threshold not reached");
+            }
+        }
+    }
+}
+
+#[test]
+fn test_passed_poll() {
+    let alice = Addr::unchecked(ALICE);
+    let bob = Addr::unchecked(BOB);
+    let (mut router, anchor_token, gov, ve) = create_contracts();
+
+    extend_lock_time(&mut router, &gov, &alice, YEAR * 4 - WEEK).unwrap();
+
+    mint_token(&mut router, &anchor_token, &alice, Uint128::from(1000_u64));
+
+    extend_lock_amount(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &alice,
+        Uint128::from(1000_u64),
+    )
+    .unwrap();
+
+    let poll_id = create_poll_with_id(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &alice,
+        Uint128::from(1000_u64),
+    );
+
+    assert_eq!(
+        query_voting_power(&router, &ve, &alice),
+        Uint128::from(2500_u64)
+    );
+
+    extend_lock_time(&mut router, &gov, &bob, YEAR * 4 - WEEK).unwrap();
+
+    mint_token(&mut router, &anchor_token, &bob, Uint128::from(100_u64));
+
+    extend_lock_amount(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &bob,
+        Uint128::from(100_u64),
+    )
+    .unwrap();
+
+    assert_eq!(
+        query_voting_power(&router, &ve, &bob),
+        Uint128::from(250_u64)
+    );
+
+    cast_vote(
+        &mut router,
+        &gov,
+        &bob,
+        poll_id,
+        VoteOption::Yes,
+        Uint128::from(25_u64),
+    )
+    .unwrap();
+
+    cast_vote(
+        &mut router,
+        &gov,
+        &alice,
+        poll_id,
+        VoteOption::Yes,
+        Uint128::from(250_u64),
+    )
+    .unwrap();
+
+    router.update_block(|b| {
+        b.height += BLOCKS_PER_DAY * 28;
+        b.time = b.time.plus_seconds(WEEK * 4);
+    });
+
+    let events = end_poll(&mut router, &gov, &alice, poll_id).unwrap().events;
+
+    for event in events {
+        for attr in event.attributes {
+            if attr.key == "poll_id" {
+                assert_eq!(attr.value, "1");
+            } else if attr.key == "passed" {
+                assert_eq!(attr.value, "true");
+            } else if attr.key == "rejected_reason" {
+                assert_eq!(attr.value, "None");
+            }
+        }
+    }
+}
