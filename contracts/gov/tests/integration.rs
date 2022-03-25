@@ -1,5 +1,6 @@
 use anchor_token::gov::{
-    Cw20HookMsg, ExecuteMsg as GovExecuteMsg, InstantiateMsg as GovInstantiateMsg,
+    Cw20HookMsg, ExecuteMsg as GovExecuteMsg, InstantiateMsg as GovInstantiateMsg, PollResponse,
+    QueryMsg as GovQueryMsg, VoteOption,
 };
 use anchor_token::voting_escrow::{
     ExecuteMsg as VotingEscrowExecuteMsg, InstantiateMsg as VotingEscrowInstantiateMsg,
@@ -19,8 +20,9 @@ const ALICE: &str = "alice";
 const BOB: &str = "bob";
 const COLLECTOR: &str = "collector";
 
-const WEEK: u64 = 7 * 86400;
-const YEAR: u64 = 365 * 86400;
+const DAY: u64 = 86400;
+const WEEK: u64 = 7 * DAY;
+const YEAR: u64 = 365 * DAY;
 const BLOCKS_PER_DAY: u64 = 17280;
 
 fn mock_app() -> TerraApp {
@@ -105,7 +107,7 @@ fn create_contracts() -> (TerraApp, Addr, Addr, Addr) {
     let msg = GovInstantiateMsg {
         quorum: Decimal::from_ratio(Uint128::from(1_u64), Uint128::from(10_u64)),
         threshold: Decimal::from_ratio(Uint128::from(1_u64), Uint128::from(2_u64)),
-        voting_period: 94097,
+        voting_period: 188194,
         timelock_period: 40327,
         proposal_deposit: Uint128::from(1000000000_u64),
         snapshot_period: 13443,
@@ -151,20 +153,14 @@ fn create_contracts() -> (TerraApp, Addr, Addr, Addr) {
     return (router, anchor_token, gov, ve);
 }
 
-fn mint_token(
-    router: &mut TerraApp,
-    token: &Addr,
-    owner: &Addr,
-    recipient: &Addr,
-    amount: Uint128,
-) {
+fn mint_token(router: &mut TerraApp, token: &Addr, recipient: &Addr, amount: Uint128) {
     let amount = amount * Uint128::from(1000000_u64);
     let msg = Cw20ExecuteMsg::Mint {
         recipient: recipient.to_string(),
         amount,
     };
     router
-        .execute_contract(owner.clone(), token.clone(), &msg, &[])
+        .execute_contract(Addr::unchecked(OWNER), token.clone(), &msg, &[])
         .unwrap();
 }
 
@@ -208,22 +204,90 @@ fn withdraw_voting_tokens(
 }
 
 fn collect_rewards(router: &mut TerraApp, anchor_token: &Addr, gov: &Addr, amount: Uint128) {
-    mint_token(
-        router,
-        &anchor_token,
-        &Addr::unchecked(OWNER),
-        &Addr::unchecked(COLLECTOR),
-        Uint128::from(100_u64),
-    );
+    mint_token(router, &anchor_token, &Addr::unchecked(COLLECTOR), amount);
     let amount = amount * Uint128::from(1000000_u64);
     let msg = Cw20ExecuteMsg::Transfer {
         recipient: gov.to_string(),
         amount,
     };
-
     router
         .execute_contract(Addr::unchecked(COLLECTOR), anchor_token.clone(), &msg, &[])
         .unwrap();
+}
+
+fn create_poll(
+    router: &mut TerraApp,
+    anchor_token: &Addr,
+    gov: &Addr,
+    user: &Addr,
+    amount: Uint128,
+) -> Result<AppResponse> {
+    mint_token(router, &anchor_token, &user, amount);
+    let amount = amount * Uint128::from(1000000_u64);
+    let msg = Cw20ExecuteMsg::Send {
+        contract: gov.to_string(),
+        amount: Uint128::from(amount),
+        msg: to_binary(&Cw20HookMsg::CreatePoll {
+            title: "poll test".to_string(),
+            description: "poll description".to_string(),
+            link: None,
+            execute_msgs: None,
+        })
+        .unwrap(),
+    };
+    router.execute_contract(user.clone(), anchor_token.clone(), &msg, &[])
+}
+
+fn create_poll_with_id(
+    router: &mut TerraApp,
+    anchor_token: &Addr,
+    gov: &Addr,
+    user: &Addr,
+    amount: Uint128,
+) -> u64 {
+    let events = create_poll(router, &anchor_token, &gov, &user, amount)
+        .unwrap()
+        .events;
+    for event in events {
+        for attr in event.attributes {
+            if attr.key == "poll_id" {
+                return attr.value.parse().unwrap();
+            }
+        }
+    }
+    panic!("create_poll failed");
+}
+
+fn cast_vote(
+    router: &mut TerraApp,
+    gov: &Addr,
+    user: &Addr,
+    poll_id: u64,
+    vote: VoteOption,
+    amount: Uint128,
+) -> Result<AppResponse> {
+    let amount = amount * Uint128::from(1000000_u64);
+    let msg = GovExecuteMsg::CastVote {
+        poll_id,
+        vote,
+        amount,
+    };
+    router.execute_contract(user.clone(), gov.clone(), &msg, &[])
+}
+
+fn snapshot_poll(
+    router: &mut TerraApp,
+    gov: &Addr,
+    user: &Addr,
+    poll_id: u64,
+) -> Result<AppResponse> {
+    let msg = GovExecuteMsg::SnapshotPoll { poll_id };
+    router.execute_contract(user.clone(), gov.clone(), &msg, &[])
+}
+
+fn end_poll(router: &mut TerraApp, gov: &Addr, user: &Addr, poll_id: u64) -> Result<AppResponse> {
+    let msg = GovExecuteMsg::EndPoll { poll_id };
+    router.execute_contract(user.clone(), gov.clone(), &msg, &[])
 }
 
 fn query_voting_power(router: &TerraApp, ve: &Addr, user: &Addr) -> Uint128 {
@@ -237,6 +301,14 @@ fn query_voting_power(router: &TerraApp, ve: &Addr, user: &Addr) -> Uint128 {
         )
         .unwrap();
     (res.voting_power + Uint128::from(500000_u64)) / Uint128::from(1000000_u64)
+}
+
+fn query_poll(router: &TerraApp, gov: &Addr, poll_id: u64) -> PollResponse {
+    let res: PollResponse = router
+        .wrap()
+        .query_wasm_smart(gov.clone(), &GovQueryMsg::Poll { poll_id })
+        .unwrap();
+    res
 }
 
 #[test]
@@ -258,17 +330,10 @@ fn test_register_contracts_twice() {
 
 #[test]
 fn test_deposit_without_setting_lock_time() {
-    let owner = Addr::unchecked(OWNER);
     let alice = Addr::unchecked(ALICE);
     let (mut router, anchor_token, gov, _ve) = create_contracts();
 
-    mint_token(
-        &mut router,
-        &anchor_token,
-        &owner,
-        &alice,
-        Uint128::from(100_u64),
-    );
+    mint_token(&mut router, &anchor_token, &alice, Uint128::from(100_u64));
 
     let res = extend_lock_amount(
         &mut router,
@@ -329,19 +394,12 @@ fn check_permission_of_ve_contract() {
 
 #[test]
 fn test_set_unlocking_time_and_stake_several_times() {
-    let owner = Addr::unchecked(OWNER);
     let alice = Addr::unchecked(ALICE);
     let (mut router, anchor_token, gov, ve) = create_contracts();
 
     extend_lock_time(&mut router, &gov, &alice, YEAR * 2).unwrap();
 
-    mint_token(
-        &mut router,
-        &anchor_token,
-        &owner,
-        &alice,
-        Uint128::from(200_u64),
-    );
+    mint_token(&mut router, &anchor_token, &alice, Uint128::from(200_u64));
 
     extend_lock_amount(
         &mut router,
@@ -391,19 +449,12 @@ fn test_set_unlocking_time_and_stake_several_times() {
 
 #[test]
 fn test_lock_token_and_withdraw_and_lock_again() {
-    let owner = Addr::unchecked(OWNER);
     let alice = Addr::unchecked(ALICE);
     let (mut router, anchor_token, gov, ve) = create_contracts();
 
     extend_lock_time(&mut router, &gov, &alice, YEAR).unwrap();
 
-    mint_token(
-        &mut router,
-        &anchor_token,
-        &owner,
-        &alice,
-        Uint128::from(200_u64),
-    );
+    mint_token(&mut router, &anchor_token, &alice, Uint128::from(200_u64));
 
     extend_lock_amount(
         &mut router,
@@ -450,19 +501,12 @@ fn test_lock_token_and_withdraw_and_lock_again() {
 
 #[test]
 fn test_lock_token_and_withdraw_multiple_times() {
-    let owner = Addr::unchecked(OWNER);
     let alice = Addr::unchecked(ALICE);
     let (mut router, anchor_token, gov, _ve) = create_contracts();
 
     extend_lock_time(&mut router, &gov, &alice, YEAR).unwrap();
 
-    mint_token(
-        &mut router,
-        &anchor_token,
-        &owner,
-        &alice,
-        Uint128::from(100_u64),
-    );
+    mint_token(&mut router, &anchor_token, &alice, Uint128::from(100_u64));
 
     extend_lock_amount(
         &mut router,
@@ -499,20 +543,13 @@ fn test_lock_token_and_withdraw_multiple_times() {
 
 #[test]
 fn test_lock_token_and_get_rewards() {
-    let owner = Addr::unchecked(OWNER);
     let alice = Addr::unchecked(ALICE);
     let bob = Addr::unchecked(BOB);
     let (mut router, anchor_token, gov, ve) = create_contracts();
 
     extend_lock_time(&mut router, &gov, &alice, YEAR).unwrap();
 
-    mint_token(
-        &mut router,
-        &anchor_token,
-        &owner,
-        &alice,
-        Uint128::from(100_u64),
-    );
+    mint_token(&mut router, &anchor_token, &alice, Uint128::from(100_u64));
 
     extend_lock_amount(
         &mut router,
@@ -527,13 +564,7 @@ fn test_lock_token_and_get_rewards() {
 
     extend_lock_time(&mut router, &gov, &bob, YEAR).unwrap();
 
-    mint_token(
-        &mut router,
-        &anchor_token,
-        &owner,
-        &bob,
-        Uint128::from(100_u64),
-    );
+    mint_token(&mut router, &anchor_token, &bob, Uint128::from(100_u64));
 
     extend_lock_amount(
         &mut router,
@@ -565,4 +596,283 @@ fn test_lock_token_and_get_rewards() {
     withdraw_voting_tokens(&mut router, &gov, &alice, Uint128::from(181_u64)).unwrap_err();
     withdraw_voting_tokens(&mut router, &gov, &bob, Uint128::from(119_u64)).unwrap();
     withdraw_voting_tokens(&mut router, &gov, &bob, Uint128::from(120_u64)).unwrap_err();
+}
+
+#[test]
+fn test_create_poll_token_requirement() {
+    let alice = Addr::unchecked(ALICE);
+    let (mut router, anchor_token, gov, _ve) = create_contracts();
+
+    let res = create_poll(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &alice,
+        Uint128::from(999_u64),
+    )
+    .unwrap_err();
+
+    assert_eq!(res.to_string(), "Must deposit more than 1000000000 token");
+
+    create_poll(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &alice,
+        Uint128::from(1000_u64),
+    )
+    .unwrap();
+
+    create_poll(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &alice,
+        Uint128::from(10000_u64),
+    )
+    .unwrap();
+}
+
+#[test]
+fn test_cast_vote_with_different_amount_of_veanc() {
+    let alice = Addr::unchecked(ALICE);
+    let bob = Addr::unchecked(BOB);
+    let (mut router, anchor_token, gov, ve) = create_contracts();
+
+    let poll_id = create_poll_with_id(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &alice,
+        Uint128::from(1000_u64),
+    );
+
+    let res = cast_vote(
+        &mut router,
+        &gov,
+        &bob,
+        poll_id,
+        VoteOption::Yes,
+        Uint128::from(0_u64),
+    )
+    .unwrap_err();
+
+    assert_eq!(res.to_string(), "User is trying to cast zero vote");
+
+    let res = cast_vote(
+        &mut router,
+        &gov,
+        &bob,
+        poll_id,
+        VoteOption::Yes,
+        Uint128::from(100_u64),
+    )
+    .unwrap_err();
+
+    assert_eq!(res.to_string(), "User does not have enough staked tokens");
+
+    extend_lock_time(&mut router, &gov, &bob, YEAR * 4 - WEEK).unwrap();
+
+    mint_token(&mut router, &anchor_token, &bob, Uint128::from(100_u64));
+
+    extend_lock_amount(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &bob,
+        Uint128::from(100_u64),
+    )
+    .unwrap();
+
+    assert_eq!(
+        query_voting_power(&router, &ve, &bob),
+        Uint128::from(250_u64)
+    );
+
+    let res = cast_vote(
+        &mut router,
+        &gov,
+        &bob,
+        poll_id,
+        VoteOption::Yes,
+        Uint128::from(251_u64),
+    )
+    .unwrap_err();
+
+    assert_eq!(res.to_string(), "User does not have enough staked tokens");
+
+    cast_vote(
+        &mut router,
+        &gov,
+        &bob,
+        poll_id,
+        VoteOption::Yes,
+        Uint128::from(250_u64),
+    )
+    .unwrap();
+}
+
+#[test]
+fn test_votes_counting() {
+    let alice = Addr::unchecked(ALICE);
+    let bob = Addr::unchecked(BOB);
+    let (mut router, anchor_token, gov, ve) = create_contracts();
+
+    extend_lock_time(&mut router, &gov, &alice, YEAR * 4 - WEEK).unwrap();
+
+    mint_token(&mut router, &anchor_token, &alice, Uint128::from(1000_u64));
+
+    extend_lock_amount(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &alice,
+        Uint128::from(1000_u64),
+    )
+    .unwrap();
+
+    let poll_id = create_poll_with_id(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &alice,
+        Uint128::from(1000_u64),
+    );
+
+    assert_eq!(
+        query_voting_power(&router, &ve, &alice),
+        Uint128::from(2500_u64)
+    );
+
+    extend_lock_time(&mut router, &gov, &bob, YEAR * 4 - WEEK).unwrap();
+
+    mint_token(&mut router, &anchor_token, &bob, Uint128::from(100_u64));
+
+    extend_lock_amount(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &bob,
+        Uint128::from(100_u64),
+    )
+    .unwrap();
+
+    assert_eq!(
+        query_voting_power(&router, &ve, &bob),
+        Uint128::from(250_u64)
+    );
+
+    cast_vote(
+        &mut router,
+        &gov,
+        &bob,
+        poll_id,
+        VoteOption::Yes,
+        Uint128::from(249_u64),
+    )
+    .unwrap();
+
+    cast_vote(
+        &mut router,
+        &gov,
+        &alice,
+        poll_id,
+        VoteOption::No,
+        Uint128::from(251_u64),
+    )
+    .unwrap();
+
+    router.update_block(|b| {
+        b.height += BLOCKS_PER_DAY * 28;
+        b.time = b.time.plus_seconds(WEEK * 4);
+    });
+
+    end_poll(&mut router, &gov, &alice, poll_id).unwrap();
+
+    let res = query_poll(&router, &gov, poll_id);
+
+    assert_eq!(res.yes_votes, Uint128::from(249_000000_u64));
+    assert_eq!(res.no_votes, Uint128::from(251_000000_u64));
+}
+
+#[test]
+fn test_total_voting_power_counting() {
+    let alice = Addr::unchecked(ALICE);
+    let bob = Addr::unchecked(BOB);
+    let (mut router, anchor_token, gov, ve) = create_contracts();
+
+    extend_lock_time(&mut router, &gov, &alice, YEAR * 4 - WEEK).unwrap();
+
+    mint_token(&mut router, &anchor_token, &alice, Uint128::from(1000_u64));
+
+    extend_lock_amount(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &alice,
+        Uint128::from(1000_u64),
+    )
+    .unwrap();
+
+    let poll_id = create_poll_with_id(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &alice,
+        Uint128::from(1000_u64),
+    );
+
+    assert_eq!(
+        query_voting_power(&router, &ve, &alice),
+        Uint128::from(2500_u64)
+    );
+
+    extend_lock_time(&mut router, &gov, &bob, YEAR * 4 - WEEK).unwrap();
+
+    mint_token(&mut router, &anchor_token, &bob, Uint128::from(100_u64));
+
+    extend_lock_amount(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &bob,
+        Uint128::from(100_u64),
+    )
+    .unwrap();
+
+    assert_eq!(
+        query_voting_power(&router, &ve, &bob),
+        Uint128::from(250_u64)
+    );
+
+    cast_vote(
+        &mut router,
+        &gov,
+        &bob,
+        poll_id,
+        VoteOption::Yes,
+        Uint128::from(249_u64),
+    )
+    .unwrap();
+
+    cast_vote(
+        &mut router,
+        &gov,
+        &alice,
+        poll_id,
+        VoteOption::No,
+        Uint128::from(251_u64),
+    )
+    .unwrap();
+
+    router.update_block(|b| {
+        b.height += 180000;
+        b.time = b.time.plus_seconds(WEEK * 4);
+    });
+
+    snapshot_poll(&mut router, &gov, &alice, poll_id).unwrap();
+
+    let res = query_poll(&router, &gov, poll_id);
+
+    assert_eq!(res.staked_amount, Some(Uint128::from(2697_115385_u64)));
 }

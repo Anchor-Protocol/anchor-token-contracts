@@ -590,6 +590,9 @@ pub fn cast_vote(
     vote: VoteOption,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
+    if amount.is_zero() {
+        return Err(ContractError::InvalidVotingPower {});
+    }
     let sender_address_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     let config = config_read(deps.storage).load()?;
     let state = state_read(deps.storage).load()?;
