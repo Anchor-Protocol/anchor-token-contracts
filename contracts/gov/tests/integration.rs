@@ -1146,3 +1146,86 @@ fn test_passed_poll() {
         }
     }
 }
+
+#[test]
+fn test_passed_poll_total_votes_greater_than_total_staked() {
+    let alice = Addr::unchecked(ALICE);
+    let bob = Addr::unchecked(BOB);
+    let (mut router, anchor_token, gov, ve) = create_contracts();
+
+    extend_lock_time(&mut router, &gov, &alice, YEAR * 4 - WEEK).unwrap();
+
+    mint_token(&mut router, &anchor_token, &alice, Uint128::from(1000_u64));
+
+    extend_lock_amount(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &alice,
+        Uint128::from(1000_u64),
+    )
+    .unwrap();
+
+    let poll_id = create_poll_with_id(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &alice,
+        Uint128::from(1000_u64),
+    );
+
+    assert_eq!(
+        query_voting_power(&router, &ve, &alice),
+        Uint128::from(2500_u64)
+    );
+
+    extend_lock_time(&mut router, &gov, &bob, YEAR * 4 - WEEK).unwrap();
+
+    mint_token(&mut router, &anchor_token, &bob, Uint128::from(100_u64));
+
+    extend_lock_amount(
+        &mut router,
+        &anchor_token,
+        &gov,
+        &bob,
+        Uint128::from(100_u64),
+    )
+    .unwrap();
+
+    assert_eq!(
+        query_voting_power(&router, &ve, &bob),
+        Uint128::from(250_u64)
+    );
+
+    cast_vote(
+        &mut router,
+        &gov,
+        &bob,
+        poll_id,
+        VoteOption::Yes,
+        Uint128::from(250_u64),
+    )
+    .unwrap();
+
+    cast_vote(
+        &mut router,
+        &gov,
+        &alice,
+        poll_id,
+        VoteOption::Yes,
+        Uint128::from(2500_u64),
+    )
+    .unwrap();
+
+    router.update_block(|b| {
+        b.height += 180000;
+        b.time = b.time.plus_seconds(WEEK * 4);
+    });
+
+    snapshot_poll(&mut router, &gov, &alice, poll_id).unwrap();
+
+    let res = query_poll(&router, &gov, poll_id);
+
+    assert_eq!(res.yes_votes, Uint128::from(2750_000000_u64));
+    assert_eq!(res.staked_amount, Some(Uint128::from(2697_115385_u64)));
+}
