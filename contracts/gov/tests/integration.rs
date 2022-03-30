@@ -147,10 +147,10 @@ fn create_contracts() -> (TerraApp, Addr, Addr, Addr) {
     };
 
     router
-        .execute_contract(owner.clone(), gov.clone(), &msg, &[])
+        .execute_contract(owner, gov.clone(), &msg, &[])
         .unwrap();
 
-    return (router, anchor_token, gov, ve);
+    (router, anchor_token, gov, ve)
 }
 
 fn mint_token(router: &mut TerraApp, token: &Addr, recipient: &Addr, amount: Uint128) {
@@ -184,7 +184,7 @@ fn extend_lock_amount(
     let amount = amount * Uint128::from(1000000_u64);
     let msg = Cw20ExecuteMsg::Send {
         contract: gov.to_string(),
-        amount: Uint128::from(amount),
+        amount,
         msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     };
     router.execute_contract(user.clone(), anchor_token.clone(), &msg, &[])
@@ -204,7 +204,7 @@ fn withdraw_voting_tokens(
 }
 
 fn collect_rewards(router: &mut TerraApp, anchor_token: &Addr, gov: &Addr, amount: Uint128) {
-    mint_token(router, &anchor_token, &Addr::unchecked(COLLECTOR), amount);
+    mint_token(router, anchor_token, &Addr::unchecked(COLLECTOR), amount);
     let amount = amount * Uint128::from(1000000_u64);
     let msg = Cw20ExecuteMsg::Transfer {
         recipient: gov.to_string(),
@@ -222,11 +222,11 @@ fn create_poll(
     user: &Addr,
     amount: Uint128,
 ) -> Result<AppResponse> {
-    mint_token(router, &anchor_token, &user, amount);
+    mint_token(router, anchor_token, user, amount);
     let amount = amount * Uint128::from(1000000_u64);
     let msg = Cw20ExecuteMsg::Send {
         contract: gov.to_string(),
-        amount: Uint128::from(amount),
+        amount,
         msg: to_binary(&Cw20HookMsg::CreatePoll {
             title: "poll test".to_string(),
             description: "poll description".to_string(),
@@ -245,7 +245,7 @@ fn create_poll_with_id(
     user: &Addr,
     amount: Uint128,
 ) -> u64 {
-    let events = create_poll(router, &anchor_token, &gov, &user, amount)
+    let events = create_poll(router, anchor_token, gov, user, amount)
         .unwrap()
         .events;
     for event in events {
@@ -321,9 +321,7 @@ fn test_register_contracts_twice() {
         anchor_voting_escrow: ve.to_string(),
     };
 
-    let res = router
-        .execute_contract(owner.clone(), gov.clone(), &msg, &[])
-        .unwrap_err();
+    let res = router.execute_contract(owner, gov, &msg, &[]).unwrap_err();
 
     assert_eq!(res.to_string(), "Unauthorized");
 }
@@ -385,9 +383,7 @@ fn check_permission_of_ve_contract() {
         amount: Uint128::from(100_u64),
     };
 
-    let res = router
-        .execute_contract(alice.clone(), ve.clone(), &msg, &[])
-        .unwrap_err();
+    let res = router.execute_contract(alice, ve, &msg, &[]).unwrap_err();
 
     assert_eq!(res.to_string(), "Unauthorized");
 }

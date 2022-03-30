@@ -140,7 +140,7 @@ fn test_create_lock() {
         amount: Uint128::from(10u128),
     };
 
-    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     assert_eq!(res.attributes[0].key, "action");
     assert_eq!(res.attributes[0].value, "extend_lock_amount");
@@ -339,7 +339,7 @@ fn test_withdraw() {
     };
 
     // cannot withdraw for a user w/o a lock
-    let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
     match res {
         Err(LockDoesntExist {}) => {}
         _ => panic!("Must return LockDoesntExist error"),
