@@ -5,6 +5,28 @@
     {
       "type": "object",
       "required": [
+        "extend_lock_time"
+      ],
+      "properties": {
+        "extend_lock_time": {
+          "type": "object",
+          "required": [
+            "time"
+          ],
+          "properties": {
+            "time": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "receive"
       ],
       "properties": {

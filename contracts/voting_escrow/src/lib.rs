@@ -1,7 +1,8 @@
-mod checkpoint;
 pub mod contract;
-pub mod error;
-pub mod state;
+
+mod checkpoint;
+mod error;
+mod state;
 mod utils;
 
 #[cfg(test)]

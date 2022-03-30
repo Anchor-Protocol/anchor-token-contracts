@@ -6,19 +6,47 @@
     {
       "type": "object",
       "required": [
+        "extend_lock_amount"
+      ],
+      "properties": {
+        "extend_lock_amount": {
+          "type": "object",
+          "required": [
+            "amount",
+            "user"
+          ],
+          "properties": {
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "user": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "extend_lock_time"
       ],
       "properties": {
         "extend_lock_time": {
           "type": "object",
           "required": [
-            "time"
+            "time",
+            "user"
           ],
           "properties": {
             "time": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0.0
+            },
+            "user": {
+              "type": "string"
             }
           }
         }
@@ -29,23 +57,23 @@
       "description": "Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.",
       "type": "object",
       "required": [
-        "receive"
-      ],
-      "properties": {
-        "receive": {
-          "$ref": "#/definitions/Cw20ReceiveMsg"
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
         "withdraw"
       ],
       "properties": {
         "withdraw": {
-          "type": "object"
+          "type": "object",
+          "required": [
+            "amount",
+            "user"
+          ],
+          "properties": {
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "user": {
+              "type": "string"
+            }
+          }
         }
       },
       "additionalProperties": false
@@ -102,26 +130,6 @@
     "Binary": {
       "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
       "type": "string"
-    },
-    "Cw20ReceiveMsg": {
-      "description": "Cw20ReceiveMsg should be de/serialized under `Receive()` variant in a ExecuteMsg",
-      "type": "object",
-      "required": [
-        "amount",
-        "msg",
-        "sender"
-      ],
-      "properties": {
-        "amount": {
-          "$ref": "#/definitions/Uint128"
-        },
-        "msg": {
-          "$ref": "#/definitions/Binary"
-        },
-        "sender": {
-          "type": "string"
-        }
-      }
     },
     "EmbeddedLogo": {
       "description": "This is used to store the logo on the blockchain in an accepted format. Enforce maximum size of 5KB on all variants.",

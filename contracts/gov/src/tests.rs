@@ -715,18 +715,24 @@ fn happy_days_end_poll() {
         deps.as_ref(),
     );
 
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(stake_amount))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            )],
+        ),
+    ]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(stake_amount as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -809,13 +815,19 @@ fn happy_days_end_poll() {
     );
 
     // End poll will withdraw deposit balance
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from(stake_amount as u128),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(stake_amount))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from(stake_amount as u128),
+            )],
+        ),
+    ]);
 
     // timelock_period has not expired
     let msg = ExecuteMsg::ExecutePoll { poll_id: 1 };
@@ -1023,18 +1035,24 @@ fn fail_poll() {
         deps.as_ref(),
     );
 
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(stake_amount))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            )],
+        ),
+    ]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(stake_amount as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -1207,18 +1225,24 @@ fn end_poll_zero_quorum() {
         deps.as_ref(),
     );
     let stake_amount = 100;
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from(100u128 + DEFAULT_PROPOSAL_DEPOSIT),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(100u128))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from(100u128 + DEFAULT_PROPOSAL_DEPOSIT),
+            )],
+        ),
+    ]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(stake_amount as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -1313,18 +1337,24 @@ fn end_poll_quorum_rejected() {
     );
 
     let stake_amount = 100;
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from(100u128 + DEFAULT_PROPOSAL_DEPOSIT),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(100u128))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from(100u128 + DEFAULT_PROPOSAL_DEPOSIT),
+            )],
+        ),
+    ]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(stake_amount as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -1446,18 +1476,24 @@ fn end_poll_nay_rejected() {
         ]
     );
 
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from((voter1_stake + DEFAULT_PROPOSAL_DEPOSIT) as u128),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(voter1_stake))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from((voter1_stake + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            )],
+        ),
+    ]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(voter1_stake as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -1471,18 +1507,27 @@ fn end_poll_nay_rejected() {
         deps.as_ref(),
     );
 
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from((voter1_stake + voter2_stake + DEFAULT_PROPOSAL_DEPOSIT) as u128),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[
+                (&TEST_VOTER.to_string(), &Uint128::from(voter1_stake)),
+                (&TEST_VOTER_2.to_string(), &Uint128::from(voter2_stake)),
+            ],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from((voter1_stake + voter2_stake + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            )],
+        ),
+    ]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER_2.to_string(),
         amount: Uint128::from(voter2_stake as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -1540,18 +1585,24 @@ fn fails_cast_vote_not_enough_staked() {
         deps.as_ref(),
     );
 
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from(10u128 + DEFAULT_PROPOSAL_DEPOSIT),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(10_u64))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from(10u128 + DEFAULT_PROPOSAL_DEPOSIT),
+            )],
+        ),
+    ]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(10u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -1601,18 +1652,24 @@ fn happy_days_cast_vote() {
         deps.as_ref(),
     );
 
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from(11u128 + DEFAULT_PROPOSAL_DEPOSIT),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(11u128))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from(11u128 + DEFAULT_PROPOSAL_DEPOSIT),
+            )],
+        ),
+    ]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(11u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -1639,13 +1696,19 @@ fn happy_days_cast_vote() {
     assert_cast_vote_success(TEST_VOTER, amount, 1, VoteOption::Yes, execute_res);
 
     // balance be double
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from(22u128 + DEFAULT_PROPOSAL_DEPOSIT),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(22u128))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from(22u128 + DEFAULT_PROPOSAL_DEPOSIT),
+            )],
+        ),
+    ]);
 
     // Query staker
     let res = query(
@@ -1715,15 +1778,21 @@ fn happy_days_withdraw_voting_tokens() {
     mock_instantiate(deps.as_mut());
     mock_register_contracts(deps.as_mut());
 
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(11u128))],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(11u128))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(11u128))],
+        ),
+    ]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(11u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -1742,10 +1811,16 @@ fn happy_days_withdraw_voting_tokens() {
     );
 
     // double the balance, only half will be withdrawn
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(22u128))],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(22u128))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(22u128))],
+        ),
+    ]);
 
     let info = mock_info(TEST_VOTER, &[]);
     let msg = ExecuteMsg::WithdrawVotingTokens {
@@ -1786,15 +1861,21 @@ fn happy_days_withdraw_voting_tokens_all() {
     mock_instantiate(deps.as_mut());
     mock_register_contracts(deps.as_mut());
 
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(11u128))],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(11u128))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(11u128))],
+        ),
+    ]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(11u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -1813,10 +1894,16 @@ fn happy_days_withdraw_voting_tokens_all() {
     );
 
     // double the balance, all balance withdrawn
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(22u128))],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(22u128))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(22u128))],
+        ),
+    ]);
 
     let info = mock_info(TEST_VOTER, &[]);
     let msg = ExecuteMsg::WithdrawVotingTokens { amount: None };
@@ -1855,15 +1942,21 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
     mock_instantiate(deps.as_mut());
     mock_register_contracts(deps.as_mut());
 
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(11u128))],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(11u128))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(11u128))],
+        ),
+    ]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(11u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -1976,7 +2069,7 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
     );
     assert!(poll_voter_read(&deps.storage, 2u64)
         .load(voter_addr_raw.as_slice())
-        .is_err(),);
+        .is_err());
 
     let token_manager = bank_read(&deps.storage)
         .load(voter_addr_raw.as_slice())
@@ -2019,15 +2112,21 @@ fn fails_withdraw_too_many_tokens() {
     mock_instantiate(deps.as_mut());
     mock_register_contracts(deps.as_mut());
 
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(10u128))],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(10u128))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(10u128))],
+        ),
+    ]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(10u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -2068,18 +2167,24 @@ fn fails_cast_vote_twice() {
         deps.as_ref(),
     );
 
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from(11u128 + DEFAULT_PROPOSAL_DEPOSIT),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(11u128))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from(11u128 + DEFAULT_PROPOSAL_DEPOSIT),
+            )],
+        ),
+    ]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(11u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -2146,15 +2251,21 @@ fn happy_days_stake_voting_tokens() {
     mock_instantiate(deps.as_mut());
     mock_register_contracts(deps.as_mut());
 
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(11u128))],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(11u128))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(11u128))],
+        ),
+    ]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(11u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -2174,7 +2285,7 @@ fn fails_insufficient_funds() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(0u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -2195,16 +2306,22 @@ fn fails_staking_wrong_token() {
     mock_instantiate(deps.as_mut());
     mock_register_contracts(deps.as_mut());
 
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(11u128))],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(11u128))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(11u128))],
+        ),
+    ]);
 
     // wrong token
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(11u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(&(VOTING_TOKEN.to_string() + "2"), &[]);
@@ -2226,33 +2343,45 @@ fn share_calculation() {
     mock_register_contracts(deps.as_mut());
 
     // create 100 share
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(100u128))],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(100u128))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(100u128))],
+        ),
+    ]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(100u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
     let _res = execute(deps.as_mut(), mock_env(), info, msg);
 
     // add more balance(100) to make share:balance = 1:2
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from(200u128 + 100u128),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(100u128))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from(200u128 + 100u128),
+            )],
+        ),
+    ]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(100u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -2260,7 +2389,7 @@ fn share_calculation() {
     assert_eq!(
         res.attributes,
         vec![
-            attr("action", "staking"),
+            attr("action", "extend_lock_amount"),
             attr("sender", TEST_VOTER),
             attr("share", "50"),
             attr("amount", "100"),
@@ -2282,10 +2411,16 @@ fn share_calculation() {
     );
 
     // 100 tokens withdrawn
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(200u128))],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(200u128))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(200u128))],
+        ),
+    ]);
 
     let res = query(
         deps.as_ref(),
@@ -2605,18 +2740,24 @@ fn execute_poll_with_order() {
         deps.as_ref(),
     );
 
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(stake_amount))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            )],
+        ),
+    ]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(stake_amount as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -2685,13 +2826,19 @@ fn execute_poll_with_order() {
     );
 
     // End poll will withdraw deposit balance
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from(stake_amount as u128),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(stake_amount))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from(stake_amount as u128),
+            )],
+        ),
+    ]);
 
     creator_env.block.height += DEFAULT_TIMELOCK_PERIOD;
     let msg = ExecuteMsg::ExecutePoll { poll_id: 1 };
@@ -2777,18 +2924,24 @@ fn poll_with_empty_execute_data_marked_as_executed() {
         deps.as_ref(),
     );
 
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(stake_amount))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            )],
+        ),
+    ]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(stake_amount as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -2857,13 +3010,19 @@ fn poll_with_empty_execute_data_marked_as_executed() {
     );
 
     // End poll will withdraw deposit balance
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from(stake_amount as u128),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(stake_amount))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from(stake_amount as u128),
+            )],
+        ),
+    ]);
 
     creator_env.block.height += DEFAULT_TIMELOCK_PERIOD;
     let msg = ExecuteMsg::ExecutePoll { poll_id: 1 };
@@ -2939,18 +3098,24 @@ fn poll_with_none_execute_data_marked_as_executed() {
         deps.as_ref(),
     );
 
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(stake_amount))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            )],
+        ),
+    ]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(stake_amount as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -3019,13 +3184,19 @@ fn poll_with_none_execute_data_marked_as_executed() {
     );
 
     // End poll will withdraw deposit balance
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from(stake_amount as u128),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(stake_amount))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from(stake_amount as u128),
+            )],
+        ),
+    ]);
 
     creator_env.block.height += DEFAULT_TIMELOCK_PERIOD;
     let msg = ExecuteMsg::ExecutePoll { poll_id: 1 };
@@ -3112,13 +3283,19 @@ fn snapshot_poll() {
     // change time
     creator_env.block.height = 32345 - 10;
 
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(stake_amount))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            )],
+        ),
+    ]);
 
     let fix_res = execute(
         deps.as_mut(),
@@ -3167,18 +3344,24 @@ fn happy_days_cast_vote_with_snapshot() {
         deps.as_ref(),
     );
 
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from(11u128 + DEFAULT_PROPOSAL_DEPOSIT),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(11u128))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from(11u128 + DEFAULT_PROPOSAL_DEPOSIT),
+            )],
+        ),
+    ]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(11u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -3207,13 +3390,22 @@ fn happy_days_cast_vote_with_snapshot() {
     assert_cast_vote_success(TEST_VOTER, amount, 1, VoteOption::Yes, execute_res);
 
     // balance be double
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from(22u128 + DEFAULT_PROPOSAL_DEPOSIT),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[
+                (&TEST_VOTER.to_string(), &Uint128::from(11_u64)),
+                (&TEST_VOTER_2.to_string(), &Uint128::from(11_u64)),
+            ],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from(22u128 + DEFAULT_PROPOSAL_DEPOSIT),
+            )],
+        ),
+    ]);
 
     let res = query(deps.as_ref(), mock_env(), QueryMsg::Poll { poll_id: 1 }).unwrap();
     let value: PollResponse = from_binary(&res).unwrap();
@@ -3224,7 +3416,7 @@ fn happy_days_cast_vote_with_snapshot() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER_2.to_string(),
         amount: Uint128::from(11u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -3256,19 +3448,29 @@ fn happy_days_cast_vote_with_snapshot() {
     assert_eq!(ContractError::SnapshotAlreadyOccurred {}, snap_error);
 
     // balance be double
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from(33u128 + DEFAULT_PROPOSAL_DEPOSIT),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[
+                (&TEST_VOTER.to_string(), &Uint128::from(11_u64)),
+                (&TEST_VOTER_2.to_string(), &Uint128::from(11_u64)),
+                (&TEST_VOTER_3.to_string(), &Uint128::from(11_u64)),
+            ],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from(33u128 + DEFAULT_PROPOSAL_DEPOSIT),
+            )],
+        ),
+    ]);
 
     // another voter cast a vote but the snapshot is already occurred
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER_3.to_string(),
         amount: Uint128::from(11u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -3343,18 +3545,24 @@ fn fails_end_poll_quorum_inflation_without_snapshot_poll() {
         deps.as_ref(),
     );
 
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(stake_amount))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            )],
+        ),
+    ]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(stake_amount as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -3393,19 +3601,28 @@ fn fails_end_poll_quorum_inflation_without_snapshot_poll() {
     // did not SnapshotPoll
 
     // staked amount get increased 10 times
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from(((10 * stake_amount) + DEFAULT_PROPOSAL_DEPOSIT) as u128),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[
+                (&TEST_VOTER.to_string(), &Uint128::from(2 * stake_amount)),
+                (&TEST_VOTER_2.to_string(), &Uint128::from(8 * stake_amount)),
+            ],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from(((10 * stake_amount) + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            )],
+        ),
+    ]);
 
     //cast another vote
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER_2.to_string(),
         amount: Uint128::from(8 * stake_amount as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -3512,18 +3729,24 @@ fn happy_days_end_poll_with_controlled_quorum() {
         deps.as_ref(),
     );
 
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(stake_amount))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            )],
+        ),
+    ]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER.to_string(),
         amount: Uint128::from(stake_amount as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);
@@ -3578,19 +3801,28 @@ fn happy_days_end_poll_with_controlled_quorum() {
     );
 
     // staked amount get increased 10 times
-    deps.querier.with_token_balances(&[(
-        &VOTING_TOKEN.to_string(),
-        &[(
-            &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128::from(((10 * stake_amount) + DEFAULT_PROPOSAL_DEPOSIT) as u128),
-        )],
-    )]);
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[
+                (&TEST_VOTER.to_string(), &Uint128::from(2 * stake_amount)),
+                (&TEST_VOTER_2.to_string(), &Uint128::from(8 * stake_amount)),
+            ],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from(((10 * stake_amount) + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            )],
+        ),
+    ]);
 
     //cast another vote
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_VOTER_2.to_string(),
         amount: Uint128::from(8 * stake_amount as u128),
-        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
     });
 
     let info = mock_info(VOTING_TOKEN, &[]);

@@ -36,6 +36,9 @@ pub enum ContractError {
     #[error("User is trying to withdraw too many tokens")]
     InvalidWithdrawAmount {},
 
+    #[error("User is trying to cast zero vote")]
+    InvalidVotingPower {},
+
     #[error("Nothing to withdraw")]
     NothingToWithdraw {},
 

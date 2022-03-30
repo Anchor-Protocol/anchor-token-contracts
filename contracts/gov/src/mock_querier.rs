@@ -16,6 +16,8 @@ pub enum MockQueryMsg {
     Balance { address: String },
     /// VotingEscrowContractQueryMsg::UserVotingPower
     UserVotingPower { user: String },
+    /// VotingEscrowContractQueryMsg::TotalVotingPower
+    TotalVotingPower {},
 }
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
@@ -36,7 +38,6 @@ pub fn mock_dependencies(
 pub struct WasmMockQuerier {
     base: MockQuerier<Empty>,
     token_querier: TokenQuerier,
-    voting_power: VotingPowerResponse,
 }
 
 #[derive(Clone, Default)]
@@ -120,10 +121,67 @@ impl WasmMockQuerier {
                             to_binary(&Cw20BalanceResponse { balance }).unwrap(),
                         ))
                     }
-                    MockQueryMsg::UserVotingPower { user: _ } => {
-                        SystemResult::Ok(ContractResult::from(to_binary(&VotingPowerResponse {
-                            voting_power: self.voting_power.voting_power,
-                        })))
+                    MockQueryMsg::UserVotingPower { user } => {
+                        let balances: &HashMap<String, Uint128> =
+                            match self.token_querier.balances.get(contract_addr) {
+                                Some(balances) => balances,
+                                None => {
+                                    return SystemResult::Err(SystemError::InvalidRequest {
+                                        error: format!(
+                                            "No balance info exists for the contract {}",
+                                            contract_addr
+                                        ),
+                                        request: msg.as_slice().into(),
+                                    })
+                                }
+                            };
+
+                        let balance = match balances.get(&user) {
+                            Some(v) => *v,
+                            None => {
+                                return SystemResult::Ok(ContractResult::Ok(
+                                    to_binary(&VotingPowerResponse {
+                                        voting_power: Uint128::zero(),
+                                    })
+                                    .unwrap(),
+                                ));
+                            }
+                        };
+
+                        SystemResult::Ok(ContractResult::Ok(
+                            to_binary(&VotingPowerResponse {
+                                voting_power: balance,
+                            })
+                            .unwrap(),
+                        ))
+                    }
+                    MockQueryMsg::TotalVotingPower {} => {
+                        let balances: &HashMap<String, Uint128> =
+                            match self.token_querier.balances.get(contract_addr) {
+                                Some(balances) => balances,
+                                None => {
+                                    return SystemResult::Err(SystemError::InvalidRequest {
+                                        error: format!(
+                                            "No balance info exists for the contract {}",
+                                            contract_addr
+                                        ),
+                                        request: msg.as_slice().into(),
+                                    })
+                                }
+                            };
+
+                        let mut total_balance = Uint128::zero();
+
+                        for balance in balances.values() {
+                            total_balance += balance;
+                        }
+
+                        SystemResult::Ok(ContractResult::Ok(
+                            to_binary(&VotingPowerResponse {
+                                voting_power: total_balance,
+                            })
+                            .unwrap(),
+                        ))
                     }
                 }
             }
@@ -137,9 +195,6 @@ impl WasmMockQuerier {
         WasmMockQuerier {
             base,
             token_querier: TokenQuerier::default(),
-            voting_power: VotingPowerResponse {
-                voting_power: Uint128::zero(),
-            },
         }
     }
 

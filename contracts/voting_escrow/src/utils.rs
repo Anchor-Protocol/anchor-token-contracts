@@ -6,31 +6,22 @@ use cosmwasm_std::{
 use cw_storage_plus::{Bound, U64Key};
 use std::convert::TryInto;
 
-use crate::state::{Point, CONFIG, HISTORY, LAST_SLOPE_CHANGE, SLOPE_CHANGES};
+use crate::state::{Point, HISTORY, LAST_SLOPE_CHANGE, SLOPE_CHANGES};
 
 /// Seconds in one week. Constant is intended for period number calculation.
 pub const WEEK: u64 = 7 * 86400; // lock period is rounded down by week
 
+/// Seconds in 1 year which is minimum lock period.
+pub const MIN_LOCK_TIME: u64 = 365 * 86400; // 1 year
+
 /// Seconds in 2 years which is maximum lock period.
-pub const MAX_LOCK_TIME: u64 = 2 * 365 * 86400; // 2 years (104 weeks)
+pub const MAX_LOCK_TIME: u64 = 4 * 365 * 86400; // 4 years
 
 /// # Description
 /// Checks the time is within limits
 pub(crate) fn time_limits_check(time: u64) -> Result<(), ContractError> {
-    if !(WEEK..=MAX_LOCK_TIME).contains(&time) {
+    if !(MIN_LOCK_TIME..=MAX_LOCK_TIME).contains(&time) {
         Err(ContractError::LockTimeLimitsError {})
-    } else {
-        Ok(())
-    }
-}
-
-/// # Description
-/// Checks the sender is ANC token
-pub(crate) fn anc_token_check(deps: Deps, sender: Addr) -> Result<(), ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    let raw_sender = deps.api.addr_canonicalize(&sender.to_string())?;
-    if raw_sender != config.anchor_token {
-        Err(ContractError::Unauthorized {})
     } else {
         Ok(())
     }
@@ -87,8 +78,8 @@ pub(crate) fn calc_voting_power(point: &Point, period: u64) -> Uint128 {
 /// # Description
 /// Coefficient calculation where 0 [`WEEK`] equals to 1 and [`MAX_LOCK_TIME`] equals to 2.5.
 pub(crate) fn calc_coefficient(interval: u64) -> Decimal {
-    // coefficient = 1 + 1.5 * (end - start) / MAX_LOCK_TIME
-    Decimal::one() + Decimal::from_ratio(15_u64 * interval, get_period(MAX_LOCK_TIME) * 10)
+    // coefficient = 2.5 * (end - start) / MAX_LOCK_TIME
+    Decimal::from_ratio(25_u64 * interval, get_period(MAX_LOCK_TIME) * 10)
 }
 
 /// # Description
