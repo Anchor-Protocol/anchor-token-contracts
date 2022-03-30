@@ -89,7 +89,7 @@ pub fn register_merkle_root(
     }
 
     let mut root_buf: [u8; 32] = [0; 32];
-    match hex::decode_to_slice(merkle_root.to_string(), &mut root_buf) {
+    match hex::decode_to_slice(&merkle_root, &mut root_buf) {
         Ok(()) => {}
         _ => return Err(ContractError::InvalidHexMerkle {}),
     }
