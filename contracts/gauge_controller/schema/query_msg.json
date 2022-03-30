@@ -1,0 +1,190 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QueryMsg",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "gauge_count"
+      ],
+      "properties": {
+        "gauge_count": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "gauge_weight"
+      ],
+      "properties": {
+        "gauge_weight": {
+          "type": "object",
+          "required": [
+            "gauge_addr"
+          ],
+          "properties": {
+            "gauge_addr": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "gauge_weight_at"
+      ],
+      "properties": {
+        "gauge_weight_at": {
+          "type": "object",
+          "required": [
+            "gauge_addr",
+            "time"
+          ],
+          "properties": {
+            "gauge_addr": {
+              "type": "string"
+            },
+            "time": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "total_weight"
+      ],
+      "properties": {
+        "total_weight": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "total_weight_at"
+      ],
+      "properties": {
+        "total_weight_at": {
+          "type": "object",
+          "required": [
+            "time"
+          ],
+          "properties": {
+            "time": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "gauge_relative_weight"
+      ],
+      "properties": {
+        "gauge_relative_weight": {
+          "type": "object",
+          "required": [
+            "gauge_addr"
+          ],
+          "properties": {
+            "gauge_addr": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "gauge_relative_weight_at"
+      ],
+      "properties": {
+        "gauge_relative_weight_at": {
+          "type": "object",
+          "required": [
+            "gauge_addr",
+            "time"
+          ],
+          "properties": {
+            "gauge_addr": {
+              "type": "string"
+            },
+            "time": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "gauge_addr"
+      ],
+      "properties": {
+        "gauge_addr": {
+          "type": "object",
+          "required": [
+            "gauge_id"
+          ],
+          "properties": {
+            "gauge_id": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "all_gauge_addr"
+      ],
+      "properties": {
+        "all_gauge_addr": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "config"
+      ],
+      "properties": {
+        "config": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    }
+  ]
+}
