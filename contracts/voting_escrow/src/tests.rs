@@ -724,7 +724,7 @@ fn test_get_last_user_slope() {
     let max_period = Uint128::from(104u64); // 2 years in weeks
     let user_coeff = Decimal::one() + Decimal::from_ratio(Uint128::from(6u64), max_period);
     let user_vp = Uint128::from(100u64) * user_coeff;
-    let expected_slope = Uint128::new(1u128) * Decimal::from_ratio(user_vp, Uint128::from(4u64));
+    let expected_slope = Decimal::from_ratio(user_vp, Uint128::from(4u64));
 
     assert_eq!(user_slope.slope, expected_slope);
 
@@ -743,7 +743,7 @@ fn test_get_last_user_slope() {
 
     let expected_slope = Uint128::new(1u128) * Decimal::from_ratio(user_vp, Uint128::from(10u64));
 
-    assert_eq!(user_slope.slope, expected_slope);
+    assert_eq!(user_slope.slope * Uint128::new(1u128), expected_slope);
 }
 
 #[test]

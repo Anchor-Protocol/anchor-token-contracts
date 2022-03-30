@@ -89,7 +89,7 @@ pub struct VotingPowerResponse {
 /// This structure describes last user slope response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserSlopeResponse {
-    pub slope: Uint128,
+    pub slope: Decimal,
 }
 
 /// ## Description
