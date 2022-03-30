@@ -797,7 +797,7 @@ fn happy_days_end_poll() {
         vec![
             attr("action", "end_poll"),
             attr("poll_id", "1"),
-            attr("rejected_reason", ""),
+            attr("rejected_reason", "None"),
             attr("passed", "true"),
         ]
     );
@@ -1102,7 +1102,7 @@ fn fail_poll() {
         vec![
             attr("action", "end_poll"),
             attr("poll_id", "1"),
-            attr("rejected_reason", ""),
+            attr("rejected_reason", "None"),
             attr("passed", "true"),
         ]
     );
@@ -2808,7 +2808,7 @@ fn execute_poll_with_order() {
         vec![
             attr("action", "end_poll"),
             attr("poll_id", "1"),
-            attr("rejected_reason", ""),
+            attr("rejected_reason", "None"),
             attr("passed", "true"),
         ]
     );
@@ -2992,7 +2992,7 @@ fn poll_with_empty_execute_data_marked_as_executed() {
         vec![
             attr("action", "end_poll"),
             attr("poll_id", "1"),
-            attr("rejected_reason", ""),
+            attr("rejected_reason", "None"),
             attr("passed", "true"),
         ]
     );
@@ -3166,7 +3166,7 @@ fn poll_with_none_execute_data_marked_as_executed() {
         vec![
             attr("action", "end_poll"),
             attr("poll_id", "1"),
-            attr("rejected_reason", ""),
+            attr("rejected_reason", "None"),
             attr("passed", "true"),
         ]
     );
@@ -3860,7 +3860,7 @@ fn happy_days_end_poll_with_controlled_quorum() {
         vec![
             attr("action", "end_poll"),
             attr("poll_id", "1"),
-            attr("rejected_reason", ""),
+            attr("rejected_reason", "None"),
             attr("passed", "true"),
         ]
     );
