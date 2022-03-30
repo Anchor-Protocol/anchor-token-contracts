@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AllGaugeAddrResponse",
+  "type": "object",
+  "required": [
+    "all_gauge_addr"
+  ],
+  "properties": {
+    "all_gauge_addr": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

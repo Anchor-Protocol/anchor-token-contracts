@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ConfigResponse",
+  "type": "object",
+  "required": [
+    "anchor_token",
+    "anchor_voting_escrow",
+    "owner"
+  ],
+  "properties": {
+    "anchor_token": {
+      "type": "string"
+    },
+    "anchor_voting_escrow": {
+      "type": "string"
+    },
+    "owner": {
+      "type": "string"
+    }
+  }
+}

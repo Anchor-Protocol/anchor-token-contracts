@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GaugeCountResponse",
+  "type": "object",
+  "required": [
+    "gauge_count"
+  ],
+  "properties": {
+    "gauge_count": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    }
+  }
+}
