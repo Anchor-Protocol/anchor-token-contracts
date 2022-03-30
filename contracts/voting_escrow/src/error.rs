@@ -15,9 +15,6 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("Lock already exists")]
-    LockAlreadyExists {},
-
     #[error("Lock does not exist")]
     LockDoesntExist {},
 

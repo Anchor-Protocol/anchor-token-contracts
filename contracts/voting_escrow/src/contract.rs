@@ -148,7 +148,7 @@ fn extend_lock_amount(
     })?;
     checkpoint(deps, env, user, Some(amount), None)?;
 
-    Ok(Response::default().add_attribute("action", "deposit_for"))
+    Ok(Response::default().add_attribute("action", "extend_lock_amount"))
 }
 
 /// ## Description

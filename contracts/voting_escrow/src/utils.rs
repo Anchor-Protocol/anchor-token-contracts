@@ -14,7 +14,7 @@ pub const WEEK: u64 = 7 * 86400; // lock period is rounded down by week
 /// Seconds in 1 year which is minimum lock period.
 pub const MIN_LOCK_TIME: u64 = 365 * 86400; // 1 year
 
-/// Seconds in 2 years which is maximum lock period.
+/// Seconds in 4 years which is maximum lock period.
 pub const MAX_LOCK_TIME: u64 = 4 * 365 * 86400; // 4 years
 
 /// # Description
