@@ -15,13 +15,10 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("Lock already exists")]
-    LockAlreadyExists {},
-
     #[error("Lock does not exist")]
     LockDoesntExist {},
 
-    #[error("Lock time must be within the limits (week <= lock time < 2 years)")]
+    #[error("Lock time must be within the limits")]
     LockTimeLimitsError {},
 
     #[error("The lock time has not yet expired")]
@@ -29,4 +26,7 @@ pub enum ContractError {
 
     #[error("The lock expired. Withdraw and create new lock")]
     LockExpired {},
+
+    #[error("InsufficientStaked")]
+    InsufficientStaked {},
 }

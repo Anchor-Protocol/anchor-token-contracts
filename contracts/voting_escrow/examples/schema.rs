@@ -3,8 +3,8 @@ use std::env::current_dir;
 use std::fs::create_dir_all;
 
 use anchor_token::voting_escrow::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, QueryMsg,
-    UserSlopeResponse, UserUnlockPeriodResponse, VotingPowerResponse,
+    ConfigResponse, ExecuteMsg, InstantiateMsg, LockInfoResponse, QueryMsg, UserSlopeResponse,
+    UserUnlockPeriodResponse, VotingPowerResponse,
 };
 
 fn main() {
@@ -15,7 +15,6 @@ fn main() {
 
     export_schema_with_title(&schema_for!(InstantiateMsg), &out_dir, "InstantiateMsg");
     export_schema_with_title(&schema_for!(ExecuteMsg), &out_dir, "ExecuteMsg");
-    export_schema_with_title(&schema_for!(Cw20HookMsg), &out_dir, "Cw20HookMsg");
     export_schema_with_title(&schema_for!(QueryMsg), &out_dir, "QueryMsg");
     export_schema_with_title(
         &schema_for!(VotingPowerResponse),

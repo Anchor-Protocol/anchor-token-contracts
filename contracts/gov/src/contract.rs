@@ -1,12 +1,12 @@
 use crate::error::ContractError;
-use crate::staking::{query_staker, stake_voting_tokens, withdraw_voting_tokens};
+use crate::migration::migrate_config;
+use crate::staking::{extend_lock_amount, extend_lock_time, query_staker, withdraw_voting_tokens};
 use crate::state::{
     bank_read, bank_store, config_read, config_store, poll_indexer_store, poll_read, poll_store,
     poll_voter_read, poll_voter_store, read_poll_voters, read_polls, read_tmp_poll_id, state_read,
     state_store, store_tmp_poll_id, Config, ExecuteData, Poll, State,
 };
-
-use astroport::querier::query_token_balance;
+use crate::voting_escrow::{query_total_voting_power, query_user_voting_power};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -17,9 +17,9 @@ use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
 use anchor_token::common::OrderBy;
 use anchor_token::gov::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, PollExecuteMsg, PollResponse,
-    PollStatus, PollsResponse, QueryMsg, StateResponse, VoteOption, VoterInfo, VotersResponse,
-    VotersResponseItem,
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PollExecuteMsg,
+    PollResponse, PollStatus, PollsResponse, QueryMsg, StateResponse, VoteOption, VoterInfo,
+    VotersResponse, VotersResponseItem,
 };
 
 const MIN_TITLE_LENGTH: usize = 4;
@@ -43,6 +43,7 @@ pub fn instantiate(
 
     let config = Config {
         anchor_token: CanonicalAddr::from(vec![]),
+        anchor_voting_escrow: CanonicalAddr::from(vec![]),
         owner: deps.api.addr_canonicalize(info.sender.as_str())?,
         quorum: msg.quorum,
         threshold: msg.threshold,
@@ -74,9 +75,16 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        ExecuteMsg::ExtendLockTime { time } => {
+            let sender = deps.api.addr_canonicalize(info.sender.as_str())?;
+            extend_lock_time(deps, sender, time)
+        }
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::ExecutePollMsgs { poll_id } => execute_poll_messages(deps, env, info, poll_id),
-        ExecuteMsg::RegisterContracts { anchor_token } => register_contracts(deps, anchor_token),
+        ExecuteMsg::RegisterContracts {
+            anchor_token,
+            anchor_voting_escrow,
+        } => register_contracts(deps, anchor_token, anchor_voting_escrow),
         ExecuteMsg::UpdateConfig {
             owner,
             quorum,
@@ -119,13 +127,22 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
     }
 }
 
-pub fn register_contracts(deps: DepsMut, anchor_token: String) -> Result<Response, ContractError> {
+pub fn register_contracts(
+    deps: DepsMut,
+    anchor_token: String,
+    anchor_voting_escrow: String,
+) -> Result<Response, ContractError> {
     let mut config: Config = config_read(deps.storage).load()?;
     if config.anchor_token != CanonicalAddr::from(vec![]) {
         return Err(ContractError::Unauthorized {});
     }
 
+    if config.anchor_voting_escrow != CanonicalAddr::from(vec![]) {
+        return Err(ContractError::Unauthorized {});
+    }
+
     config.anchor_token = deps.api.addr_canonicalize(&anchor_token)?;
+    config.anchor_voting_escrow = deps.api.addr_canonicalize(&anchor_voting_escrow)?;
     config_store(deps.storage).save(&config)?;
 
     Ok(Response::default())
@@ -144,9 +161,9 @@ pub fn receive_cw20(
     }
 
     match from_binary(&cw20_msg.msg) {
-        Ok(Cw20HookMsg::StakeVotingTokens {}) => {
-            let api = deps.api;
-            stake_voting_tokens(deps, api.addr_validate(&cw20_msg.sender)?, cw20_msg.amount)
+        Ok(Cw20HookMsg::ExtendLockAmount {}) => {
+            let sender = deps.api.addr_canonicalize(&cw20_msg.sender)?;
+            extend_lock_amount(deps, sender, cw20_msg.amount)
         }
         Ok(Cw20HookMsg::CreatePoll {
             title,
@@ -378,7 +395,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, Contr
     let tallied_weight = yes + no;
 
     let mut poll_status = PollStatus::Rejected;
-    let mut rejected_reason = "";
+    let mut rejected_reason = "None";
     let mut passed = false;
 
     let mut messages: Vec<CosmosMsg> = vec![];
@@ -393,16 +410,10 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, Contr
             staked_amount,
         )
     } else {
-        let staked_weight = query_token_balance(
-            &deps.querier,
-            deps.api.addr_humanize(&config.anchor_token)?,
-            deps.api.addr_humanize(&state.contract_addr)?,
-        )?
-        .checked_sub(state.total_deposit)?;
-
+        let staked_amount = query_total_voting_power(deps.as_ref(), &config.anchor_voting_escrow)?;
         (
-            Decimal::from_ratio(tallied_weight, staked_weight),
-            staked_weight,
+            Decimal::from_ratio(tallied_weight, staked_amount),
+            staked_amount,
         )
     };
 
@@ -558,15 +569,7 @@ pub fn snapshot_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, 
         return Err(ContractError::SnapshotAlreadyOccurred {});
     }
 
-    // store the current staked amount for quorum calculation
-    let state: State = state_store(deps.storage).load()?;
-
-    let staked_amount = query_token_balance(
-        &deps.querier,
-        deps.api.addr_humanize(&config.anchor_token)?,
-        deps.api.addr_humanize(&state.contract_addr)?,
-    )?
-    .checked_sub(state.total_deposit)?;
+    let staked_amount = query_total_voting_power(deps.as_ref(), &config.anchor_voting_escrow)?;
 
     a_poll.staked_amount = Some(staked_amount);
 
@@ -587,6 +590,9 @@ pub fn cast_vote(
     vote: VoteOption,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
+    if amount.is_zero() {
+        return Err(ContractError::InvalidVotingPower {});
+    }
     let sender_address_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
     let config = config_read(deps.storage).load()?;
     let state = state_read(deps.storage).load()?;
@@ -610,20 +616,13 @@ pub fn cast_vote(
     let key = &sender_address_raw.as_slice();
     let mut token_manager = bank_read(deps.storage).may_load(key)?.unwrap_or_default();
 
-    // convert share to amount
-    let total_share = state.total_share;
-    let total_balance = query_token_balance(
-        &deps.querier,
-        deps.api.addr_humanize(&config.anchor_token)?,
-        deps.api.addr_humanize(&state.contract_addr)?,
-    )?
-    .checked_sub(state.total_deposit)?;
+    let veanc_voting_power = query_user_voting_power(
+        deps.as_ref(),
+        &config.anchor_voting_escrow,
+        &sender_address_raw,
+    )?;
 
-    if token_manager
-        .share
-        .multiply_ratio(total_balance, total_share)
-        < amount
-    {
+    if veanc_voting_power < amount {
         return Err(ContractError::InsufficientStaked {});
     }
 
@@ -650,7 +649,10 @@ pub fn cast_vote(
     let time_to_end = a_poll.end_height - env.block.height;
 
     if time_to_end < config.snapshot_period && a_poll.staked_amount.is_none() {
-        a_poll.staked_amount = Some(total_balance);
+        a_poll.staked_amount = Some(query_total_voting_power(
+            deps.as_ref(),
+            &config.anchor_voting_escrow,
+        )?);
     }
 
     poll_store(deps.storage).save(&poll_id.to_be_bytes(), &a_poll)?;
@@ -703,6 +705,10 @@ fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
     Ok(ConfigResponse {
         owner: deps.api.addr_humanize(&config.owner)?.to_string(),
         anchor_token: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
+        anchor_voting_escrow: deps
+            .api
+            .addr_humanize(&config.anchor_voting_escrow)?
+            .to_string(),
         quorum: config.quorum,
         threshold: config.threshold,
         voting_period: config.voting_period,
@@ -849,4 +855,15 @@ fn query_voters(
     Ok(VotersResponse {
         voters: voters_response?,
     })
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+    // migrate config
+    migrate_config(
+        deps.storage,
+        deps.api.addr_canonicalize(&msg.anchor_voting_escrow)?,
+    )?;
+
+    Ok(Response::default())
 }

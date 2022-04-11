@@ -1,15 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Cw20HookMsg",
-  "anyOf": [
+  "oneOf": [
     {
-      "description": "StakeVotingTokens a user can stake their mirror token to receive rewards or do vote on polls",
       "type": "object",
       "required": [
-        "stake_voting_tokens"
+        "extend_lock_amount"
       ],
       "properties": {
-        "stake_voting_tokens": {
+        "extend_lock_amount": {
           "type": "object"
         }
       },

@@ -1,10 +1,24 @@
+use anchor_token::voting_escrow::VotingPowerResponse;
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_binary, from_slice, to_binary, Coin, ContractResult, Empty, OwnedDeps, Querier,
     QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
-use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20QueryMsg};
+use cw20::BalanceResponse as Cw20BalanceResponse;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum MockQueryMsg {
+    /// Cw20QueryMsg::Balance
+    Balance { address: String },
+    /// VotingEscrowContractQueryMsg::UserVotingPower
+    UserVotingPower { user: String },
+    /// VotingEscrowContractQueryMsg::TotalVotingPower
+    TotalVotingPower {},
+}
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies
 /// this uses our CustomQuerier.
@@ -76,7 +90,7 @@ impl WasmMockQuerier {
         match &request {
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 match from_binary(msg).unwrap() {
-                    Cw20QueryMsg::Balance { address } => {
+                    MockQueryMsg::Balance { address } => {
                         let balances: &HashMap<String, Uint128> =
                             match self.token_querier.balances.get(contract_addr) {
                                 Some(balances) => balances,
@@ -107,7 +121,68 @@ impl WasmMockQuerier {
                             to_binary(&Cw20BalanceResponse { balance }).unwrap(),
                         ))
                     }
-                    _ => panic!("DO NOT ENTER HERE"),
+                    MockQueryMsg::UserVotingPower { user } => {
+                        let balances: &HashMap<String, Uint128> =
+                            match self.token_querier.balances.get(contract_addr) {
+                                Some(balances) => balances,
+                                None => {
+                                    return SystemResult::Err(SystemError::InvalidRequest {
+                                        error: format!(
+                                            "No balance info exists for the contract {}",
+                                            contract_addr
+                                        ),
+                                        request: msg.as_slice().into(),
+                                    })
+                                }
+                            };
+
+                        let balance = match balances.get(&user) {
+                            Some(v) => *v,
+                            None => {
+                                return SystemResult::Ok(ContractResult::Ok(
+                                    to_binary(&VotingPowerResponse {
+                                        voting_power: Uint128::zero(),
+                                    })
+                                    .unwrap(),
+                                ));
+                            }
+                        };
+
+                        SystemResult::Ok(ContractResult::Ok(
+                            to_binary(&VotingPowerResponse {
+                                voting_power: balance,
+                            })
+                            .unwrap(),
+                        ))
+                    }
+                    MockQueryMsg::TotalVotingPower {} => {
+                        let balances: &HashMap<String, Uint128> =
+                            match self.token_querier.balances.get(contract_addr) {
+                                Some(balances) => balances,
+                                None => {
+                                    return SystemResult::Err(SystemError::InvalidRequest {
+                                        error: format!(
+                                            "No balance info exists for the contract {}",
+                                            contract_addr
+                                        ),
+                                        request: msg.as_slice().into(),
+                                    })
+                                }
+                            };
+
+                        let mut total_balance = Uint128::zero();
+
+                        for balance in balances.values() {
+                            total_balance += balance;
+                        }
+
+                        SystemResult::Ok(ContractResult::Ok(
+                            to_binary(&VotingPowerResponse {
+                                voting_power: total_balance,
+                            })
+                            .unwrap(),
+                        ))
+                    }
                 }
             }
             _ => self.base.handle_query(request),

@@ -19,12 +19,16 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
+    ExtendLockTime {
+        time: u64,
+    },
     Receive(Cw20ReceiveMsg),
     ExecutePollMsgs {
         poll_id: u64,
     },
     RegisterContracts {
         anchor_token: String,
+        anchor_voting_escrow: String,
     },
     UpdateConfig {
         owner: Option<String>,
@@ -57,9 +61,7 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
-    /// StakeVotingTokens a user can stake their mirror token to receive rewards
-    /// or do vote on polls
-    StakeVotingTokens {},
+    ExtendLockAmount {},
     /// CreatePoll need to receive deposit from a proposer
     CreatePoll {
         title: String,
@@ -102,10 +104,16 @@ pub enum QueryMsg {
     },
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {
+    pub anchor_voting_escrow: String,
+}
+
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
     pub owner: String,
     pub anchor_token: String,
+    pub anchor_voting_escrow: String,
     pub quorum: Decimal,
     pub threshold: Decimal,
     pub voting_period: u64,
