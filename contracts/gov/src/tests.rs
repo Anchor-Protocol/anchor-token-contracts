@@ -4181,6 +4181,3 @@ fn test_extend_lock_time() {
         ]
     );
 }
-
-#[test]
-fn test_extend_lock_amount() {}
