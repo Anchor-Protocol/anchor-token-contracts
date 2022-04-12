@@ -1960,7 +1960,7 @@ fn happy_days_withdraw_voting_tokens() {
             contract_addr: VOTING_TOKEN.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: TEST_VOTER.to_string(),
-                amount: amount,
+                amount,
             })
             .unwrap(),
             funds: vec![],
@@ -4129,8 +4129,8 @@ fn test_extend_lock_time() {
         .save(
             sender.as_slice(),
             &TokenManager {
-                share: share,
-                locked_balance: locked_balance,
+                share,
+                locked_balance,
             },
         )
         .unwrap();
