@@ -2,9 +2,13 @@ use crate::contract::{execute, instantiate, migrate, query, reply};
 use crate::error::ContractError;
 use crate::migration::{read_legacy_config, LegacyConfig};
 use crate::mock_querier::mock_dependencies;
+use crate::staking::extend_lock_time;
 use crate::state::{
     bank_read, bank_store, config_read, config_store, poll_store, poll_voter_read,
     poll_voter_store, state_read, Config, Poll, State, TokenManager,
+};
+use crate::voting_escrow::{
+    generate_extend_lock_amount_message, generate_extend_lock_time_message,
 };
 use anchor_token::common::OrderBy;
 use anchor_token::gov::{
@@ -716,12 +720,10 @@ fn fails_end_poll_zero_voting_power() {
         ]
     );
 
-    deps.querier.with_token_balances(&[
-        (
-            &VOTING_ESCROW.to_string(),
-            &[(&TEST_VOTER.to_string(), &Uint128::zero())],
-        ),
-    ]);
+    deps.querier.with_token_balances(&[(
+        &VOTING_ESCROW.to_string(),
+        &[(&TEST_VOTER.to_string(), &Uint128::zero())],
+    )]);
 
     let msg = ExecuteMsg::EndPoll { poll_id: 1 };
     let env = mock_env_height(DEFAULT_VOTING_PERIOD * 2, 10000);
@@ -4061,4 +4063,61 @@ fn test_register_contracts() {
 
     let _res = execute(deps.as_mut(), mock_env(), info, msg)
         .expect("contract successfully handles RegisterContracts");
+}
+
+#[test]
+fn test_extend_lock_time() {
+    let mut deps = mock_dependencies(&[]);
+    let info = mock_info(TEST_VOTER, &[]);
+    let sender = deps.api.addr_canonicalize(info.sender.as_str()).unwrap();
+    let voting_escrow = deps.api.addr_canonicalize(VOTING_ESCROW).unwrap();
+    let time = 10000u64;
+    let share = Uint128::from(5u128);
+
+    mock_instantiate(deps.as_mut());
+    mock_register_contracts(deps.as_mut());
+
+    let locked_balance = vec![(
+        1u64,
+        VoterInfo {
+            vote: VoteOption::Yes,
+            balance: share,
+        },
+    )];
+
+    bank_store(&mut deps.storage)
+        .save(
+            sender.as_slice(),
+            &TokenManager {
+                share: share,
+                locked_balance: locked_balance,
+            },
+        )
+        .unwrap();
+
+    // voter is not synced -- should generate lock amount message
+    let res = extend_lock_time(deps.as_mut(), sender.clone(), time).unwrap();
+
+    assert_eq!(
+        res.messages,
+        vec![
+            SubMsg::new(
+                generate_extend_lock_time_message(deps.as_ref(), &voting_escrow, &sender, time)
+                    .unwrap()
+            ),
+            SubMsg::new(
+                generate_extend_lock_amount_message(deps.as_ref(), &voting_escrow, &sender, share)
+                    .unwrap()
+            )
+        ],
+    );
+
+    assert_eq!(
+        res.attributes,
+        vec![
+            attr("action", "extend_lock_time"),
+            attr("sender", TEST_VOTER),
+            attr("time", "10000"),
+        ]
+    );
 }
