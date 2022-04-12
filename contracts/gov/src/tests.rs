@@ -9,6 +9,7 @@ use crate::state::{
 };
 use crate::voting_escrow::{
     generate_extend_lock_amount_message, generate_extend_lock_time_message,
+    generate_withdraw_message,
 };
 use anchor_token::common::OrderBy;
 use anchor_token::gov::{
@@ -1894,6 +1895,21 @@ fn happy_days_withdraw_voting_tokens() {
     let execute_res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_stake_tokens_result(11, 0, 11, 0, execute_res, deps.as_ref());
 
+    let info = mock_info(TEST_VOTER, &[]);
+    let time = 365 * 86400;
+    let msg = ExecuteMsg::ExtendLockTime { time };
+    let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+    assert_eq!(res.messages.len(), 2);
+    assert_eq!(
+        res.attributes,
+        vec![
+            ("action", "extend_lock_time"),
+            ("sender", TEST_VOTER),
+            ("time", &time.to_string()),
+        ]
+    );
+
     let state: State = state_read(deps.as_ref().storage).load().unwrap();
     assert_eq!(
         state,
@@ -1917,25 +1933,49 @@ fn happy_days_withdraw_voting_tokens() {
         ),
     ]);
 
+    // increase total share for a second voter
+    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender: TEST_VOTER_2.to_string(),
+        amount: Uint128::from(11u128),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
+    });
+
+    let info = mock_info(VOTING_TOKEN, &[]);
+    let execute_res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+    assert_stake_tokens_result(22, 0, 11, 0, execute_res, deps.as_ref());
+
     let info = mock_info(TEST_VOTER, &[]);
+    let amount = Uint128::from(11u128);
     let msg = ExecuteMsg::WithdrawVotingTokens {
-        amount: Some(Uint128::from(11u128)),
+        amount: Some(amount),
     };
 
-    let execute_res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-    let msg = execute_res.messages.get(0).expect("no message");
+    let execute_res = execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+    let msg_transfer = execute_res.messages.get(0).expect("no message");
+    let msg_withdraw = execute_res.messages.get(1).expect("no withdraw msg");
 
     assert_eq!(
-        msg,
+        msg_transfer,
         &SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: VOTING_TOKEN.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: TEST_VOTER.to_string(),
-                amount: Uint128::from(11u128),
+                amount: amount,
             })
             .unwrap(),
             funds: vec![],
         }))
+    );
+
+    let sender = deps.api.addr_canonicalize(info.sender.as_str()).unwrap();
+    let voting_escrow = deps.api.addr_canonicalize(VOTING_ESCROW).unwrap();
+
+    // voter is synced -- should generate a withdraw message
+    assert_eq!(
+        msg_withdraw,
+        &SubMsg::new(
+            generate_withdraw_message(deps.as_ref(), &voting_escrow, &sender, amount).unwrap()
+        )
     );
 
     let state: State = state_read(deps.as_ref().storage).load().unwrap();
@@ -1944,7 +1984,7 @@ fn happy_days_withdraw_voting_tokens() {
         State {
             contract_addr: deps.api.addr_canonicalize(MOCK_CONTRACT_ADDR).unwrap(),
             poll_count: 0,
-            total_share: Uint128::from(6u128),
+            total_share: Uint128::from(11u128),
             total_deposit: Uint128::zero(),
         }
     );
@@ -4120,4 +4160,27 @@ fn test_extend_lock_time() {
             attr("time", "10000"),
         ]
     );
+
+    // voter is synced -- should not generate lock amount message
+    let res = extend_lock_time(deps.as_mut(), sender.clone(), time).unwrap();
+
+    assert_eq!(
+        res.messages,
+        vec![SubMsg::new(
+            generate_extend_lock_time_message(deps.as_ref(), &voting_escrow, &sender, time)
+                .unwrap()
+        ),],
+    );
+
+    assert_eq!(
+        res.attributes,
+        vec![
+            attr("action", "extend_lock_time"),
+            attr("sender", TEST_VOTER),
+            attr("time", "10000"),
+        ]
+    );
 }
+
+#[test]
+fn test_extend_lock_amount() {}
