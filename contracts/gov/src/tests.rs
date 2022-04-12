@@ -647,6 +647,99 @@ fn fails_end_poll_before_end_height() {
 }
 
 #[test]
+fn fails_end_poll_zero_voting_power() {
+    let stake_amount = 1000;
+    let mut deps = mock_dependencies(&[]);
+    mock_instantiate(deps.as_mut());
+    mock_register_contracts(deps.as_mut());
+    let env = mock_env_height(0, 10000);
+    let info = mock_info(VOTING_TOKEN, &[]);
+
+    let msg = create_poll_msg("test".to_string(), "test".to_string(), None, None);
+    let execute_res = execute(deps.as_mut(), env, info, msg).unwrap();
+    assert_create_poll_result(
+        1,
+        DEFAULT_VOTING_PERIOD,
+        TEST_CREATOR,
+        execute_res,
+        deps.as_ref(),
+    );
+
+    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender: TEST_VOTER.to_string(),
+        amount: Uint128::from(stake_amount as u128),
+        msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
+    });
+
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::from(stake_amount))],
+        ),
+        (
+            &VOTING_TOKEN.to_string(),
+            &[(
+                &MOCK_CONTRACT_ADDR.to_string(),
+                &Uint128::from((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            )],
+        ),
+    ]);
+
+    let info = mock_info(VOTING_TOKEN, &[]);
+    let execute_res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+    assert_stake_tokens_result(
+        stake_amount,
+        DEFAULT_PROPOSAL_DEPOSIT,
+        stake_amount,
+        1,
+        execute_res,
+        deps.as_ref(),
+    );
+
+    let msg = ExecuteMsg::CastVote {
+        poll_id: 1,
+        vote: VoteOption::Yes,
+        amount: Uint128::from(stake_amount),
+    };
+    let env = mock_env_height(0, 10000);
+    let info = mock_info(TEST_VOTER, &[]);
+    let execute_res = execute(deps.as_mut(), env, info, msg).unwrap();
+
+    assert_eq!(
+        execute_res.attributes,
+        vec![
+            attr("action", "cast_vote"),
+            attr("poll_id", "1"),
+            attr("amount", "1000"),
+            attr("voter", TEST_VOTER),
+            attr("vote_option", "yes"),
+        ]
+    );
+
+    deps.querier.with_token_balances(&[
+        (
+            &VOTING_ESCROW.to_string(),
+            &[(&TEST_VOTER.to_string(), &Uint128::zero())],
+        ),
+    ]);
+
+    let msg = ExecuteMsg::EndPoll { poll_id: 1 };
+    let env = mock_env_height(DEFAULT_VOTING_PERIOD * 2, 10000);
+    let info = mock_info(TEST_CREATOR, &[]);
+    let execute_res = execute(deps.as_mut(), env, info, msg).unwrap();
+
+    assert_eq!(
+        execute_res.attributes,
+        vec![
+            attr("action", "end_poll"),
+            attr("poll_id", "1"),
+            attr("rejected_reason", "Quorum not reached"),
+            attr("passed", "false"),
+        ]
+    );
+}
+
+#[test]
 fn happy_days_end_poll() {
     const POLL_START_HEIGHT: u64 = 1000;
     const POLL_ID: u64 = 1;
