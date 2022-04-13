@@ -66,9 +66,9 @@ fn store_ve_contract_code(app: &mut TerraApp) -> u64 {
 
 fn store_token_contract_code(app: &mut TerraApp) -> u64 {
     let token_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
+        cw20_base::contract::execute,
+        cw20_base::contract::instantiate,
+        cw20_base::contract::query,
     ));
 
     app.store_code(token_contract)
