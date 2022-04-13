@@ -27,6 +27,7 @@ pub fn read_legacy_config(storage: &dyn Storage) -> StdResult<LegacyConfig> {
 pub fn migrate_config(
     storage: &mut dyn Storage,
     anchor_voting_escrow: CanonicalAddr,
+    voter_weight: Decimal,
 ) -> StdResult<()> {
     let legacy_config: LegacyConfig = read_legacy_config(storage)?;
 
@@ -41,5 +42,6 @@ pub fn migrate_config(
         proposal_deposit: legacy_config.proposal_deposit,
         snapshot_period: legacy_config.snapshot_period,
         anchor_voting_escrow,
+        voter_weight,
     })
 }

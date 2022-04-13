@@ -32,6 +32,7 @@ const DEFAULT_VOTING_PERIOD: u64 = 20000u64;
 const DEFAULT_FIX_PERIOD: u64 = 10u64;
 const DEFAULT_TIMELOCK_PERIOD: u64 = 10000u64;
 const DEFAULT_PROPOSAL_DEPOSIT: u128 = 10000000000u128;
+const DEFAULT_VOTER_WEIGHT: u64 = 50;
 
 fn mock_instantiate(deps: DepsMut) {
     let msg = InstantiateMsg {
@@ -41,6 +42,7 @@ fn mock_instantiate(deps: DepsMut) {
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
         proposal_deposit: Uint128::from(DEFAULT_PROPOSAL_DEPOSIT),
         snapshot_period: DEFAULT_FIX_PERIOD,
+        voter_weight: Decimal::percent(DEFAULT_VOTER_WEIGHT),
     };
 
     let info = mock_info(TEST_CREATOR, &[]);
@@ -73,6 +75,7 @@ fn instantiate_msg() -> InstantiateMsg {
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
         proposal_deposit: Uint128::from(DEFAULT_PROPOSAL_DEPOSIT),
         snapshot_period: DEFAULT_FIX_PERIOD,
+        voter_weight: Decimal::percent(DEFAULT_VOTER_WEIGHT),
     }
 }
 
@@ -98,7 +101,8 @@ fn proper_initialization() {
             timelock_period: DEFAULT_TIMELOCK_PERIOD,
             expiration_period: 0u64, // Deprecated
             proposal_deposit: Uint128::from(DEFAULT_PROPOSAL_DEPOSIT),
-            snapshot_period: DEFAULT_FIX_PERIOD
+            snapshot_period: DEFAULT_FIX_PERIOD,
+            voter_weight: Decimal::percent(DEFAULT_VOTER_WEIGHT),
         }
     );
 
@@ -121,6 +125,7 @@ fn proper_initialization() {
             poll_count: 0,
             total_share: Uint128::zero(),
             total_deposit: Uint128::zero(),
+            pending_voting_rewards: Uint128::zero(),
         }
     );
 }
@@ -151,6 +156,7 @@ fn fails_init_invalid_quorum() {
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
         proposal_deposit: Uint128::from(DEFAULT_PROPOSAL_DEPOSIT),
         snapshot_period: DEFAULT_FIX_PERIOD,
+        voter_weight: Decimal::percent(DEFAULT_VOTER_WEIGHT),
     };
 
     let res = instantiate(deps.as_mut(), mock_env(), info, msg);
@@ -175,6 +181,7 @@ fn fails_init_invalid_threshold() {
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
         proposal_deposit: Uint128::from(DEFAULT_PROPOSAL_DEPOSIT),
         snapshot_period: DEFAULT_FIX_PERIOD,
+        voter_weight: Decimal::percent(DEFAULT_VOTER_WEIGHT),
     };
 
     let res = instantiate(deps.as_mut(), mock_env(), info, msg);
@@ -199,6 +206,7 @@ fn fails_contract_already_registered() {
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
         proposal_deposit: Uint128::from(DEFAULT_PROPOSAL_DEPOSIT),
         snapshot_period: DEFAULT_FIX_PERIOD,
+        voter_weight: Decimal::percent(DEFAULT_VOTER_WEIGHT),
     };
 
     let _res = instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
@@ -959,7 +967,9 @@ fn happy_days_end_poll() {
         StakerResponse {
             balance: Uint128::from(stake_amount),
             share: Uint128::from(stake_amount),
-            locked_balance: vec![]
+            locked_balance: vec![],
+            pending_voting_rewards: Uint128::zero(),
+            withdrawable_polls: vec![],
         }
     );
 
@@ -1731,7 +1741,9 @@ fn happy_days_cast_vote() {
                     vote: VoteOption::Yes,
                     balance: Uint128::from(amount),
                 }
-            )]
+            )],
+            pending_voting_rewards: Uint128::zero(),
+            withdrawable_polls: vec![],
         }
     );
 
@@ -1807,6 +1819,7 @@ fn happy_days_withdraw_voting_tokens() {
             poll_count: 0,
             total_share: Uint128::from(11u128),
             total_deposit: Uint128::zero(),
+            pending_voting_rewards: Uint128::zero(),
         }
     );
 
@@ -1851,6 +1864,7 @@ fn happy_days_withdraw_voting_tokens() {
             poll_count: 0,
             total_share: Uint128::from(6u128),
             total_deposit: Uint128::zero(),
+            pending_voting_rewards: Uint128::zero(),
         }
     );
 }
@@ -1890,6 +1904,7 @@ fn happy_days_withdraw_voting_tokens_all() {
             poll_count: 0,
             total_share: Uint128::from(11u128),
             total_deposit: Uint128::zero(),
+            pending_voting_rewards: Uint128::zero(),
         }
     );
 
@@ -1932,6 +1947,7 @@ fn happy_days_withdraw_voting_tokens_all() {
             poll_count: 0,
             total_share: Uint128::zero(),
             total_deposit: Uint128::zero(),
+            pending_voting_rewards: Uint128::zero(),
         }
     );
 }
@@ -1981,6 +1997,7 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
                 execute_data: None,
                 total_balance_at_end_poll: None,
                 staked_amount: None,
+                voters_reward: Uint128::zero(),
             },
         )
         .unwrap();
@@ -2002,6 +2019,7 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
                 execute_data: None,
                 total_balance_at_end_poll: None,
                 staked_amount: None,
+                voters_reward: Uint128::zero(),
             },
         )
         .unwrap();
@@ -2463,6 +2481,7 @@ fn assert_create_poll_result(
             poll_count: 1,
             total_share: Uint128::zero(),
             total_deposit: Uint128::from(DEFAULT_PROPOSAL_DEPOSIT),
+            pending_voting_rewards: Uint128::zero(),
         }
     );
 }
@@ -2488,6 +2507,7 @@ fn assert_stake_tokens_result(
             poll_count,
             total_share: Uint128::from(total_share),
             total_deposit: Uint128::from(total_deposit),
+            pending_voting_rewards: Uint128::zero(),
         }
     );
 }
@@ -3914,6 +3934,7 @@ fn test_migrate() {
         mock_env(),
         MigrateMsg {
             anchor_voting_escrow: VOTING_ESCROW.to_string(),
+            voter_weight: Decimal::percent(DEFAULT_VOTER_WEIGHT),
         },
     )
     .unwrap();

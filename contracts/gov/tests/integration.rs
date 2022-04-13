@@ -111,6 +111,7 @@ fn create_contracts() -> (TerraApp, Addr, Addr, Addr) {
         timelock_period: 40327,
         proposal_deposit: Uint128::from(1000000000_u64),
         snapshot_period: 13443,
+        voter_weight: Decimal::percent(50),
     };
 
     let gov = router

@@ -5,7 +5,9 @@
   "required": [
     "balance",
     "locked_balance",
-    "share"
+    "pending_voting_rewards",
+    "share",
+    "withdrawable_polls"
   ],
   "properties": {
     "balance": {
@@ -29,8 +31,29 @@
         "minItems": 2
       }
     },
+    "pending_voting_rewards": {
+      "$ref": "#/definitions/Uint128"
+    },
     "share": {
       "$ref": "#/definitions/Uint128"
+    },
+    "withdrawable_polls": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": [
+          {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          {
+            "$ref": "#/definitions/Uint128"
+          }
+        ],
+        "maxItems": 2,
+        "minItems": 2
+      }
     }
   },
   "definitions": {

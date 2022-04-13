@@ -1,6 +1,9 @@
 use crate::error::ContractError;
 use crate::migration::migrate_config;
-use crate::staking::{extend_lock_amount, extend_lock_time, query_staker, withdraw_voting_tokens};
+use crate::staking::{
+    deposit_reward, extend_lock_amount, extend_lock_time, query_staker, stake_voting_rewards,
+    withdraw_voting_rewards, withdraw_voting_tokens,
+};
 use crate::state::{
     bank_read, bank_store, config_read, config_store, poll_indexer_store, poll_read, poll_store,
     poll_voter_read, poll_voter_store, read_poll_voters, read_polls, read_tmp_poll_id, state_read,
@@ -52,6 +55,7 @@ pub fn instantiate(
         expiration_period: 0u64, // Depricated
         proposal_deposit: msg.proposal_deposit,
         snapshot_period: msg.snapshot_period,
+        voter_weight: msg.voter_weight,
     };
 
     let state = State {
@@ -59,6 +63,7 @@ pub fn instantiate(
         poll_count: 0,
         total_share: Uint128::zero(),
         total_deposit: Uint128::zero(),
+        pending_voting_rewards: Uint128::zero(),
     };
 
     config_store(deps.storage).save(&config)?;
@@ -105,6 +110,10 @@ pub fn execute(
             snapshot_period,
         ),
         ExecuteMsg::WithdrawVotingTokens { amount } => withdraw_voting_tokens(deps, info, amount),
+        ExecuteMsg::WithdrawVotingRewards { poll_id } => {
+            withdraw_voting_rewards(deps, info, poll_id)
+        }
+        ExecuteMsg::StakeVotingRewards { poll_id } => stake_voting_rewards(deps, info, poll_id),
         ExecuteMsg::CastVote {
             poll_id,
             vote,
@@ -180,6 +189,7 @@ pub fn receive_cw20(
             link,
             execute_msgs,
         ),
+        Ok(Cw20HookMsg::DepositReward {}) => deposit_reward(deps, cw20_msg.amount),
         _ => Err(ContractError::DataShouldBeGiven {}),
     }
 }
@@ -353,6 +363,7 @@ pub fn create_poll(
         deposit_amount,
         total_balance_at_end_poll: None,
         staked_amount: None,
+        voters_reward: Uint128::zero(),
     };
 
     poll_store(deps.storage).save(&poll_id.to_be_bytes(), &new_poll)?;
@@ -772,7 +783,7 @@ fn query_polls(
     limit: Option<u32>,
     order_by: Option<OrderBy>,
 ) -> Result<PollsResponse, ContractError> {
-    let polls = read_polls(deps.storage, filter, start_after, limit, order_by)?;
+    let polls = read_polls(deps.storage, filter, start_after, limit, order_by, None)?;
 
     let poll_responses: StdResult<Vec<PollResponse>> = polls
         .iter()
@@ -863,6 +874,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
     migrate_config(
         deps.storage,
         deps.api.addr_canonicalize(&msg.anchor_voting_escrow)?,
+        msg.voter_weight,
     )?;
 
     Ok(Response::default())
