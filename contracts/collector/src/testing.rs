@@ -1,6 +1,7 @@
 use crate::contract::{execute, instantiate, query_config, reply};
 use crate::mock_querier::mock_dependencies;
 use anchor_token::collector::{ConfigResponse, ExecuteMsg, InstantiateMsg};
+use anchor_token::gov::Cw20HookMsg as GovCw20HookMsg;
 use astroport::asset::{Asset, AssetInfo};
 use astroport::pair::ExecuteMsg as AstroportExecuteMsg;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
@@ -198,9 +199,10 @@ fn test_distribute() {
         vec![
             SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: "tokenANC".to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: "gov".to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: "gov".to_string(),
                     amount: Uint128::from(90u128),
+                    msg: to_binary(&GovCw20HookMsg::DepositReward {}).unwrap(),
                 })
                 .unwrap(),
                 funds: vec![],
