@@ -112,8 +112,8 @@ pub fn extend_lock_time(
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         ("action", "extend_lock_time"),
-        ("sender", sender.to_string().as_str()),
-        ("time", time.to_string().as_str()),
+        ("sender", &deps.api.addr_humanize(&sender)?.to_string()),
+        ("time", &time.to_string()),
     ]))
 }
 
