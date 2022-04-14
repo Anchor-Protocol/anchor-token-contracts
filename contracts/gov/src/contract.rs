@@ -411,10 +411,14 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, Contr
         )
     } else {
         let staked_amount = query_total_voting_power(deps.as_ref(), &config.anchor_voting_escrow)?;
-        (
-            Decimal::from_ratio(tallied_weight, staked_amount),
-            staked_amount,
-        )
+        if staked_amount.is_zero() {
+            (Decimal::zero(), Uint128::zero())
+        } else {
+            (
+                Decimal::from_ratio(tallied_weight, staked_amount),
+                staked_amount,
+            )
+        }
     };
 
     if tallied_weight == 0 || quorum < config.quorum {
