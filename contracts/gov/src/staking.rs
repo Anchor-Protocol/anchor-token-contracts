@@ -160,64 +160,6 @@ pub fn deposit_reward(deps: DepsMut, amount: Uint128) -> Result<Response, Contra
     ]))
 }
 
-pub fn stake_voting_rewards(
-    deps: DepsMut,
-    info: MessageInfo,
-    poll_id: Option<u64>,
-) -> Result<Response, ContractError> {
-    let config: Config = config_store(deps.storage).load()?;
-    let mut state: State = state_store(deps.storage).load()?;
-    let sender_address_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
-    let key = sender_address_raw.as_slice();
-
-    let mut token_manager = bank_read(deps.storage)
-        .load(key)
-        .map_err(|_| ContractError::NothingStaked {})?;
-
-    let (user_reward_amount, w_polls) =
-        withdraw_user_voting_rewards(deps.storage, &sender_address_raw, &token_manager, poll_id)?;
-    if user_reward_amount.eq(&0u128) {
-        return Err(ContractError::NothingToWithdraw {});
-    }
-
-    // add the withdrawn rewards to stake pool and calculate share
-    let total_locked_balance = state.total_deposit + state.pending_voting_rewards;
-    let total_balance = query_token_balance(
-        &deps.querier,
-        deps.api.addr_humanize(&config.anchor_token)?,
-        deps.api.addr_humanize(&state.contract_addr)?,
-    )?
-    .checked_sub(total_locked_balance)?;
-
-    state.pending_voting_rewards = state
-        .pending_voting_rewards
-        .checked_sub(Uint128::new(user_reward_amount))?;
-
-    let share: Uint128 = if total_balance.is_zero() || state.total_share.is_zero() {
-        Uint128::new(user_reward_amount)
-    } else {
-        Uint128::new(user_reward_amount).multiply_ratio(state.total_share, total_balance)
-    };
-
-    token_manager.share += share;
-    state.total_share += share;
-
-    // cleanup, remove from locked_balance the polls from which we withdrew the rewards
-    token_manager
-        .locked_balance
-        .retain(|(poll_id, _)| !w_polls.contains(poll_id));
-
-    state_store(deps.storage).save(&state)?;
-    bank_store(deps.storage).save(key, &token_manager)?;
-
-    Ok(Response::new().add_attributes(vec![
-        ("action", "stake_voting_rewards"),
-        ("staker", info.sender.as_str()),
-        ("share", &share.to_string()),
-        ("amount", &user_reward_amount.to_string()),
-    ]))
-}
-
 fn get_withdrawable_polls(
     storage: &dyn Storage,
     token_manager: &TokenManager,

@@ -51,9 +51,6 @@ pub enum ExecuteMsg {
     WithdrawVotingRewards {
         poll_id: Option<u64>,
     },
-    StakeVotingRewards {
-        poll_id: Option<u64>,
-    },
     EndPoll {
         poll_id: u64,
     },
@@ -136,6 +133,7 @@ pub struct StateResponse {
     pub poll_count: u64,
     pub total_share: Uint128,
     pub total_deposit: Uint128,
+    pub pending_voting_rewards: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -153,6 +151,7 @@ pub struct PollResponse {
     pub no_votes: Uint128,  // balance
     pub staked_amount: Option<Uint128>,
     pub total_balance_at_end_poll: Option<Uint128>,
+    pub voters_reward: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]

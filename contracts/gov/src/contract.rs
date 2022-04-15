@@ -1,8 +1,8 @@
 use crate::error::ContractError;
 use crate::migration::migrate_config;
 use crate::staking::{
-    deposit_reward, extend_lock_amount, extend_lock_time, query_staker, stake_voting_rewards,
-    withdraw_voting_rewards, withdraw_voting_tokens,
+    deposit_reward, extend_lock_amount, extend_lock_time, query_staker, withdraw_voting_rewards,
+    withdraw_voting_tokens,
 };
 use crate::state::{
     bank_read, bank_store, config_read, config_store, poll_indexer_store, poll_read, poll_store,
@@ -113,7 +113,6 @@ pub fn execute(
         ExecuteMsg::WithdrawVotingRewards { poll_id } => {
             withdraw_voting_rewards(deps, info, poll_id)
         }
-        ExecuteMsg::StakeVotingRewards { poll_id } => stake_voting_rewards(deps, info, poll_id),
         ExecuteMsg::CastVote {
             poll_id,
             vote,
@@ -739,6 +738,7 @@ fn query_state(deps: Deps) -> Result<StateResponse, ContractError> {
         poll_count: state.poll_count,
         total_share: state.total_share,
         total_deposit: state.total_deposit,
+        pending_voting_rewards: state.pending_voting_rewards,
     })
 }
 
@@ -777,6 +777,7 @@ fn query_poll(deps: Deps, poll_id: u64) -> Result<PollResponse, ContractError> {
         no_votes: poll.no_votes,
         staked_amount: poll.staked_amount,
         total_balance_at_end_poll: poll.total_balance_at_end_poll,
+        voters_reward: poll.voters_reward,
     })
 }
 
@@ -820,6 +821,7 @@ fn query_polls(
                 no_votes: poll.no_votes,
                 staked_amount: poll.staked_amount,
                 total_balance_at_end_poll: poll.total_balance_at_end_poll,
+                voters_reward: poll.voters_reward,
             })
         })
         .collect();
