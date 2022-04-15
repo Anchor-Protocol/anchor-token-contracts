@@ -1,5 +1,5 @@
 use crate::error::ContractError;
-use crate::migration::migrate_config;
+use crate::migration::{migrate_config, migrate_polls, migrate_state};
 use crate::staking::{
     deposit_reward, extend_lock_amount, extend_lock_time, query_staker, withdraw_voting_rewards,
     withdraw_voting_tokens,
@@ -876,12 +876,17 @@ fn query_voters(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
-    // migrate config
     migrate_config(
         deps.storage,
         deps.api.addr_canonicalize(&msg.anchor_voting_escrow)?,
         msg.voter_weight,
     )?;
+
+    migrate_state(deps.storage)?;
+
+    let poll_count = state_read(deps.storage).load()?.poll_count;
+
+    migrate_polls(deps.storage, poll_count)?;
 
     Ok(Response::default())
 }

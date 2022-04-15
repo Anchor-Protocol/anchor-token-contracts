@@ -82,6 +82,10 @@ pub fn migrate_config(
         voter_weight,
     })?;
 
+    Ok(())
+}
+
+pub fn migrate_state(storage: &mut dyn Storage) -> StdResult<()> {
     let legacy_state: LegacyState = read_legacy_state(storage)?;
 
     state_store(storage).save(&State {
@@ -92,7 +96,11 @@ pub fn migrate_config(
         pending_voting_rewards: Uint128::zero(),
     })?;
 
-    for poll_id in 1..=legacy_state.poll_count {
+    Ok(())
+}
+
+pub fn migrate_polls(storage: &mut dyn Storage, poll_count: u64) -> StdResult<()> {
+    for poll_id in 1..=poll_count {
         let legacy_poll: LegacyPoll = read_legacy_poll(storage, poll_id)?;
 
         poll_store(storage).save(
