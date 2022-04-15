@@ -18,7 +18,7 @@ fn proper_initialization() {
     let msg = InstantiateMsg {
         astroport_factory: "astroportfactory".to_string(),
         gov_contract: "gov".to_string(),
-        anchor_token: "tokenANC".to_string(),
+        anchor_token: "tokenanc".to_string(),
         reward_factor: Decimal::percent(90),
         max_spread: Default::default(),
     };
@@ -40,7 +40,7 @@ fn update_config() {
     let msg = InstantiateMsg {
         astroport_factory: "astroportfactory".to_string(),
         gov_contract: "gov".to_string(),
-        anchor_token: "tokenANC".to_string(),
+        anchor_token: "tokenanc".to_string(),
         reward_factor: Decimal::percent(90),
         max_spread: Default::default(),
     };
@@ -115,12 +115,12 @@ fn test_sweep() {
     );
 
     deps.querier
-        .with_astroport_pairs(&[(&"uusdtokenANC".to_string(), &"pairANC".to_string())]);
+        .with_astroport_pairs(&[(&"uusdtokenanc".to_string(), &"pairanc".to_string())]);
 
     let msg = InstantiateMsg {
         astroport_factory: "astroportfactory".to_string(),
         gov_contract: "gov".to_string(),
-        anchor_token: "tokenANC".to_string(),
+        anchor_token: "tokenanc".to_string(),
         reward_factor: Decimal::percent(90),
         max_spread: Some(Decimal::percent(10)),
     };
@@ -139,7 +139,7 @@ fn test_sweep() {
         res.messages,
         vec![SubMsg {
             msg: WasmMsg::Execute {
-                contract_addr: "pairANC".to_string(),
+                contract_addr: "pairanc".to_string(),
                 msg: to_binary(&AstroportExecuteMsg::Swap {
                     offer_asset: Asset {
                         info: AssetInfo::NativeToken {
@@ -170,14 +170,14 @@ fn test_distribute() {
     let mut deps = mock_dependencies(&[]);
 
     deps.querier.with_token_balances(&[(
-        &"tokenANC".to_string(),
+        &"tokenanc".to_string(),
         &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::from(100u128))],
     )]);
 
     let msg = InstantiateMsg {
         astroport_factory: "astroportfactory".to_string(),
         gov_contract: "gov".to_string(),
-        anchor_token: "tokenANC".to_string(),
+        anchor_token: "tokenanc".to_string(),
         reward_factor: Decimal::percent(90),
         max_spread: Some(Decimal::percent(10)),
     };
@@ -198,7 +198,7 @@ fn test_distribute() {
         res.messages,
         vec![
             SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: "tokenANC".to_string(),
+                contract_addr: "tokenanc".to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
                     contract: "gov".to_string(),
                     amount: Uint128::from(90u128),
@@ -208,7 +208,7 @@ fn test_distribute() {
                 funds: vec![],
             })),
             SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: "tokenANC".to_string(),
+                contract_addr: "tokenanc".to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Burn {
                     amount: Uint128::from(10u128),
                 })
