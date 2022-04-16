@@ -53,6 +53,18 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "deposit_reward"
+      ],
+      "properties": {
+        "deposit_reward": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {

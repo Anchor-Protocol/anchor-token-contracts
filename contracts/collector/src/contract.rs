@@ -10,6 +10,7 @@ use crate::state::{read_config, store_config, Config};
 
 use crate::migration::migrate_config;
 use anchor_token::collector::{ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use anchor_token::gov::Cw20HookMsg as GovCw20HookMsg;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::pair::ExecuteMsg as AstroportExecuteMsg;
 use astroport::querier::{query_balance, query_pair_info, query_token_balance};
@@ -179,9 +180,10 @@ pub fn distribute(deps: DepsMut, env: Env) -> StdResult<Response> {
     if !distribute_amount.is_zero() {
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: deps.api.addr_humanize(&config.gov_contract)?.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: deps.api.addr_humanize(&config.gov_contract)?.to_string(),
                 amount: distribute_amount,
+                msg: to_binary(&GovCw20HookMsg::DepositReward {}).unwrap(),
             })?,
             funds: vec![],
         }));

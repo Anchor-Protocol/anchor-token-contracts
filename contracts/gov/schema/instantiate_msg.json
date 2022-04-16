@@ -8,6 +8,7 @@
     "snapshot_period",
     "threshold",
     "timelock_period",
+    "voter_weight",
     "voting_period"
   ],
   "properties": {
@@ -29,6 +30,9 @@
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
+    },
+    "voter_weight": {
+      "$ref": "#/definitions/Decimal"
     },
     "voting_period": {
       "type": "integer",

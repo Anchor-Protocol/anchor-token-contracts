@@ -32,6 +32,7 @@ pub struct Config {
     pub expiration_period: u64,
     pub proposal_deposit: Uint128,
     pub snapshot_period: u64,
+    pub voter_weight: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -40,6 +41,7 @@ pub struct State {
     pub poll_count: u64,
     pub total_share: Uint128,
     pub total_deposit: Uint128,
+    pub pending_voting_rewards: Uint128,
 }
 
 #[derive(Default, Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -64,6 +66,7 @@ pub struct Poll {
     /// Total balance at the end poll
     pub total_balance_at_end_poll: Option<Uint128>,
     pub staked_amount: Option<Uint128>,
+    pub voters_reward: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
@@ -183,8 +186,14 @@ pub fn read_polls<'a>(
     start_after: Option<u64>,
     limit: Option<u32>,
     order_by: Option<OrderBy>,
+    remove_hard_cap: Option<bool>,
 ) -> StdResult<Vec<Poll>> {
-    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let mut limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    if let Some(remove_hard_cap) = remove_hard_cap {
+        if remove_hard_cap {
+            limit = usize::MAX;
+        }
+    }
     let (start, end, order_by) = match order_by {
         Some(OrderBy::Asc) => (calc_range_start(start_after), None, OrderBy::Asc),
         _ => (None, calc_range_end(start_after), OrderBy::Desc),

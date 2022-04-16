@@ -71,4 +71,10 @@ pub enum ContractError {
 
     #[error("Invalid Reply Id")]
     InvalidReplyId {},
+
+    #[error("Reward deposited is too small")]
+    RewardDepositedTooSmall {},
+
+    #[error("Poll is in progress")]
+    PollInProgress {},
 }

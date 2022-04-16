@@ -213,6 +213,28 @@
     {
       "type": "object",
       "required": [
+        "withdraw_voting_rewards"
+      ],
+      "properties": {
+        "withdraw_voting_rewards": {
+          "type": "object",
+          "properties": {
+            "poll_id": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "end_poll"
       ],
       "properties": {

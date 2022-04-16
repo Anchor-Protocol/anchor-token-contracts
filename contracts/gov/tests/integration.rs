@@ -66,9 +66,9 @@ fn store_ve_contract_code(app: &mut TerraApp) -> u64 {
 
 fn store_token_contract_code(app: &mut TerraApp) -> u64 {
     let token_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
+        cw20_base::contract::execute,
+        cw20_base::contract::instantiate,
+        cw20_base::contract::query,
     ));
 
     app.store_code(token_contract)
@@ -111,6 +111,7 @@ fn create_contracts() -> (TerraApp, Addr, Addr, Addr) {
         timelock_period: 40327,
         proposal_deposit: Uint128::from(1000000000_u64),
         snapshot_period: 13443,
+        voter_weight: Decimal::percent(50),
     };
 
     let gov = router
