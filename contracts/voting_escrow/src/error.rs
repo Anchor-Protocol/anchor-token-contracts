@@ -21,6 +21,9 @@ pub enum ContractError {
     #[error("Lock time must be within the limits")]
     LockTimeLimitsError {},
 
+    #[error("Extend time is too small")]
+    ExtendLockTimeTooSmall {},
+
     #[error("The lock time has not yet expired")]
     LockHasNotExpired {},
 

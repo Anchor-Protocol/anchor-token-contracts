@@ -221,6 +221,10 @@ fn extend_lock_time(
         return Err(ContractError::Unauthorized {});
     }
 
+    if Uint128::from(get_period(time)) == Uint128::zero() {
+        return Err(ContractError::ExtendLockTimeTooSmall {});
+    }
+
     let block_period = get_period(env.block.time.seconds());
     let unlock_time;
 
