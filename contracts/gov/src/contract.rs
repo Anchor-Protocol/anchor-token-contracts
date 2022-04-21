@@ -595,8 +595,12 @@ pub fn cast_vote(
     }
 
     let mut a_poll: Poll = poll_store(deps.storage).load(&poll_id.to_be_bytes())?;
-    if a_poll.status != PollStatus::InProgress || env.block.height > a_poll.end_height {
+    if a_poll.status != PollStatus::InProgress {
         return Err(ContractError::PollNotInProgress {});
+    }
+
+    if a_poll.status == PollStatus::InProgress && env.block.height > a_poll.end_height {
+        return Err(ContractError::PollNotInProgress {}); //We might want to add a new error here when we have this confusing stage
     }
 
     // Check the voter already has a vote on the poll
@@ -665,12 +669,12 @@ pub fn cast_vote(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
         QueryMsg::State {} => Ok(to_binary(&query_state(deps)?)?),
         QueryMsg::Staker { address } => Ok(to_binary(&query_staker(deps, address)?)?),
-        QueryMsg::Poll { poll_id } => Ok(to_binary(&query_poll(deps, poll_id)?)?),
+        QueryMsg::Poll { poll_id } => Ok(to_binary(&query_poll(deps, env, poll_id)?)?),
         QueryMsg::Polls {
             filter,
             start_after,
@@ -721,7 +725,7 @@ fn query_state(deps: Deps) -> Result<StateResponse, ContractError> {
     })
 }
 
-fn query_poll(deps: Deps, poll_id: u64) -> Result<PollResponse, ContractError> {
+fn query_poll(deps: Deps, env: Env, poll_id: u64) -> Result<PollResponse, ContractError> {
     let poll = match poll_read(deps.storage).may_load(&poll_id.to_be_bytes())? {
         Some(poll) => Some(poll),
         None => return Err(ContractError::PollNotFound {}),
@@ -733,7 +737,11 @@ fn query_poll(deps: Deps, poll_id: u64) -> Result<PollResponse, ContractError> {
     Ok(PollResponse {
         id: poll.id,
         creator: deps.api.addr_humanize(&poll.creator)?.to_string(),
-        status: poll.status,
+        status: if  poll.status == PollStatus::InProgress && env.block.height > poll.end_height { 
+            PollStatus::Expired
+        } else {
+            poll.status
+        },
         end_height: poll.end_height,
         title: poll.title,
         description: poll.description,
