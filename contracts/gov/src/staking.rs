@@ -306,7 +306,7 @@ pub fn withdraw_voting_tokens(
         let user_share = token_manager.share.u128();
 
         let withdraw_share = amount
-            .map(|v| std::cmp::max(v.multiply_ratio(total_share, total_balance).u128(), 1u128))
+            .map(|v| (v.u128() * total_share + total_balance - 1) / total_balance)
             .unwrap_or_else(|| user_share);
         let withdraw_amount = amount
             .map(|v| v.u128())
