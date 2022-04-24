@@ -1,8 +1,8 @@
 use crate::checkpoint::{checkpoint, checkpoint_total};
 use crate::contract::{execute, instantiate, query};
 use crate::error::ContractError::{
-    Cw20Base, InsufficientStaked, LockDoesntExist, LockExpired, LockHasNotExpired,
-    LockTimeLimitsError, Unauthorized,
+    Cw20Base, ExtendLockTimeTooSmall, InsufficientStaked, LockDoesntExist, LockExpired,
+    LockHasNotExpired, LockTimeLimitsError, Unauthorized,
 };
 use crate::state::{Config, Lock, Point, HISTORY, LAST_SLOPE_CHANGE, SLOPE_CHANGES};
 use crate::utils::{
@@ -103,7 +103,7 @@ fn test_create_lock() {
 
     let msg = ExecuteMsg::ExtendLockTime {
         user: "addr0000".to_string(),
-        time: 2 * 86400,
+        time: WEEK,
     };
     let res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
     match res {
@@ -284,6 +284,18 @@ fn test_extend_lock_time() {
     match res {
         Err(LockTimeLimitsError {}) => {}
         _ => panic!("Must return LockTimeLimitsError error"),
+    };
+
+    // cannot extend lock time < WEEK
+    let msg = ExecuteMsg::ExtendLockTime {
+        user: "addr0000".to_string(),
+        time: WEEK - 1,
+    };
+
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
+    match res {
+        Err(ExtendLockTimeTooSmall {}) => {}
+        _ => panic!("Must return ExtendLockTimeTooSmall error"),
     };
 
     let curr_lock_info: LockInfoResponse = from_binary(
