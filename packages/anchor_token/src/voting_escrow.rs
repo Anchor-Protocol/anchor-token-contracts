@@ -55,7 +55,7 @@ pub enum ExecuteMsg {
     UploadLogo(Logo),
     UpdateConfig {
         owner: Option<String>,
-        anchor_token: Option<String>
+        anchor_token: Option<String>,
     },
 }
 
