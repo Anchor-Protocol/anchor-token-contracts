@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Decimal, Uint128};
+use cosmwasm_std::{Addr, CanonicalAddr, Decimal, Uint128};
 use cw_storage_plus::{Item, Map, U64Key};
 
 use schemars::JsonSchema;
@@ -23,9 +23,9 @@ pub struct UserUnlockPeriodResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    pub owner: Addr,
-    pub anchor_token: Addr,
-    pub anchor_voting_escrow: Addr,
+    pub owner: CanonicalAddr,
+    pub anchor_token: CanonicalAddr,
+    pub anchor_voting_escrow: CanonicalAddr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

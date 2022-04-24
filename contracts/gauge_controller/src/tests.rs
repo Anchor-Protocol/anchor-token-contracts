@@ -961,3 +961,55 @@ fn test_bias_be_negative() {
         time,
     );
 }
+
+#[test]
+fn update_config() {
+    let mut deps = mock_dependencies(&[]);
+    let _res = instantiate(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("addr0000", &[]),
+        InstantiateMsg {
+            owner: "owner".to_string(),
+            anchor_token: "anchor_token".to_string(),
+            anchor_voting_escrow: "anchor_voting_escrow".to_string(),
+        },
+    )
+    .unwrap();
+
+    let time = BASE_TIME;
+
+    let config: ConfigResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
+
+    assert_eq!("owner", config.owner.as_str());
+    assert_eq!("anchor_token", config.anchor_token.as_str());
+    assert_eq!("anchor_voting_escrow", config.anchor_voting_escrow.as_str());
+
+    let msg = ExecuteMsg::UpdateConfig {
+        owner: Some("gov".to_string()),
+        anchor_token: Some("anchor2.0".to_string()),
+        anchor_voting_escrow: Some("voting_escrow2.0".to_string()),
+    };
+
+    run_execute_msg_expect_error(
+        ContractError::Unauthorized {},
+        deps.as_mut(),
+        "addr0001".to_string(),
+        msg.clone(),
+        time,
+    );
+
+    run_execute_msg_expect_ok(deps.as_mut(), "owner".to_string(), msg, time);
+
+    run_query_msg_expect_ok::<ConfigResponse>(
+        ConfigResponse {
+            owner: "gov".to_string(),
+            anchor_token: "anchor2.0".to_string(),
+            anchor_voting_escrow: "voting_escrow2.0".to_string(),
+        },
+        deps.as_ref(),
+        QueryMsg::Config {},
+        time,
+    );
+}

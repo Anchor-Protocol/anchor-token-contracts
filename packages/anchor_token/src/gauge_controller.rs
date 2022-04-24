@@ -12,9 +12,23 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    AddGauge { gauge_addr: String, weight: Uint128 },
-    ChangeGaugeWeight { gauge_addr: String, weight: Uint128 },
-    VoteForGaugeWeight { gauge_addr: String, ratio: u64 },
+    AddGauge {
+        gauge_addr: String,
+        weight: Uint128,
+    },
+    ChangeGaugeWeight {
+        gauge_addr: String,
+        weight: Uint128,
+    },
+    VoteForGaugeWeight {
+        gauge_addr: String,
+        ratio: u64,
+    },
+    UpdateConfig {
+        owner: Option<String>,
+        anchor_token: Option<String>,
+        anchor_voting_escrow: Option<String>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -83,3 +97,5 @@ pub struct ConfigResponse {
     pub anchor_token: String,
     pub anchor_voting_escrow: String,
 }
+
+pub struct MigrateMsg {}

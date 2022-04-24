@@ -20,8 +20,8 @@ use crate::utils::{
     fetch_slope_changes, get_period, time_limits_check, WEEK,
 };
 use anchor_token::voting_escrow::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, LockInfoResponse, QueryMsg, UserSlopeResponse,
-    UserUnlockPeriodResponse, VotingPowerResponse,
+    ConfigResponse, ExecuteMsg, InstantiateMsg, LockInfoResponse, MigrateMsg, QueryMsg,
+    UserSlopeResponse, UserUnlockPeriodResponse, VotingPowerResponse,
 };
 use std::cmp::max;
 
@@ -116,7 +116,34 @@ pub fn execute(
         ExecuteMsg::UploadLogo(logo) => {
             execute_upload_logo(deps, env, info, logo).map_err(|e| e.into())
         }
+        ExecuteMsg::UpdateConfig {
+            owner,
+            anchor_token,
+        } => update_config(deps, info, owner, anchor_token),
     }
+}
+
+pub fn update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    owner: Option<String>,
+    anchor_token: Option<String>,
+) -> Result<Response, ContractError> {
+    let mut config: Config = CONFIG.load(deps.storage)?;
+    if deps.api.addr_canonicalize(info.sender.as_str())? != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if let Some(owner) = owner {
+        config.owner = deps.api.addr_canonicalize(&owner)?;
+    }
+
+    if let Some(anchor_token) = anchor_token {
+        config.anchor_token = deps.api.addr_canonicalize(&anchor_token)?;
+    }
+
+    CONFIG.save(deps.storage, &config)?;
+    Ok(Response::new().add_attributes(vec![("action", "update_config")]))
 }
 
 /// ## Description
@@ -517,4 +544,8 @@ fn set_token_info(deps: &mut DepsMut<'_>, env: Env) -> StdResult<()> {
 
     TOKEN_INFO.save(deps.storage, &data)?;
     Ok(())
+}
+
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }
