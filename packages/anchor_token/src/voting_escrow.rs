@@ -53,6 +53,10 @@ pub enum ExecuteMsg {
         marketing: Option<String>,
     },
     UploadLogo(Logo),
+    UpdateConfig {
+        owner: Option<String>,
+        anchor_token: Option<String>
+    },
 }
 
 /// ## Description
@@ -113,3 +117,5 @@ pub struct ConfigResponse {
     pub owner: String,
     pub anchor_token: String,
 }
+
+pub struct MigrateMsg {}

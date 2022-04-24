@@ -21,7 +21,8 @@ use cw_storage_plus::U64Key;
 use anchor_token::gauge_controller::{
     AllGaugeAddrResponse, ConfigResponse, ExecuteMsg, GaugeAddrResponse, GaugeCountResponse,
     GaugeRelativeWeightAtResponse, GaugeRelativeWeightResponse, GaugeWeightAtResponse,
-    GaugeWeightResponse, InstantiateMsg, QueryMsg, TotalWeightAtResponse, TotalWeightResponse,
+    GaugeWeightResponse, InstantiateMsg, MigrateMsg, QueryMsg, TotalWeightAtResponse,
+    TotalWeightResponse,
 };
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -34,9 +35,9 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            owner: deps.api.addr_validate(&msg.owner)?,
-            anchor_token: deps.api.addr_validate(&msg.anchor_token)?,
-            anchor_voting_escrow: deps.api.addr_validate(&msg.anchor_voting_escrow)?,
+            owner: deps.api.addr_canonicalize(&msg.owner)?,
+            anchor_token: deps.api.addr_canonicalize(&msg.anchor_token)?,
+            anchor_voting_escrow: deps.api.addr_canonicalize(&msg.anchor_voting_escrow)?,
         },
     )?;
     GAUGE_COUNT.save(deps.storage, &0)?;
@@ -60,7 +61,40 @@ pub fn execute(
         ExecuteMsg::VoteForGaugeWeight { gauge_addr, ratio } => {
             vote_for_gauge_weight(deps, env, info, gauge_addr, ratio)
         }
+        ExecuteMsg::UpdateConfig {
+            owner,
+            anchor_token,
+            anchor_voting_escrow,
+        } => update_config(deps, info, owner, anchor_token, anchor_voting_escrow),
     }
+}
+
+pub fn update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    owner: Option<String>,
+    anchor_token: Option<String>,
+    anchor_voting_escrow: Option<String>,
+) -> Result<Response, ContractError> {
+    let mut config: Config = CONFIG.load(deps.storage)?;
+    if deps.api.addr_canonicalize(info.sender.as_str())? != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if let Some(owner) = owner {
+        config.owner = deps.api.addr_canonicalize(&owner)?;
+    }
+
+    if let Some(anchor_token) = anchor_token {
+        config.anchor_token = deps.api.addr_canonicalize(&anchor_token)?;
+    }
+
+    if let Some(anchor_voting_escrow) = anchor_voting_escrow {
+        config.anchor_voting_escrow = deps.api.addr_canonicalize(&anchor_voting_escrow)?;
+    }
+
+    CONFIG.save(deps.storage, &config)?;
+    Ok(Response::new().add_attributes(vec![("action", "update_config")]))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -94,7 +128,7 @@ fn add_gauge(
     gauge_addr: String,
     weight: Uint128,
 ) -> Result<Response, ContractError> {
-    let sender = info.sender;
+    let sender = deps.api.addr_canonicalize(info.sender.as_str())?;
 
     if CONFIG.load(deps.storage)?.owner != sender {
         return Err(ContractError::Unauthorized {});
@@ -132,7 +166,7 @@ fn change_gauge_weight(
     gauge_addr: String,
     weight: Uint128,
 ) -> Result<Response, ContractError> {
-    let sender = info.sender;
+    let sender = deps.api.addr_canonicalize(info.sender.as_str())?;
 
     if CONFIG.load(deps.storage)?.owner != sender {
         return Err(ContractError::Unauthorized {});
@@ -373,8 +407,15 @@ fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     Ok(ConfigResponse {
-        owner: config.owner.to_string(),
-        anchor_token: config.anchor_token.to_string(),
-        anchor_voting_escrow: config.anchor_voting_escrow.to_string(),
+        owner: deps.api.addr_humanize(&config.owner)?.to_string(),
+        anchor_token: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
+        anchor_voting_escrow: deps
+            .api
+            .addr_humanize(&config.anchor_voting_escrow)?
+            .to_string(),
     })
+}
+
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    Ok(Response::default())
 }

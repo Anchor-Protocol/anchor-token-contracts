@@ -939,6 +939,43 @@ fn test_slope_changes_util() {
     );
 }
 
+#[test]
+fn update_config() {
+    let (mut deps, anchor_token, owner_info) = init_lock_factory(
+        "addr0000".to_string(),
+        Some(Uint128::from(100u64)),
+        Some(MIN_LOCK_TIME * 2),
+    );
+
+    let config: ConfigResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
+    assert_eq!(anchor_token.sender.as_str(), config.anchor_token.as_str());
+    assert_eq!(owner_info.sender.as_str(), config.owner.as_str());
+
+    let msg = ExecuteMsg::UpdateConfig {
+        anchor_token: Some("anchor2.0".to_string()),
+        owner: Some("gov".to_string()),
+    };
+    let info = mock_info("addr0001", &[]);
+    let res = execute(deps.as_mut(), mock_env(), info, msg.clone());
+
+    match res {
+        Err(Unauthorized {}) => {}
+        _ => panic!("Must return Unauthorized error"),
+    };
+
+    let _res = execute(deps.as_mut(), mock_env(), owner_info, msg).unwrap();
+    let config: ConfigResponse =
+        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
+    assert_eq!(
+        config,
+        ConfigResponse {
+            owner: "gov".to_string(),
+            anchor_token: "anchor2.0".to_string()
+        }
+    );
+}
+
 fn init_lock_factory(
     user: String,
     lock_amount: Option<Uint128>,
