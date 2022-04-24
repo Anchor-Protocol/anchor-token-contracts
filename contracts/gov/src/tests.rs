@@ -4381,7 +4381,7 @@ fn test_deposit_reward_without_in_progress_polls() {
     assert_deposit_reward_result(11, 0, 0, 0, 6, execute_res, deps.as_ref());
 
     let msg = ExecuteMsg::WithdrawVotingTokens {
-        amount: Some(Uint128::from(19u128)),
+        amount: Some(Uint128::from(18u128)),
     };
     let info = mock_info(TEST_VOTER, &[]);
     assert_eq!(
@@ -4773,7 +4773,7 @@ fn test_voter_rewards_for_one_voter() {
     );
 
     let msg = ExecuteMsg::WithdrawVotingTokens {
-        amount: Some(Uint128::from(16u128)),
+        amount: Some(Uint128::from(15u128)),
     };
     let info = mock_info(TEST_VOTER, &[]);
     assert_eq!(
@@ -5039,7 +5039,7 @@ fn test_voter_rewards_for_two_voters() {
     );
 
     let msg = ExecuteMsg::WithdrawVotingTokens {
-        amount: Some(Uint128::from(14u128)),
+        amount: Some(Uint128::from(13u128)),
     };
     let info = mock_info(TEST_VOTER, &[]);
     assert_eq!(
