@@ -49,6 +49,10 @@ pub fn extend_lock_amount(
         amount.multiply_ratio(state.total_share, total_balance)
     };
 
+    if share.is_zero() {
+        return Err(ContractError::InsufficientFunds {});
+    }
+
     token_manager.share += share;
     state.total_share += share;
 
