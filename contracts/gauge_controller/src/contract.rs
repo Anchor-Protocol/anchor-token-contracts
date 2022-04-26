@@ -249,7 +249,7 @@ fn vote_for_gauge_weight(
     }
 
     weight.slope = weight.slope + user_slope;
-    weight.bias = weight.bias + user_slope.checked_mul(dt)?;
+    weight.bias += user_slope.checked_mul(dt)?;
 
     schedule_slope_change(deps.storage, &addr, user_slope, user_unlock_period)?;
 
