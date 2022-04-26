@@ -56,7 +56,7 @@ impl WasmMockQuerier {
                     } else if user == *"user_3" {
                         Decimal::from_ratio(Uint128::from(847426363_u64), Uint128::from(100_u64))
                     } else {
-                        panic!("INVALID USER");
+                        Decimal::from_ratio(Uint128::from(101_u64), Uint128::from(100_u64))
                     };
                     SystemResult::Ok(ContractResult::Ok(
                         to_binary(&UserSlopResponse { slope }).unwrap(),
@@ -70,7 +70,7 @@ impl WasmMockQuerier {
                     } else if user == *"user_3" {
                         BASE_TIME + WEEK * 100
                     } else {
-                        panic!("INVALID USER");
+                        BASE_TIME + WEEK
                     };
                     SystemResult::Ok(ContractResult::Ok(
                         to_binary(&UserUnlockPeriodResponse {

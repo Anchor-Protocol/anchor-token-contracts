@@ -1013,3 +1013,180 @@ fn update_config() {
         time,
     );
 }
+
+#[test]
+fn test_vote_decay_faster() {
+    // decay normally
+    let mut deps = mock_dependencies(&[]);
+    let _res = instantiate(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("addr0000", &[]),
+        InstantiateMsg {
+            owner: "owner".to_string(),
+            anchor_token: "anchor_token".to_string(),
+            anchor_voting_escrow: "anchor_voting_escrow".to_string(),
+        },
+    )
+    .unwrap();
+
+    let mut time = BASE_TIME;
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "owner".to_string(),
+        ExecuteMsg::AddGauge {
+            gauge_addr: "gauge_addr_1".to_string(),
+            weight: Uint128::from(2000_u64),
+        },
+        time,
+    );
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "user_2".to_string(),
+        ExecuteMsg::VoteForGaugeWeight {
+            gauge_addr: "gauge_addr_1".to_string(),
+            ratio: 5000,
+        },
+        time,
+    );
+
+    let mut gauge_weight_normal = vec![];
+    let mut env = mock_env();
+    for _ in 0..50 {
+        env.block.time = Timestamp::from_seconds(time);
+        let res = query(
+            deps.as_ref(),
+            env.clone(),
+            QueryMsg::GaugeWeight {
+                gauge_addr: "gauge_addr_1".to_string(),
+            },
+        )
+        .unwrap();
+        let gauge_weight: GaugeWeightResponse = from_binary(&res).unwrap();
+        gauge_weight_normal.push(gauge_weight.gauge_weight);
+        time += WEEK;
+    }
+
+    // decay faster
+    let mut deps = mock_dependencies(&[]);
+    let _res = instantiate(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("addr0000", &[]),
+        InstantiateMsg {
+            owner: "owner".to_string(),
+            anchor_token: "anchor_token".to_string(),
+            anchor_voting_escrow: "anchor_voting_escrow".to_string(),
+        },
+    )
+    .unwrap();
+
+    let mut time = BASE_TIME;
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "owner".to_string(),
+        ExecuteMsg::AddGauge {
+            gauge_addr: "gauge_addr_1".to_string(),
+            weight: Uint128::from(2000_u64),
+        },
+        time,
+    );
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "user_4".to_string(),
+        ExecuteMsg::VoteForGaugeWeight {
+            gauge_addr: "gauge_addr_1".to_string(),
+            ratio: 2000,
+        },
+        time,
+    );
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "user_5".to_string(),
+        ExecuteMsg::VoteForGaugeWeight {
+            gauge_addr: "gauge_addr_1".to_string(),
+            ratio: 2000,
+        },
+        time,
+    );
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "user_6".to_string(),
+        ExecuteMsg::VoteForGaugeWeight {
+            gauge_addr: "gauge_addr_1".to_string(),
+            ratio: 2000,
+        },
+        time,
+    );
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "user_7".to_string(),
+        ExecuteMsg::VoteForGaugeWeight {
+            gauge_addr: "gauge_addr_1".to_string(),
+            ratio: 2000,
+        },
+        time,
+    );
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "user_8".to_string(),
+        ExecuteMsg::VoteForGaugeWeight {
+            gauge_addr: "gauge_addr_1".to_string(),
+            ratio: 2000,
+        },
+        time,
+    );
+
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "user_9".to_string(),
+        ExecuteMsg::VoteForGaugeWeight {
+            gauge_addr: "gauge_addr_1".to_string(),
+            ratio: 2000,
+        },
+        time,
+    );
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "user_10".to_string(),
+        ExecuteMsg::VoteForGaugeWeight {
+            gauge_addr: "gauge_addr_1".to_string(),
+            ratio: 2000,
+        },
+        time,
+    );
+    run_execute_msg_expect_ok(
+        deps.as_mut(),
+        "user_2".to_string(),
+        ExecuteMsg::VoteForGaugeWeight {
+            gauge_addr: "gauge_addr_1".to_string(),
+            ratio: 5000,
+        },
+        time,
+    );
+
+    let mut gauge_weight_fast = vec![];
+    let mut env = mock_env();
+    for _ in 0..50 {
+        env.block.time = Timestamp::from_seconds(time);
+        let res = query(
+            deps.as_ref(),
+            env.clone(),
+            QueryMsg::GaugeWeight {
+                gauge_addr: "gauge_addr_1".to_string(),
+            },
+        )
+        .unwrap();
+        let gauge_weight: GaugeWeightResponse = from_binary(&res).unwrap();
+        gauge_weight_fast.push(gauge_weight.gauge_weight);
+        time += WEEK;
+    }
+
+    assert_eq!(gauge_weight_normal, gauge_weight_fast);
+}
