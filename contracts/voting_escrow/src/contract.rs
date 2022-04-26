@@ -322,6 +322,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&ConfigResponse {
                 owner: deps.api.addr_humanize(&config.owner)?.to_string(),
                 anchor_token: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
+                min_lock_time: config.min_lock_time,
+                max_lock_time: config.max_lock_time,
+                period_duration: config.period_duration,
+                boost_coefficient: config.boost_coefficient
             })
         }
         QueryMsg::TokenInfo {} => to_binary(&query_token_info(deps, env)?),

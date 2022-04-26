@@ -125,9 +125,16 @@ fn create_contracts() -> (TerraApp, Addr, Addr, Addr) {
         )
         .unwrap();
 
+    let one_year_in_seconds = 365 * 86400;
+    let one_week_in_seconds = 7 * 86400;
+
     let msg = VotingEscrowInstantiateMsg {
         owner: gov.to_string(),
         anchor_token: anchor_token.to_string(),
+        min_lock_time: one_year_in_seconds,
+        max_lock_time: 4 * one_year_in_seconds,
+        period_duration: one_week_in_seconds,
+        boost_coefficient: 25,
         marketing: None,
     };
 

@@ -1018,7 +1018,11 @@ fn update_config() {
         config,
         ConfigResponse {
             owner: "gov".to_string(),
-            anchor_token: "anchor2.0".to_string()
+            anchor_token: "anchor2.0".to_string(),
+            min_lock_time: MIN_LOCK_TIME,
+            max_lock_time: MAX_LOCK_TIME,
+            period_duration: WEEK,
+            boost_coefficient: BOOST_COEFFICIENT
         }
     );
 }

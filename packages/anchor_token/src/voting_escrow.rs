@@ -125,6 +125,10 @@ pub struct LockInfoResponse {
 pub struct ConfigResponse {
     pub owner: String,
     pub anchor_token: String,
+    pub min_lock_time: u64,
+    pub max_lock_time: u64,
+    pub period_duration: u64,
+    pub boost_coefficient: u64,
 }
 
 pub struct MigrateMsg {}
