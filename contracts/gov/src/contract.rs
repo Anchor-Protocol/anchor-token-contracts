@@ -216,10 +216,12 @@ pub fn update_config(
         }
 
         if let Some(quorum) = quorum {
+            validate_quorum(quorum)?;
             config.quorum = quorum;
         }
 
         if let Some(threshold) = threshold {
+            validate_threshold(threshold)?;
             config.threshold = threshold;
         }
 
@@ -569,7 +571,7 @@ pub fn snapshot_poll(deps: DepsMut, env: Env, poll_id: u64) -> Result<Response, 
     let config: Config = config_read(deps.storage).load()?;
     let mut a_poll: Poll = poll_store(deps.storage).load(&poll_id.to_be_bytes())?;
 
-    if a_poll.status != PollStatus::InProgress {
+    if a_poll.status != PollStatus::InProgress || a_poll.end_height < env.block.height {
         return Err(ContractError::PollNotInProgress {});
     }
 

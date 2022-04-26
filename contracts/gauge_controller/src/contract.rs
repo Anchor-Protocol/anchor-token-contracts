@@ -232,7 +232,7 @@ fn vote_for_gauge_weight(
 
     let user_full_slope = query_last_user_slope(deps.as_ref(), sender.clone())?;
 
-    let user_slope = Decimal::from_ratio(
+    let mut user_slope = Decimal::from_ratio(
         Uint128::from(ratio).checked_mul(Uint128::from(user_full_slope.numerator()))?,
         Uint128::from(10000_u64).checked_mul(Uint128::from(user_full_slope.denominator()))?,
     );
@@ -243,6 +243,10 @@ fn vote_for_gauge_weight(
     let (_, mut weight) = deserialize_pair::<GaugeWeight>(Ok(pair))?;
 
     let dt = user_unlock_period - current_period;
+
+    if user_slope.checked_mul(dt)?.is_zero() {
+        user_slope = Decimal::zero();
+    }
 
     weight.slope = weight.slope + user_slope;
     weight.bias += user_slope.checked_mul(dt)?;
