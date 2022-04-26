@@ -76,10 +76,14 @@ pub(crate) fn calc_voting_power(point: &Point, period: u64) -> Uint128 {
 }
 
 /// # Description
-/// Coefficient calculation where 0 [`WEEK`] equals to 1 and [`MAX_LOCK_TIME`] equals to 2.5.
-pub(crate) fn calc_coefficient(interval: u64) -> Decimal {
+/// Coefficient calculation where 0 [`PERIOD`] equals to 1 and [`MAX_LOCK_TIME`] equals to [`BOOST_COEFFICIENT`].
+pub(crate) fn calc_coefficient(
+    interval: u64,
+    boost_coefficient: u64,
+    max_lock_time: u64,
+) -> Decimal {
     // coefficient = 2.5 * (end - start) / MAX_LOCK_TIME
-    Decimal::from_ratio(25_u64 * interval, get_period(MAX_LOCK_TIME) * 10)
+    Decimal::from_ratio(boost_coefficient * interval, get_period(max_lock_time) * 10)
 }
 
 /// # Description

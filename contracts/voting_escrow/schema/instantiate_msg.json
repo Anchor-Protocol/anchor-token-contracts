@@ -5,12 +5,22 @@
   "type": "object",
   "required": [
     "anchor_token",
-    "owner"
+    "boost_coefficient",
+    "max_lock_time",
+    "min_lock_time",
+    "owner",
+    "period_duration"
   ],
   "properties": {
     "anchor_token": {
       "description": "ANC token address",
       "type": "string"
+    },
+    "boost_coefficient": {
+      "description": "controls max boost possible (in multiples of 10. e.g: 25 = 2.5x boost)",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
     },
     "marketing": {
       "description": "Marketing info",
@@ -23,9 +33,27 @@
         }
       ]
     },
+    "max_lock_time": {
+      "description": "max time to lock ANC for (in seconds)",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "min_lock_time": {
+      "description": "min time to lock ANC for (in seconds)",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
     "owner": {
       "description": "contract owner",
       "type": "string"
+    },
+    "period_duration": {
+      "description": "duration of a period (in seconds) - voting power decays every period",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
     }
   },
   "definitions": {

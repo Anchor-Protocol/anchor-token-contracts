@@ -11,6 +11,14 @@ pub struct Config {
     pub owner: CanonicalAddr,
     /// ANC token address
     pub anchor_token: CanonicalAddr,
+    /// min time to lock ANC for (in seconds)
+    pub min_lock_time: u64,
+    /// max time to lock ANC for (in seconds)
+    pub max_lock_time: u64,
+    /// duration of a period (in seconds) - voting power decays every period
+    pub period_duration: u64,
+    /// controls max boost possible (in multiples of 10. e.g: 25 = 2.5x boost)
+    pub boost_coefficient: u64,
 }
 
 /// ## Description

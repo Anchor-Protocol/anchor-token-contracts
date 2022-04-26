@@ -54,6 +54,10 @@ pub fn instantiate(
     let config = Config {
         owner: deps.api.addr_canonicalize(&msg.owner)?,
         anchor_token: deps.api.addr_canonicalize(&msg.anchor_token)?,
+        min_lock_time: msg.min_lock_time,
+        max_lock_time: msg.max_lock_time,
+        period_duration: msg.period_duration,
+        boost_coefficient: msg.boost_coefficient,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -467,10 +471,15 @@ fn query_user_unlock_time(deps: Deps, user: String) -> StdResult<UserUnlockPerio
 /// Returns user's lock information in [`LockInfoResponse`] type.
 fn query_user_lock_info(deps: Deps, user: String) -> StdResult<LockInfoResponse> {
     let addr = addr_validate_to_lower(deps.api, &user)?;
+    let config = CONFIG.load(deps.storage)?;
+    let boost_coefficient = config.boost_coefficient;
+    let max_lock_time = config.max_lock_time;
+
     if let Some(lock) = LOCKED.may_load(deps.storage, addr)? {
+        let dt = lock.end - lock.last_extend_lock_period;
         let resp = LockInfoResponse {
             amount: lock.amount,
-            coefficient: calc_coefficient(lock.end - lock.last_extend_lock_period),
+            coefficient: calc_coefficient(dt, boost_coefficient, max_lock_time),
             start: lock.start,
             end: lock.end,
         };
