@@ -39,6 +39,7 @@ pub enum ExecuteMsg {
         timelock_period: Option<u64>,
         proposal_deposit: Option<Uint128>,
         snapshot_period: Option<u64>,
+        voter_weight: Option<Decimal>,
     },
     CastVote {
         poll_id: u64,
@@ -126,6 +127,7 @@ pub struct ConfigResponse {
     pub timelock_period: u64,
     pub proposal_deposit: Uint128,
     pub snapshot_period: u64,
+    pub voter_weight: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]

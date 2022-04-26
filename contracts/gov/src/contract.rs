@@ -98,6 +98,7 @@ pub fn execute(
             timelock_period,
             proposal_deposit,
             snapshot_period,
+            voter_weight,
         } => update_config(
             deps,
             info,
@@ -108,6 +109,7 @@ pub fn execute(
             timelock_period,
             proposal_deposit,
             snapshot_period,
+            voter_weight,
         ),
         ExecuteMsg::WithdrawVotingTokens { amount } => withdraw_voting_tokens(deps, info, amount),
         ExecuteMsg::WithdrawVotingRewards { poll_id } => {
@@ -204,6 +206,7 @@ pub fn update_config(
     timelock_period: Option<u64>,
     proposal_deposit: Option<Uint128>,
     snapshot_period: Option<u64>,
+    voter_weight: Option<Decimal>,
 ) -> Result<Response, ContractError> {
     let api = deps.api;
     config_store(deps.storage).update(|mut config| {
@@ -239,6 +242,10 @@ pub fn update_config(
 
         if let Some(period) = snapshot_period {
             config.snapshot_period = period;
+        }
+
+        if let Some(voter_weight) = voter_weight {
+            config.voter_weight = voter_weight
         }
 
         Ok(config)
@@ -731,6 +738,7 @@ fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
         timelock_period: config.timelock_period,
         proposal_deposit: config.proposal_deposit,
         snapshot_period: config.snapshot_period,
+        voter_weight: config.voter_weight,
     })
 }
 
