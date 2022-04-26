@@ -216,10 +216,12 @@ pub fn update_config(
         }
 
         if let Some(quorum) = quorum {
+            validate_quorum(quorum)?;
             config.quorum = quorum;
         }
 
         if let Some(threshold) = threshold {
+            validate_threshold(threshold)?;
             config.threshold = threshold;
         }
 
