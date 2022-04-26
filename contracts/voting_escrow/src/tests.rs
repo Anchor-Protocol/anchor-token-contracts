@@ -822,7 +822,7 @@ fn test_checkpoint() {
 
 #[test]
 fn test_checkpoint_total() {
-    let mut deps = mock_dependencies(&[]);
+    let (mut deps, _, _) = init_lock_factory("addr0000".to_string(), None, None);
 
     let owner = Addr::unchecked("owner".to_string());
     let period = 2;
