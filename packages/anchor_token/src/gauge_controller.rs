@@ -8,7 +8,7 @@ pub struct InstantiateMsg {
     pub anchor_token: String,
     pub anchor_voting_escrow: String,
     pub period_duration: u64,
-    pub user_vote_delay: u64
+    pub user_vote_delay: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -99,7 +99,7 @@ pub struct ConfigResponse {
     pub anchor_token: String,
     pub anchor_voting_escrow: String,
     pub period_duration: u64,
-    pub user_vote_delay: u64
+    pub user_vote_delay: u64,
 }
 
 pub struct MigrateMsg {}

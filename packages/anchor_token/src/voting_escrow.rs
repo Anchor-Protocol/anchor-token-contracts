@@ -31,7 +31,6 @@ pub struct InstantiateMsg {
     pub boost_coefficient: u64,
     /// Marketing info
     pub marketing: Option<InstantiateMarketingInfo>,
-    
 }
 
 /// ## Description
