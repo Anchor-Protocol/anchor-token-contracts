@@ -23,14 +23,15 @@ pub(crate) fn checkpoint(
     add_amount: Option<Uint128>,
     new_end: Option<u64>,
 ) -> StdResult<()> {
-    let cur_period = get_period(env.block.time.seconds());
+    let config = CONFIG.load(deps.storage)?;
+    let period_duration = config.period_duration;
+    let boost_coefficient = config.boost_coefficient;
+    let max_lock_time = config.max_lock_time;
+    let cur_period = get_period(env.block.time.seconds(), config.period_duration);
     let cur_period_key = U64Key::new(cur_period);
     let add_amount = add_amount.unwrap_or_default();
     let mut old_slope = Decimal::zero();
     let mut add_voting_power = Uint128::zero();
-    let config = CONFIG.load(deps.storage)?;
-    let boost_coefficient = config.boost_coefficient;
-    let max_lock_time = config.max_lock_time;
 
     // get last checkpoint
     let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &addr, &cur_period_key)?;
@@ -42,8 +43,8 @@ pub(crate) fn checkpoint(
             if end > point.end && add_amount.is_zero() {
                 // this is extend_lock_time. Recalculating user's VP
                 let mut lock = LOCKED.load(deps.storage, addr.clone())?;
-                let new_voting_power =
-                    lock.amount * calc_coefficient(dt, boost_coefficient, max_lock_time);
+                let new_voting_power = lock.amount
+                    * calc_coefficient(dt, boost_coefficient, max_lock_time, period_duration);
                 // new_voting_power should be always >= current_power. saturating_sub just in case
                 add_voting_power = new_voting_power.saturating_sub(current_power);
                 lock.last_extend_lock_period = cur_period;
@@ -51,8 +52,8 @@ pub(crate) fn checkpoint(
                 Decimal::from_ratio(new_voting_power, dt)
             } else {
                 // this is increase lock's amount or lock creation after withdrawal
-                add_voting_power =
-                    add_amount * calc_coefficient(dt, boost_coefficient, max_lock_time);
+                add_voting_power = add_amount
+                    * calc_coefficient(dt, boost_coefficient, max_lock_time, period_duration);
                 Decimal::from_ratio(current_power + add_voting_power, dt)
             }
         } else {
@@ -76,7 +77,8 @@ pub(crate) fn checkpoint(
         let end =
             new_end.ok_or_else(|| StdError::generic_err("Checkpoint initialization error"))?;
         let dt = end - cur_period;
-        add_voting_power = add_amount * calc_coefficient(dt, boost_coefficient, max_lock_time);
+        add_voting_power =
+            add_amount * calc_coefficient(dt, boost_coefficient, max_lock_time, period_duration);
         let slope = Decimal::from_ratio(add_voting_power, dt);
         Point {
             power: add_voting_power,
@@ -114,7 +116,8 @@ pub(crate) fn checkpoint_total(
     old_slope: Decimal,
     new_slope: Decimal,
 ) -> StdResult<()> {
-    let cur_period = get_period(env.block.time.seconds());
+    let period_duration = CONFIG.load(deps.storage)?.period_duration;
+    let cur_period = get_period(env.block.time.seconds(), period_duration);
     let cur_period_key = U64Key::new(cur_period);
     let contract_addr = env.contract.address;
     let add_voting_power = add_voting_power.unwrap_or_default();

@@ -1,5 +1,5 @@
 use crate::state::{UserSlopResponse, UserUnlockPeriodResponse, VotingEscrowContractQueryMsg};
-use crate::utils::{get_period, WEEK};
+use crate::utils::get_period;
 
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
@@ -7,6 +7,7 @@ use cosmwasm_std::{
     QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
 
+pub(crate) const WEEK: u64 = 7 * 86400;
 pub(crate) const BASE_TIME: u64 = WEEK * 1000 + 10;
 
 pub fn mock_dependencies(
@@ -74,7 +75,7 @@ impl WasmMockQuerier {
                     };
                     SystemResult::Ok(ContractResult::Ok(
                         to_binary(&UserUnlockPeriodResponse {
-                            unlock_period: get_period(time),
+                            unlock_period: get_period(time, WEEK),
                         })
                         .unwrap(),
                     ))

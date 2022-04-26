@@ -1,8 +1,8 @@
 use crate::error::ContractError;
 
 use crate::contract::{execute, instantiate, query};
-use crate::mock_querier::{mock_dependencies, BASE_TIME};
-use crate::utils::{DecimalRoundedCheckedMul, VOTE_DELAY, WEEK};
+use crate::mock_querier::{mock_dependencies, BASE_TIME, WEEK};
+use crate::utils::DecimalRoundedCheckedMul;
 
 use anchor_token::gauge_controller::{
     AllGaugeAddrResponse, ConfigResponse, ExecuteMsg, GaugeAddrResponse, GaugeCountResponse,
@@ -14,6 +14,8 @@ use cosmwasm_std::testing::{mock_env, mock_info};
 use cosmwasm_std::{from_binary, Decimal, Deps, DepsMut, Timestamp, Uint128};
 use serde::de::DeserializeOwned;
 
+const VOTE_DELAY: u64 = 2;
+
 #[test]
 fn proper_initialization() {
     let mut deps = mock_dependencies(&[]);
@@ -22,6 +24,8 @@ fn proper_initialization() {
         owner: "owner".to_string(),
         anchor_token: "anchor_token".to_string(),
         anchor_voting_escrow: "anchor_voting_escrow".to_string(),
+        period_duration: WEEK,
+        user_vote_delay: VOTE_DELAY,
     };
     let info = mock_info("addr0000", &[]);
 
@@ -95,6 +99,8 @@ fn test_add_two_gauges_and_change_weight() {
             owner: "owner".to_string(),
             anchor_token: "anchor_token".to_string(),
             anchor_voting_escrow: "anchor_voting_escrow".to_string(),
+            period_duration: WEEK,
+            user_vote_delay: VOTE_DELAY,
         },
     )
     .unwrap();
@@ -279,6 +285,8 @@ fn test_vote_for_single_gauge_by_single_user() {
             owner: "owner".to_string(),
             anchor_token: "anchor_token".to_string(),
             anchor_voting_escrow: "anchor_voting_escrow".to_string(),
+            period_duration: WEEK,
+            user_vote_delay: VOTE_DELAY,
         },
     )
     .unwrap();
@@ -410,6 +418,8 @@ fn test_vote_for_single_gauge_by_multiple_users() {
             owner: "owner".to_string(),
             anchor_token: "anchor_token".to_string(),
             anchor_voting_escrow: "anchor_voting_escrow".to_string(),
+            period_duration: WEEK,
+            user_vote_delay: VOTE_DELAY,
         },
     )
     .unwrap();
@@ -563,6 +573,8 @@ fn test_vote_for_multiple_gauges_by_single_user() {
             owner: "owner".to_string(),
             anchor_token: "anchor_token".to_string(),
             anchor_voting_escrow: "anchor_voting_escrow".to_string(),
+            period_duration: WEEK,
+            user_vote_delay: VOTE_DELAY,
         },
     )
     .unwrap();
@@ -728,6 +740,8 @@ fn test_vote_for_single_gauge_and_cancel() {
             owner: "owner".to_string(),
             anchor_token: "anchor_token".to_string(),
             anchor_voting_escrow: "anchor_voting_escrow".to_string(),
+            period_duration: WEEK,
+            user_vote_delay: VOTE_DELAY,
         },
     )
     .unwrap();
@@ -912,6 +926,8 @@ fn test_bias_be_negative() {
             owner: "owner".to_string(),
             anchor_token: "anchor_token".to_string(),
             anchor_voting_escrow: "anchor_voting_escrow".to_string(),
+            period_duration: WEEK,
+            user_vote_delay: VOTE_DELAY,
         },
     )
     .unwrap();
@@ -973,6 +989,8 @@ fn update_config() {
             owner: "owner".to_string(),
             anchor_token: "anchor_token".to_string(),
             anchor_voting_escrow: "anchor_voting_escrow".to_string(),
+            period_duration: WEEK,
+            user_vote_delay: VOTE_DELAY,
         },
     )
     .unwrap();
@@ -1007,6 +1025,8 @@ fn update_config() {
             owner: "gov".to_string(),
             anchor_token: "anchor2.0".to_string(),
             anchor_voting_escrow: "voting_escrow2.0".to_string(),
+            user_vote_delay: VOTE_DELAY,
+            period_duration: WEEK,
         },
         deps.as_ref(),
         QueryMsg::Config {},
@@ -1026,6 +1046,8 @@ fn test_vote_decay_faster() {
             owner: "owner".to_string(),
             anchor_token: "anchor_token".to_string(),
             anchor_voting_escrow: "anchor_voting_escrow".to_string(),
+            period_duration: WEEK,
+            user_vote_delay: VOTE_DELAY,
         },
     )
     .unwrap();
@@ -1079,6 +1101,8 @@ fn test_vote_decay_faster() {
             owner: "owner".to_string(),
             anchor_token: "anchor_token".to_string(),
             anchor_voting_escrow: "anchor_voting_escrow".to_string(),
+            period_duration: WEEK,
+            user_vote_delay: VOTE_DELAY,
         },
     )
     .unwrap();

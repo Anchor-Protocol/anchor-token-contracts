@@ -8,19 +8,14 @@ use std::convert::TryInto;
 
 use crate::state::{Point, HISTORY, LAST_SLOPE_CHANGE, SLOPE_CHANGES};
 
-/// Seconds in one week. Constant is intended for period number calculation.
-pub const WEEK: u64 = 7 * 86400; // lock period is rounded down by week
-
-/// Seconds in 1 year which is minimum lock period.
-pub const MIN_LOCK_TIME: u64 = 365 * 86400; // 1 year
-
-/// Seconds in 4 years which is maximum lock period.
-pub const MAX_LOCK_TIME: u64 = 4 * 365 * 86400; // 4 years
-
 /// # Description
 /// Checks the time is within limits
-pub(crate) fn time_limits_check(time: u64) -> Result<(), ContractError> {
-    if !(MIN_LOCK_TIME..=MAX_LOCK_TIME).contains(&time) {
+pub(crate) fn time_limits_check(
+    time: u64,
+    min_lock_time: u64,
+    max_lock_time: u64,
+) -> Result<(), ContractError> {
+    if !(min_lock_time..=max_lock_time).contains(&time) {
         Err(ContractError::LockTimeLimitsError {})
     } else {
         Ok(())
@@ -81,9 +76,13 @@ pub(crate) fn calc_coefficient(
     interval: u64,
     boost_coefficient: u64,
     max_lock_time: u64,
+    period_duration: u64,
 ) -> Decimal {
     // coefficient = 2.5 * (end - start) / MAX_LOCK_TIME
-    Decimal::from_ratio(boost_coefficient * interval, get_period(max_lock_time) * 10)
+    Decimal::from_ratio(
+        boost_coefficient * interval,
+        get_period(max_lock_time, period_duration) * 10,
+    )
 }
 
 /// # Description
@@ -179,8 +178,8 @@ pub(crate) fn fetch_slope_changes(
 
 /// # Description
 /// Calculates how many periods are within specified time. Time should be in seconds.
-pub fn get_period(time: u64) -> u64 {
-    time / WEEK
+pub fn get_period(time: u64, period_duration: u64) -> u64 {
+    time / period_duration
 }
 
 /// ## Description

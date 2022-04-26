@@ -7,7 +7,7 @@ use crate::utils::{
     cancel_scheduled_slope_change, check_if_exists, checkpoint_gauge, deserialize_pair,
     fetch_latest_checkpoint, get_gauge_weight_at, get_period, get_total_weight_at,
     query_last_user_slope, query_user_unlock_period, schedule_slope_change,
-    DecimalRoundedCheckedMul, VOTE_DELAY,
+    DecimalRoundedCheckedMul,
 };
 
 #[cfg(not(feature = "library"))]
@@ -38,6 +38,8 @@ pub fn instantiate(
             owner: deps.api.addr_canonicalize(&msg.owner)?,
             anchor_token: deps.api.addr_canonicalize(&msg.anchor_token)?,
             anchor_voting_escrow: deps.api.addr_canonicalize(&msg.anchor_voting_escrow)?,
+            period_duration: msg.period_duration,
+            user_vote_delay: msg.user_vote_delay,
         },
     )?;
     GAUGE_COUNT.save(deps.storage, &0)?;
@@ -129,8 +131,9 @@ fn add_gauge(
     weight: Uint128,
 ) -> Result<Response, ContractError> {
     let sender = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let config = CONFIG.load(deps.storage)?;
 
-    if CONFIG.load(deps.storage)?.owner != sender {
+    if config.owner != sender {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -145,7 +148,7 @@ fn add_gauge(
     GAUGE_ADDR.save(deps.storage, U64Key::new(gauge_count), &addr)?;
     GAUGE_COUNT.save(deps.storage, &(gauge_count + 1))?;
 
-    let period = get_period(env.block.time.seconds());
+    let period = get_period(env.block.time.seconds(), config.period_duration);
 
     GAUGE_WEIGHT.save(
         deps.storage,
@@ -167,13 +170,14 @@ fn change_gauge_weight(
     weight: Uint128,
 ) -> Result<Response, ContractError> {
     let sender = deps.api.addr_canonicalize(info.sender.as_str())?;
+    let config = CONFIG.load(deps.storage)?;
 
-    if CONFIG.load(deps.storage)?.owner != sender {
+    if config.owner != sender {
         return Err(ContractError::Unauthorized {});
     }
 
     let addr = deps.api.addr_validate(&gauge_addr)?;
-    let period = get_period(env.block.time.seconds());
+    let period = get_period(env.block.time.seconds(), config.period_duration);
 
     checkpoint_gauge(deps.storage, &addr, period)?;
 
@@ -206,12 +210,13 @@ fn vote_for_gauge_weight(
     }
 
     let sender = info.sender;
+    let config = CONFIG.load(deps.storage)?;
     let addr = deps.api.addr_validate(&gauge_addr)?;
-    let current_period = get_period(env.block.time.seconds());
+    let current_period = get_period(env.block.time.seconds(), config.period_duration);
     let mut old_ratio = 0;
     if let Some(vote) = USER_VOTES.may_load(deps.storage, (sender.clone(), addr.clone()))? {
         old_ratio = vote.ratio;
-        if current_period < vote.vote_period + VOTE_DELAY {
+        if current_period < vote.vote_period + config.user_vote_delay {
             return Err(ContractError::VoteTooOften {});
         }
     }
@@ -417,6 +422,8 @@ fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
             .api
             .addr_humanize(&config.anchor_voting_escrow)?
             .to_string(),
+        period_duration: config.period_duration,
+        user_vote_delay: config.user_vote_delay,
     })
 }
 
