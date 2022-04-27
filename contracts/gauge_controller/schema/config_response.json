@@ -5,7 +5,9 @@
   "required": [
     "anchor_token",
     "anchor_voting_escrow",
-    "owner"
+    "owner",
+    "period_duration",
+    "user_vote_delay"
   ],
   "properties": {
     "anchor_token": {
@@ -16,6 +18,16 @@
     },
     "owner": {
       "type": "string"
+    },
+    "period_duration": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "user_vote_delay": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
     }
   }
 }

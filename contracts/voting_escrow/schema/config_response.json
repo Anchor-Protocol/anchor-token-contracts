@@ -5,14 +5,38 @@
   "type": "object",
   "required": [
     "anchor_token",
-    "owner"
+    "boost_coefficient",
+    "max_lock_time",
+    "min_lock_time",
+    "owner",
+    "period_duration"
   ],
   "properties": {
     "anchor_token": {
       "type": "string"
     },
+    "boost_coefficient": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "max_lock_time": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "min_lock_time": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
     "owner": {
       "type": "string"
+    },
+    "period_duration": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
     }
   }
 }

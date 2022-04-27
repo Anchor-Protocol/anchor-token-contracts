@@ -14,13 +14,10 @@ use cw_storage_plus::{Bound, U64Key};
 
 use std::convert::TryInto;
 
-pub(crate) const DAY: u64 = 24 * 60 * 60;
-pub(crate) const WEEK: u64 = 7 * DAY;
-pub(crate) const VOTE_DELAY: u64 = 2;
 const MAX_PERIOD: u64 = u64::MAX;
 
-pub(crate) fn get_period(seconds: u64) -> u64 {
-    seconds / WEEK
+pub(crate) fn get_period(seconds: u64, period_duration: u64) -> u64 {
+    seconds / period_duration
 }
 
 pub(crate) fn query_last_user_slope(deps: Deps, user: Addr) -> StdResult<Decimal> {
@@ -226,7 +223,8 @@ pub(crate) fn get_gauge_weight_at(
     addr: &Addr,
     time: u64,
 ) -> Result<Uint128, ContractError> {
-    let period = get_period(time);
+    let period_duration = CONFIG.load(storage)?.period_duration;
+    let period = get_period(time, period_duration);
 
     let latest_checkpoint_before_period = fetch_latest_checkpoint_before(storage, addr, period)?;
 

@@ -17,7 +17,7 @@ use crate::error::ContractError;
 use crate::state::{Config, Lock, Point, CONFIG, HISTORY, LOCKED};
 use crate::utils::{
     addr_validate_to_lower, calc_coefficient, calc_voting_power, fetch_last_checkpoint,
-    fetch_slope_changes, get_period, time_limits_check, WEEK,
+    fetch_slope_changes, get_period, time_limits_check,
 };
 use anchor_token::voting_escrow::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, LockInfoResponse, MigrateMsg, QueryMsg,
@@ -51,13 +51,17 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let config = Config {
+    let config: Config = Config {
         owner: deps.api.addr_canonicalize(&msg.owner)?,
         anchor_token: deps.api.addr_canonicalize(&msg.anchor_token)?,
+        min_lock_time: msg.min_lock_time,
+        max_lock_time: msg.max_lock_time,
+        period_duration: msg.period_duration,
+        boost_coefficient: msg.boost_coefficient,
     };
     CONFIG.save(deps.storage, &config)?;
 
-    let cur_period = get_period(env.block.time.seconds());
+    let cur_period = get_period(env.block.time.seconds(), config.period_duration);
     let point = Point {
         power: Uint128::zero(),
         start: cur_period,
@@ -164,7 +168,7 @@ fn extend_lock_amount(
     }
     LOCKED.update(deps.storage, user.clone(), |lock_opt| match lock_opt {
         Some(mut lock) => {
-            if lock.end <= get_period(env.block.time.seconds()) {
+            if lock.end <= get_period(env.block.time.seconds(), config.period_duration) {
                 Err(ContractError::LockExpired {})
             } else {
                 lock.amount += amount;
@@ -199,7 +203,7 @@ fn withdraw(
         .may_load(deps.storage, user.clone())?
         .ok_or(ContractError::LockDoesntExist {})?;
 
-    let cur_period = get_period(env.block.time.seconds());
+    let cur_period = get_period(env.block.time.seconds(), config.period_duration);
     if lock.end > cur_period {
         Err(ContractError::LockHasNotExpired {})
     } else {
@@ -244,33 +248,38 @@ fn extend_lock_time(
     time: u64,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    let period_duration = config.period_duration;
     if config.owner != deps.api.addr_canonicalize(info.sender.as_str())? {
         return Err(ContractError::Unauthorized {});
     }
 
-    if Uint128::from(get_period(time)) == Uint128::zero() {
+    if Uint128::from(get_period(time, period_duration)) == Uint128::zero() {
         return Err(ContractError::ExtendLockTimeTooSmall {});
     }
 
-    let block_period = get_period(env.block.time.seconds());
+    let block_period = get_period(env.block.time.seconds(), period_duration);
     let unlock_time;
 
     let lock = if let Some(mut lock) = LOCKED.may_load(deps.storage, user.clone())? {
-        unlock_time = max(lock.end * WEEK, env.block.time.seconds()) + time;
-        lock.end = get_period(unlock_time);
+        unlock_time = max(lock.end * period_duration, env.block.time.seconds()) + time;
+        lock.end = get_period(unlock_time, period_duration);
         lock
     } else {
         unlock_time = env.block.time.seconds() + time;
         Lock {
             amount: Uint128::zero(),
             start: block_period,
-            end: get_period(unlock_time),
+            end: get_period(unlock_time, period_duration),
             last_extend_lock_period: block_period,
         }
     };
 
     // should not exceed MAX_LOCK_TIME
-    time_limits_check(unlock_time - env.block.time.seconds())?;
+    time_limits_check(
+        unlock_time - env.block.time.seconds(),
+        config.min_lock_time,
+        config.max_lock_time,
+    )?;
 
     LOCKED.save(deps.storage, user.clone(), &lock)?;
 
@@ -318,6 +327,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&ConfigResponse {
                 owner: deps.api.addr_humanize(&config.owner)?.to_string(),
                 anchor_token: deps.api.addr_humanize(&config.anchor_token)?.to_string(),
+                min_lock_time: config.min_lock_time,
+                max_lock_time: config.max_lock_time,
+                period_duration: config.period_duration,
+                boost_coefficient: config.boost_coefficient,
             })
         }
         QueryMsg::TokenInfo {} => to_binary(&query_token_info(deps, env)?),
@@ -334,7 +347,11 @@ fn query_total_voting_power(
     env: Env,
     time: Option<u64>,
 ) -> StdResult<VotingPowerResponse> {
-    let period = get_period(time.unwrap_or_else(|| env.block.time.seconds()));
+    let period_duration = CONFIG.load(deps.storage)?.period_duration;
+    let period = get_period(
+        time.unwrap_or_else(|| env.block.time.seconds()),
+        period_duration,
+    );
     query_total_voting_power_at_period(deps, env, period)
 }
 
@@ -347,7 +364,11 @@ fn query_user_voting_power(
     user: String,
     time: Option<u64>,
 ) -> StdResult<VotingPowerResponse> {
-    let period = get_period(time.unwrap_or_else(|| env.block.time.seconds()));
+    let period_duration = CONFIG.load(deps.storage)?.period_duration;
+    let period = get_period(
+        time.unwrap_or_else(|| env.block.time.seconds()),
+        period_duration,
+    );
     query_user_voting_power_at_period(deps, user, period)
 }
 
@@ -437,7 +458,8 @@ fn query_total_voting_power_at_period(
 /// Returns user's most recently recorded rate of voting power decrease.
 fn query_last_user_slope(deps: Deps, env: Env, user: String) -> StdResult<UserSlopeResponse> {
     let user = addr_validate_to_lower(deps.api, &user)?;
-    let period = get_period(env.block.time.seconds());
+    let period_duration = CONFIG.load(deps.storage)?.period_duration;
+    let period = get_period(env.block.time.seconds(), period_duration);
     let period_key = U64Key::new(period);
     let last_checkpoint = fetch_last_checkpoint(deps, &user, &period_key)?;
 
@@ -467,10 +489,16 @@ fn query_user_unlock_time(deps: Deps, user: String) -> StdResult<UserUnlockPerio
 /// Returns user's lock information in [`LockInfoResponse`] type.
 fn query_user_lock_info(deps: Deps, user: String) -> StdResult<LockInfoResponse> {
     let addr = addr_validate_to_lower(deps.api, &user)?;
+    let config = CONFIG.load(deps.storage)?;
+    let period_duration = config.period_duration;
+    let boost_coefficient = config.boost_coefficient;
+    let max_lock_time = config.max_lock_time;
+
     if let Some(lock) = LOCKED.may_load(deps.storage, addr)? {
+        let dt = lock.end - lock.last_extend_lock_period;
         let resp = LockInfoResponse {
             amount: lock.amount,
-            coefficient: calc_coefficient(lock.end - lock.last_extend_lock_period),
+            coefficient: calc_coefficient(dt, boost_coefficient, max_lock_time, period_duration),
             start: lock.start,
             end: lock.end,
         };

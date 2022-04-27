@@ -7,7 +7,6 @@ use crate::error::ContractError::{
 use crate::state::{Config, Lock, Point, HISTORY, LAST_SLOPE_CHANGE, SLOPE_CHANGES};
 use crate::utils::{
     calc_voting_power, cancel_scheduled_slope, fetch_last_checkpoint, schedule_slope_change,
-    MAX_LOCK_TIME, MIN_LOCK_TIME, WEEK,
 };
 use anchor_token::voting_escrow::{
     ConfigResponse, ExecuteMsg, InstantiateMarketingInfo, InstantiateMsg, LockInfoResponse,
@@ -25,6 +24,18 @@ use cw20::{
 use cw20_base::ContractError as Cw20BaseContractError;
 use cw_storage_plus::U64Key;
 
+/// Seconds in one week. Constant is intended for period number calculation.
+const WEEK: u64 = 7 * 86400; // lock period is rounded down by week
+
+/// Seconds in 1 year which is minimum lock period.
+const MIN_LOCK_TIME: u64 = 365 * 86400; // 1 year
+
+/// Seconds in 4 years which is maximum lock period.
+const MAX_LOCK_TIME: u64 = 4 * 365 * 86400; // 4 years
+
+/// Used to control max boost (25 == 2.5x boost)
+const BOOST_COEFFICIENT: u64 = 25;
+
 #[test]
 fn proper_initialization() {
     let mut deps = mock_dependencies(&[]);
@@ -32,11 +43,19 @@ fn proper_initialization() {
     let config = Config {
         owner: CanonicalAddr::from("owner".as_bytes()),
         anchor_token: CanonicalAddr::from("anchor".as_bytes()),
+        min_lock_time: MIN_LOCK_TIME,
+        max_lock_time: MAX_LOCK_TIME,
+        period_duration: WEEK,
+        boost_coefficient: BOOST_COEFFICIENT,
     };
 
     let msg = InstantiateMsg {
         owner: String::from_utf8_lossy(config.owner.as_slice()).to_string(),
         anchor_token: String::from_utf8_lossy(config.anchor_token.as_slice()).to_string(),
+        min_lock_time: config.min_lock_time,
+        max_lock_time: config.max_lock_time,
+        period_duration: config.period_duration,
+        boost_coefficient: config.boost_coefficient,
         marketing: Some(InstantiateMarketingInfo {
             project: Some("voted-escrow".to_string()),
             description: Some("voted-escrow".to_string()),
@@ -80,6 +99,10 @@ fn test_create_lock() {
     let msg = InstantiateMsg {
         owner: "owner".to_string(),
         anchor_token: "anchor".to_string(),
+        min_lock_time: MIN_LOCK_TIME,
+        max_lock_time: MAX_LOCK_TIME,
+        period_duration: WEEK,
+        boost_coefficient: BOOST_COEFFICIENT,
         marketing: None,
     };
 
@@ -422,6 +445,10 @@ fn test_update_marketing() {
     let msg = InstantiateMsg {
         owner: "owner".to_string(),
         anchor_token: "anchor".to_string(),
+        min_lock_time: MIN_LOCK_TIME,
+        max_lock_time: MAX_LOCK_TIME,
+        period_duration: WEEK,
+        boost_coefficient: BOOST_COEFFICIENT,
         marketing: None,
     };
 
@@ -474,6 +501,10 @@ fn test_upload_logo() {
     let msg = InstantiateMsg {
         owner: "owner".to_string(),
         anchor_token: "anchor".to_string(),
+        min_lock_time: MIN_LOCK_TIME,
+        max_lock_time: MAX_LOCK_TIME,
+        period_duration: WEEK,
+        boost_coefficient: BOOST_COEFFICIENT,
         marketing: None,
     };
 
@@ -518,6 +549,10 @@ fn test_get_total_voting_power() {
     let msg = InstantiateMsg {
         owner: "owner".to_string(),
         anchor_token: "anchor".to_string(),
+        min_lock_time: MIN_LOCK_TIME,
+        max_lock_time: MAX_LOCK_TIME,
+        period_duration: WEEK,
+        boost_coefficient: BOOST_COEFFICIENT,
         marketing: None,
     };
 
@@ -729,7 +764,7 @@ fn test_get_user_unlock_period() {
 
 #[test]
 fn test_checkpoint() {
-    let mut deps = mock_dependencies(&[]);
+    let (mut deps, _, _) = init_lock_factory("addr0000".to_string(), None, None);
 
     let user = Addr::unchecked("addr0001".to_string());
     let mut env = mock_env();
@@ -787,7 +822,7 @@ fn test_checkpoint() {
 
 #[test]
 fn test_checkpoint_total() {
-    let mut deps = mock_dependencies(&[]);
+    let (mut deps, _, _) = init_lock_factory("addr0000".to_string(), None, None);
 
     let owner = Addr::unchecked("owner".to_string());
     let period = 2;
@@ -983,7 +1018,11 @@ fn update_config() {
         config,
         ConfigResponse {
             owner: "gov".to_string(),
-            anchor_token: "anchor2.0".to_string()
+            anchor_token: "anchor2.0".to_string(),
+            min_lock_time: MIN_LOCK_TIME,
+            max_lock_time: MAX_LOCK_TIME,
+            period_duration: WEEK,
+            boost_coefficient: BOOST_COEFFICIENT
         }
     );
 }
@@ -1005,6 +1044,10 @@ fn init_lock_factory(
     let msg = InstantiateMsg {
         owner: "owner".to_string(),
         anchor_token: "anchor".to_string(),
+        min_lock_time: MIN_LOCK_TIME,
+        max_lock_time: MAX_LOCK_TIME,
+        period_duration: WEEK,
+        boost_coefficient: BOOST_COEFFICIENT,
         marketing: None,
     };
 

@@ -2678,6 +2678,7 @@ fn update_config() {
         timelock_period: None,
         proposal_deposit: None,
         snapshot_period: None,
+        voter_weight: None,
     };
 
     let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -2703,6 +2704,7 @@ fn update_config() {
         timelock_period: Some(20000u64),
         proposal_deposit: Some(Uint128::from(123u128)),
         snapshot_period: Some(11),
+        voter_weight: Some(Decimal::percent(50)),
     };
 
     let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -2718,6 +2720,7 @@ fn update_config() {
     assert_eq!(20000u64, config.timelock_period);
     assert_eq!(123u128, config.proposal_deposit.u128());
     assert_eq!(11u64, config.snapshot_period);
+    assert_eq!(Decimal::percent(50), config.voter_weight);
 
     // Unauthorzied err
     let info = mock_info(TEST_CREATOR, &[]);
@@ -2729,6 +2732,7 @@ fn update_config() {
         timelock_period: None,
         proposal_deposit: None,
         snapshot_period: None,
+        voter_weight: None,
     };
 
     let res = execute(deps.as_mut(), mock_env(), info, msg);

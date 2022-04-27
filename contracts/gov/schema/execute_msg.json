@@ -143,6 +143,16 @@
               "format": "uint64",
               "minimum": 0.0
             },
+            "voter_weight": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Decimal"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "voting_period": {
               "type": [
                 "integer",

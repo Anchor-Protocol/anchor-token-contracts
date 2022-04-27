@@ -26,6 +26,8 @@ pub struct Config {
     pub owner: CanonicalAddr,
     pub anchor_token: CanonicalAddr,
     pub anchor_voting_escrow: CanonicalAddr,
+    pub period_duration: u64,
+    pub user_vote_delay: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
