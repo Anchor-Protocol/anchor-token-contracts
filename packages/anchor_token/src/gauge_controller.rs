@@ -30,6 +30,8 @@ pub enum ExecuteMsg {
         owner: Option<String>,
         anchor_token: Option<String>,
         anchor_voting_escrow: Option<String>,
+        period_duration: Option<u64>,
+        user_vote_delay: Option<u64>,
     },
 }
 

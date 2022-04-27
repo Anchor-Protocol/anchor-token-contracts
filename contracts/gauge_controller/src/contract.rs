@@ -13,7 +13,8 @@ use crate::utils::{
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Decimal, Deps, DepsMut, Env, Fraction, MessageInfo, Response, Uint128,
+    to_binary, Binary, Decimal, Deps, DepsMut, Env, Fraction, MessageInfo, Response, StdError,
+    StdResult, Uint128,
 };
 
 use cw_storage_plus::U64Key;
@@ -67,7 +68,17 @@ pub fn execute(
             owner,
             anchor_token,
             anchor_voting_escrow,
-        } => update_config(deps, info, owner, anchor_token, anchor_voting_escrow),
+            period_duration,
+            user_vote_delay,
+        } => update_config(
+            deps,
+            info,
+            owner,
+            anchor_token,
+            anchor_voting_escrow,
+            period_duration,
+            user_vote_delay,
+        ),
     }
 }
 
@@ -77,6 +88,8 @@ pub fn update_config(
     owner: Option<String>,
     anchor_token: Option<String>,
     anchor_voting_escrow: Option<String>,
+    period_duration: Option<u64>,
+    user_vote_delay: Option<u64>,
 ) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
     if deps.api.addr_canonicalize(info.sender.as_str())? != config.owner {
@@ -95,8 +108,25 @@ pub fn update_config(
         config.anchor_voting_escrow = deps.api.addr_canonicalize(&anchor_voting_escrow)?;
     }
 
+    if let Some(period_duration) = period_duration {
+        validate_period_duration(period_duration)?;
+        config.period_duration = period_duration;
+    }
+
+    if let Some(user_vote_delay) = user_vote_delay {
+        config.user_vote_delay = user_vote_delay;
+    }
+
     CONFIG.save(deps.storage, &config)?;
     Ok(Response::new().add_attributes(vec![("action", "update_config")]))
+}
+
+fn validate_period_duration(period_duration: u64) -> StdResult<()> {
+    if Uint128::from(period_duration) <= Uint128::zero() {
+        Err(StdError::generic_err("period_dueration must be > 0"))
+    } else {
+        Ok(())
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

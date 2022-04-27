@@ -1,7 +1,7 @@
 use crate::checkpoint::{checkpoint, checkpoint_total};
 use crate::contract::{execute, instantiate, query};
 use crate::error::ContractError::{
-    Cw20Base, ExtendLockTimeTooSmall, InsufficientStaked, LockDoesntExist, LockExpired,
+    self, Cw20Base, ExtendLockTimeTooSmall, InsufficientStaked, LockDoesntExist, LockExpired,
     LockHasNotExpired, LockTimeLimitsError, Unauthorized,
 };
 use crate::state::{Config, Lock, Point, HISTORY, LAST_SLOPE_CHANGE, SLOPE_CHANGES};
@@ -16,7 +16,8 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::{
-    from_binary, Addr, Binary, CanonicalAddr, Decimal, MessageInfo, OwnedDeps, Timestamp, Uint128,
+    from_binary, Addr, Binary, CanonicalAddr, Decimal, MessageInfo, OwnedDeps, StdError, Timestamp,
+    Uint128,
 };
 use cw20::{
     DownloadLogoResponse, EmbeddedLogo, Logo, LogoInfo, MarketingInfoResponse, TokenInfoResponse,
@@ -72,6 +73,10 @@ fn proper_initialization() {
 
     assert_eq!(config.owner, "owner".to_string());
     assert_eq!(config.anchor_token, "anchor".to_string());
+    assert_eq!(config.min_lock_time, MIN_LOCK_TIME);
+    assert_eq!(config.max_lock_time, MAX_LOCK_TIME);
+    assert_eq!(config.period_duration, WEEK);
+    assert_eq!(config.boost_coefficient, BOOST_COEFFICIENT);
 
     let res = query(deps.as_ref(), mock_env(), QueryMsg::MarketingInfo {}).unwrap();
     let marketing: MarketingInfoResponse = from_binary(&res).unwrap();
@@ -90,6 +95,29 @@ fn proper_initialization() {
     assert_eq!(token_info.symbol, "veANC".to_string());
     assert_eq!(token_info.decimals, 6);
     assert_eq!(token_info.total_supply, Uint128::zero());
+}
+
+#[test]
+fn failed_instantiate_invalid_period_duration() {
+    let mut deps = mock_dependencies(&[]);
+    let msg = InstantiateMsg {
+        owner: String::from("owner"),
+        anchor_token: String::from("anchor"),
+        min_lock_time: MIN_LOCK_TIME,
+        max_lock_time: MAX_LOCK_TIME,
+        period_duration: 0,
+        boost_coefficient: BOOST_COEFFICIENT,
+        marketing: None,
+    };
+
+    let info = mock_info("owner", &[]);
+    let res = instantiate(deps.as_mut(), mock_env(), info, msg);
+    match res {
+        Err(ContractError::Std(StdError::GenericErr { msg })) => {
+            assert_eq!(msg, "period_duration must be > 0")
+        }
+        _ => panic!("Must return a validation error"),
+    };
 }
 
 #[test]
@@ -1002,6 +1030,10 @@ fn update_config() {
     let msg = ExecuteMsg::UpdateConfig {
         anchor_token: Some("anchor2.0".to_string()),
         owner: Some("gov".to_string()),
+        min_lock_time: Some(MIN_LOCK_TIME + WEEK),
+        max_lock_time: Some(MAX_LOCK_TIME - WEEK),
+        period_duration: Some(WEEK),
+        boost_coefficient: Some(BOOST_COEFFICIENT * 2),
     };
     let info = mock_info("addr0001", &[]);
     let res = execute(deps.as_mut(), mock_env(), info, msg.clone());
@@ -1019,12 +1051,29 @@ fn update_config() {
         ConfigResponse {
             owner: "gov".to_string(),
             anchor_token: "anchor2.0".to_string(),
-            min_lock_time: MIN_LOCK_TIME,
-            max_lock_time: MAX_LOCK_TIME,
+            min_lock_time: MIN_LOCK_TIME + WEEK,
+            max_lock_time: MAX_LOCK_TIME - WEEK,
             period_duration: WEEK,
-            boost_coefficient: BOOST_COEFFICIENT
+            boost_coefficient: BOOST_COEFFICIENT * 2
         }
     );
+
+    let info = mock_info("gov", &[]);
+    let msg = ExecuteMsg::UpdateConfig {
+        owner: None,
+        anchor_token: None,
+        min_lock_time: None,
+        max_lock_time: None,
+        period_duration: Some(0),
+        boost_coefficient: None,
+    };
+    let res = execute(deps.as_mut(), mock_env(), info, msg);
+    match res {
+        Err(ContractError::Std(StdError::GenericErr { msg })) => {
+            assert_eq!(msg, "period_duration must be > 0")
+        }
+        _ => panic!("Must return a validation error"),
+    };
 }
 
 fn init_lock_factory(

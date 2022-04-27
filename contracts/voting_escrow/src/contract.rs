@@ -21,7 +21,7 @@ use crate::utils::{
 };
 use anchor_token::voting_escrow::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, LockInfoResponse, MigrateMsg, QueryMsg,
-    UserSlopeResponse, UserUnlockPeriodResponse, VotingPowerResponse,
+    UpdateConfigParams, UserSlopeResponse, UserUnlockPeriodResponse, VotingPowerResponse,
 };
 use std::cmp::max;
 
@@ -50,6 +50,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    validate_period_duration(msg.period_duration)?;
 
     let config: Config = Config {
         owner: deps.api.addr_canonicalize(&msg.owner)?,
@@ -123,31 +124,69 @@ pub fn execute(
         ExecuteMsg::UpdateConfig {
             owner,
             anchor_token,
-        } => update_config(deps, info, owner, anchor_token),
+            min_lock_time,
+            max_lock_time,
+            period_duration,
+            boost_coefficient,
+        } => {
+            let params = UpdateConfigParams {
+                owner,
+                anchor_token,
+                min_lock_time,
+                max_lock_time,
+                period_duration,
+                boost_coefficient,
+            };
+            update_config(deps, info, params)
+        }
     }
 }
 
 pub fn update_config(
     deps: DepsMut,
     info: MessageInfo,
-    owner: Option<String>,
-    anchor_token: Option<String>,
+    params: UpdateConfigParams,
 ) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
     if deps.api.addr_canonicalize(info.sender.as_str())? != config.owner {
         return Err(ContractError::Unauthorized {});
     }
 
-    if let Some(owner) = owner {
+    if let Some(owner) = params.owner {
         config.owner = deps.api.addr_canonicalize(&owner)?;
     }
 
-    if let Some(anchor_token) = anchor_token {
+    if let Some(anchor_token) = params.anchor_token {
         config.anchor_token = deps.api.addr_canonicalize(&anchor_token)?;
+    }
+
+    if let Some(min_lock_time) = params.min_lock_time {
+        config.min_lock_time = min_lock_time;
+    }
+
+    if let Some(max_lock_time) = params.max_lock_time {
+        config.max_lock_time = max_lock_time;
+    }
+
+    if let Some(period_duration) = params.period_duration {
+        validate_period_duration(period_duration)?;
+        config.period_duration = period_duration;
+    }
+
+    if let Some(boost_coefficient) = params.boost_coefficient {
+        config.boost_coefficient = boost_coefficient;
     }
 
     CONFIG.save(deps.storage, &config)?;
     Ok(Response::new().add_attributes(vec![("action", "update_config")]))
+}
+
+fn validate_period_duration(period_duration: u64) -> StdResult<()> {
+    if Uint128::from(period_duration) <= Uint128::zero() {
+        Err(StdError::generic_err("period_duration must be > 0"))
+    } else {
+        Ok(())
+    }
 }
 
 /// ## Description

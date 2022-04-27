@@ -64,6 +64,10 @@ pub enum ExecuteMsg {
     UpdateConfig {
         owner: Option<String>,
         anchor_token: Option<String>,
+        min_lock_time: Option<u64>,
+        max_lock_time: Option<u64>,
+        period_duration: Option<u64>,
+        boost_coefficient: Option<u64>,
     },
 }
 
@@ -128,6 +132,15 @@ pub struct ConfigResponse {
     pub max_lock_time: u64,
     pub period_duration: u64,
     pub boost_coefficient: u64,
+}
+
+pub struct UpdateConfigParams {
+    pub owner: Option<String>,
+    pub anchor_token: Option<String>,
+    pub min_lock_time: Option<u64>,
+    pub max_lock_time: Option<u64>,
+    pub period_duration: Option<u64>,
+    pub boost_coefficient: Option<u64>,
 }
 
 pub struct MigrateMsg {}
