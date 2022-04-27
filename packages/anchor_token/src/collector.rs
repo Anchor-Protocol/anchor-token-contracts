@@ -52,7 +52,4 @@ pub struct ConfigResponse {
 
 /// We currently take no arguments for migrations
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {
-    pub astroport_factory: String,
-    pub max_spread: Decimal,
-}
+pub struct MigrateMsg {}
