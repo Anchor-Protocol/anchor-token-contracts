@@ -1070,7 +1070,7 @@ fn update_config() {
         }),
         deps.as_mut(),
         "gov".to_string(),
-        msg.clone(),
+        msg,
         time,
     );
 }
