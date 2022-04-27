@@ -33,6 +33,7 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    validate_period_duration(msg.period_duration)?;
     CONFIG.save(
         deps.storage,
         &Config {
@@ -123,7 +124,7 @@ pub fn update_config(
 
 fn validate_period_duration(period_duration: u64) -> StdResult<()> {
     if Uint128::from(period_duration) <= Uint128::zero() {
-        Err(StdError::generic_err("period_dueration must be > 0"))
+        Err(StdError::generic_err("period_duration must be > 0"))
     } else {
         Ok(())
     }

@@ -11,7 +11,7 @@ use anchor_token::gauge_controller::{
 };
 
 use cosmwasm_std::testing::{mock_env, mock_info};
-use cosmwasm_std::{from_binary, Decimal, Deps, DepsMut, Timestamp, Uint128};
+use cosmwasm_std::{from_binary, Decimal, Deps, DepsMut, StdError, Timestamp, Uint128};
 use serde::de::DeserializeOwned;
 
 const VOTE_DELAY: u64 = 2;
@@ -47,6 +47,27 @@ fn run_execute_msg_expect_ok(deps: DepsMut, sender: String, msg: ExecuteMsg, tim
     if let Err(err) = execute(deps, env, info, msg) {
         panic!("{}", err);
     }
+}
+
+#[test]
+fn failed_instantiate_invalid_period_duration() {
+    let mut deps = mock_dependencies(&[]);
+    let msg = InstantiateMsg {
+        owner: "owner".to_string(),
+        anchor_token: "anchor_token".to_string(),
+        anchor_voting_escrow: "anchor_voting_escrow".to_string(),
+        period_duration: 0,
+        user_vote_delay: VOTE_DELAY,
+    };
+    let info = mock_info("addr0000", &[]);
+
+    let res = instantiate(deps.as_mut(), mock_env(), info, msg);
+    match res {
+        Err(ContractError::Std(StdError::GenericErr { msg })) => {
+            assert_eq!(msg, "period_duration must be > 0")
+        }
+        _ => panic!("Must return a validation error"),
+    };
 }
 
 fn run_execute_msg_expect_error(
@@ -1008,6 +1029,8 @@ fn update_config() {
         owner: Some("gov".to_string()),
         anchor_token: Some("anchor2.0".to_string()),
         anchor_voting_escrow: Some("voting_escrow2.0".to_string()),
+        period_duration: Some(2 * WEEK),
+        user_vote_delay: Some(2 * VOTE_DELAY),
     };
 
     run_execute_msg_expect_error(
@@ -1025,11 +1048,29 @@ fn update_config() {
             owner: "gov".to_string(),
             anchor_token: "anchor2.0".to_string(),
             anchor_voting_escrow: "voting_escrow2.0".to_string(),
-            user_vote_delay: VOTE_DELAY,
-            period_duration: WEEK,
+            user_vote_delay: 2 * VOTE_DELAY,
+            period_duration: 2 * WEEK,
         },
         deps.as_ref(),
         QueryMsg::Config {},
+        time,
+    );
+
+    let msg = ExecuteMsg::UpdateConfig {
+        owner: None,
+        anchor_token: None,
+        anchor_voting_escrow: None,
+        period_duration: Some(0),
+        user_vote_delay: None,
+    };
+
+    run_execute_msg_expect_error(
+        ContractError::Std(StdError::GenericErr {
+            msg: String::from("period_duration must be > 0"),
+        }),
+        deps.as_mut(),
+        "gov".to_string(),
+        msg.clone(),
         time,
     );
 }
