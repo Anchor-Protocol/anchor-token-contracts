@@ -1,9 +1,6 @@
 use crate::checkpoint::{checkpoint, checkpoint_total};
 use crate::contract::{execute, instantiate, query};
-use crate::error::ContractError::{
-    self, Cw20Base, ExtendLockTimeTooSmall, InsufficientStaked, LockDoesntExist, LockExpired,
-    LockHasNotExpired, LockTimeLimitsError, Unauthorized,
-};
+use crate::error::ContractError;
 use crate::state::{Config, Lock, Point, HISTORY, LAST_SLOPE_CHANGE, SLOPE_CHANGES};
 use crate::utils::{
     calc_voting_power, cancel_scheduled_slope, fetch_last_checkpoint, schedule_slope_change,
@@ -146,7 +143,7 @@ fn test_create_lock() {
     let info = mock_info("random", &[]);
     let res = execute(deps.as_mut(), mock_env(), info, msg);
     match res {
-        Err(Unauthorized {}) => {}
+        Err(ContractError::Unauthorized {}) => {}
         _ => panic!("Must return Unauthorized error"),
     }
 
@@ -158,7 +155,7 @@ fn test_create_lock() {
     };
     let res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
     match res {
-        Err(LockTimeLimitsError {}) => {}
+        Err(ContractError::LockTimeLimitsError {}) => {}
         _ => panic!("Must return LockTimeLimitsError error"),
     }
 
@@ -170,7 +167,7 @@ fn test_create_lock() {
 
     let res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
     match res {
-        Err(LockTimeLimitsError {}) => {}
+        Err(ContractError::LockTimeLimitsError {}) => {}
         _ => panic!("Must return LockTimeLimitsError error"),
     }
 
@@ -271,7 +268,7 @@ fn test_extend_lock_amount() {
     let info = mock_info("random", &[]);
     let res = execute(deps.as_mut(), mock_env(), info, msg);
     match res {
-        Err(Unauthorized {}) => {}
+        Err(ContractError::Unauthorized {}) => {}
         _ => panic!("Must return Unauthorized error"),
     };
 
@@ -283,7 +280,7 @@ fn test_extend_lock_amount() {
 
     let res = execute(deps.as_mut(), mock_env(), owner_info.clone(), msg);
     match res {
-        Err(LockDoesntExist {}) => {}
+        Err(ContractError::LockDoesntExist {}) => {}
         _ => panic!("Must return LockDoesntExist error"),
     };
 
@@ -297,7 +294,7 @@ fn test_extend_lock_amount() {
     env.block.time = Timestamp::from_seconds(env.block.time.seconds() + MIN_LOCK_TIME + WEEK);
     let res = execute(deps.as_mut(), env, owner_info.clone(), msg.clone());
     match res {
-        Err(LockExpired {}) => {}
+        Err(ContractError::LockExpired {}) => {}
         _ => panic!("Must return LockExpired error"),
     };
 
@@ -333,7 +330,7 @@ fn test_extend_lock_time() {
     };
     let res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
     match res {
-        Err(LockTimeLimitsError {}) => {}
+        Err(ContractError::LockTimeLimitsError {}) => {}
         _ => panic!("Must return LockTimeLimitsError error"),
     };
 
@@ -345,7 +342,7 @@ fn test_extend_lock_time() {
 
     let res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
     match res {
-        Err(ExtendLockTimeTooSmall {}) => {}
+        Err(ContractError::ExtendLockTimeTooSmall {}) => {}
         _ => panic!("Must return ExtendLockTimeTooSmall error"),
     };
 
@@ -404,7 +401,7 @@ fn test_withdraw() {
     // cannot withdraw for a user w/o a lock
     let res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
     match res {
-        Err(LockDoesntExist {}) => {}
+        Err(ContractError::LockDoesntExist {}) => {}
         _ => panic!("Must return LockDoesntExist error"),
     };
 
@@ -416,7 +413,7 @@ fn test_withdraw() {
     // cannot withdraw if lock has not expired
     let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
     match res {
-        Err(LockHasNotExpired {}) => {}
+        Err(ContractError::LockHasNotExpired {}) => {}
         _ => panic!("Must return LockHasNotExpired error"),
     };
 
@@ -461,7 +458,7 @@ fn test_withdraw() {
 
     let res = execute(deps.as_mut(), env, info, msg);
     match res {
-        Err(InsufficientStaked {}) => {}
+        Err(ContractError::InsufficientStaked {}) => {}
         _ => panic!("Must return InsufficientStaked error"),
     };
 }
@@ -517,7 +514,7 @@ fn test_update_marketing() {
     let info = mock_info("random", &[]);
     let res = execute(deps.as_mut(), mock_env(), info, msg);
     match res {
-        Err(Cw20Base(Cw20BaseContractError::Unauthorized {})) => {}
+        Err(ContractError::Cw20Base(Cw20BaseContractError::Unauthorized {})) => {}
         _ => panic!("Must return Unauthorized error"),
     }
 }
@@ -544,7 +541,7 @@ fn test_upload_logo() {
     let msg = ExecuteMsg::UploadLogo(Logo::Url("cool-logo".to_string()));
     let res = execute(deps.as_mut(), mock_env(), info, msg);
     match res {
-        Err(Cw20Base(Cw20BaseContractError::Unauthorized {})) => {}
+        Err(ContractError::Cw20Base(Cw20BaseContractError::Unauthorized {})) => {}
         _ => panic!("Must return Unauthorized error"),
     }
 
@@ -1038,7 +1035,7 @@ fn update_config() {
     let res = execute(deps.as_mut(), mock_env(), info, msg.clone());
 
     match res {
-        Err(Unauthorized {}) => {}
+        Err(ContractError::Unauthorized {}) => {}
         _ => panic!("Must return Unauthorized error"),
     };
 
