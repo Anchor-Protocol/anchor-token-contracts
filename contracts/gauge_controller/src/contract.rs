@@ -69,7 +69,6 @@ pub fn execute(
             owner,
             anchor_token,
             anchor_voting_escrow,
-            period_duration,
             user_vote_delay,
         } => update_config(
             deps,
@@ -77,7 +76,6 @@ pub fn execute(
             owner,
             anchor_token,
             anchor_voting_escrow,
-            period_duration,
             user_vote_delay,
         ),
     }
@@ -89,7 +87,6 @@ pub fn update_config(
     owner: Option<String>,
     anchor_token: Option<String>,
     anchor_voting_escrow: Option<String>,
-    period_duration: Option<u64>,
     user_vote_delay: Option<u64>,
 ) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
@@ -107,11 +104,6 @@ pub fn update_config(
 
     if let Some(anchor_voting_escrow) = anchor_voting_escrow {
         config.anchor_voting_escrow = deps.api.addr_canonicalize(&anchor_voting_escrow)?;
-    }
-
-    if let Some(period_duration) = period_duration {
-        validate_period_duration(period_duration)?;
-        config.period_duration = period_duration;
     }
 
     if let Some(user_vote_delay) = user_vote_delay {

@@ -1032,7 +1032,6 @@ fn update_config() {
         owner: Some("gov".to_string()),
         min_lock_time: Some(MIN_LOCK_TIME + WEEK),
         max_lock_time: Some(MAX_LOCK_TIME - WEEK),
-        period_duration: Some(WEEK),
         boost_coefficient: Some(BOOST_COEFFICIENT * 2),
     };
     let info = mock_info("addr0001", &[]);
@@ -1057,23 +1056,6 @@ fn update_config() {
             boost_coefficient: BOOST_COEFFICIENT * 2
         }
     );
-
-    let info = mock_info("gov", &[]);
-    let msg = ExecuteMsg::UpdateConfig {
-        owner: None,
-        anchor_token: None,
-        min_lock_time: None,
-        max_lock_time: None,
-        period_duration: Some(0),
-        boost_coefficient: None,
-    };
-    let res = execute(deps.as_mut(), mock_env(), info, msg);
-    match res {
-        Err(ContractError::Std(StdError::GenericErr { msg })) => {
-            assert_eq!(msg, "period_duration must be > 0")
-        }
-        _ => panic!("Must return a validation error"),
-    };
 }
 
 fn init_lock_factory(

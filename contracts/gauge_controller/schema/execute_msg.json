@@ -103,14 +103,6 @@
                 "null"
               ]
             },
-            "period_duration": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
-            },
             "user_vote_delay": {
               "type": [
                 "integer",

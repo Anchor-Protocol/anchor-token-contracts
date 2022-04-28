@@ -1029,7 +1029,6 @@ fn update_config() {
         owner: Some("gov".to_string()),
         anchor_token: Some("anchor2.0".to_string()),
         anchor_voting_escrow: Some("voting_escrow2.0".to_string()),
-        period_duration: Some(2 * WEEK),
         user_vote_delay: Some(2 * VOTE_DELAY),
     };
 
@@ -1049,28 +1048,10 @@ fn update_config() {
             anchor_token: "anchor2.0".to_string(),
             anchor_voting_escrow: "voting_escrow2.0".to_string(),
             user_vote_delay: 2 * VOTE_DELAY,
-            period_duration: 2 * WEEK,
+            period_duration: WEEK,
         },
         deps.as_ref(),
         QueryMsg::Config {},
-        time,
-    );
-
-    let msg = ExecuteMsg::UpdateConfig {
-        owner: None,
-        anchor_token: None,
-        anchor_voting_escrow: None,
-        period_duration: Some(0),
-        user_vote_delay: None,
-    };
-
-    run_execute_msg_expect_error(
-        ContractError::Std(StdError::GenericErr {
-            msg: String::from("period_duration must be > 0"),
-        }),
-        deps.as_mut(),
-        "gov".to_string(),
-        msg,
         time,
     );
 }

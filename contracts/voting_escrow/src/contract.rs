@@ -126,7 +126,6 @@ pub fn execute(
             anchor_token,
             min_lock_time,
             max_lock_time,
-            period_duration,
             boost_coefficient,
         } => {
             let params = UpdateConfigParams {
@@ -134,7 +133,6 @@ pub fn execute(
                 anchor_token,
                 min_lock_time,
                 max_lock_time,
-                period_duration,
                 boost_coefficient,
             };
             update_config(deps, info, params)
@@ -166,11 +164,6 @@ pub fn update_config(
 
     if let Some(max_lock_time) = params.max_lock_time {
         config.max_lock_time = max_lock_time;
-    }
-
-    if let Some(period_duration) = params.period_duration {
-        validate_period_duration(period_duration)?;
-        config.period_duration = period_duration;
     }
 
     if let Some(boost_coefficient) = params.boost_coefficient {
