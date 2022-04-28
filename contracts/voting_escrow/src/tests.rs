@@ -13,8 +13,7 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::{
-    from_binary, Addr, Binary, CanonicalAddr, Decimal, MessageInfo, OwnedDeps, StdError, Timestamp,
-    Uint128,
+    from_binary, Addr, Binary, CanonicalAddr, Decimal, MessageInfo, OwnedDeps, Timestamp, Uint128,
 };
 use cw20::{
     DownloadLogoResponse, EmbeddedLogo, Logo, LogoInfo, MarketingInfoResponse, TokenInfoResponse,
@@ -110,10 +109,8 @@ fn failed_instantiate_invalid_period_duration() {
     let info = mock_info("owner", &[]);
     let res = instantiate(deps.as_mut(), mock_env(), info, msg);
     match res {
-        Err(ContractError::Std(StdError::GenericErr { msg })) => {
-            assert_eq!(msg, "period_duration must be > 0")
-        }
-        _ => panic!("Must return a validation error"),
+        Err(ContractError::PeriodDurationTooSmall {}) => {}
+        _ => panic!("Must return a PeriodDurationTooSmall error"),
     };
 }
 

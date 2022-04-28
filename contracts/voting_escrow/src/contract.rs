@@ -174,9 +174,9 @@ pub fn update_config(
     Ok(Response::new().add_attributes(vec![("action", "update_config")]))
 }
 
-fn validate_period_duration(period_duration: u64) -> StdResult<()> {
+fn validate_period_duration(period_duration: u64) -> Result<(), ContractError> {
     if Uint128::from(period_duration) <= Uint128::zero() {
-        Err(StdError::generic_err("period_duration must be > 0"))
+        Err(ContractError::PeriodDurationTooSmall {})
     } else {
         Ok(())
     }

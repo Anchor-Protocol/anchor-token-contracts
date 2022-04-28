@@ -35,4 +35,7 @@ pub enum ContractError {
 
     #[error("Insufficient Voting Ratio")]
     InsufficientVotingRatio {},
+
+    #[error("Period duration is too small")]
+    PeriodDurationTooSmall {},
 }

@@ -11,7 +11,7 @@ use anchor_token::gauge_controller::{
 };
 
 use cosmwasm_std::testing::{mock_env, mock_info};
-use cosmwasm_std::{from_binary, Decimal, Deps, DepsMut, StdError, Timestamp, Uint128};
+use cosmwasm_std::{from_binary, Decimal, Deps, DepsMut, Timestamp, Uint128};
 use serde::de::DeserializeOwned;
 
 const VOTE_DELAY: u64 = 2;
@@ -63,10 +63,8 @@ fn failed_instantiate_invalid_period_duration() {
 
     let res = instantiate(deps.as_mut(), mock_env(), info, msg);
     match res {
-        Err(ContractError::Std(StdError::GenericErr { msg })) => {
-            assert_eq!(msg, "period_duration must be > 0")
-        }
-        _ => panic!("Must return a validation error"),
+        Err(ContractError::PeriodDurationTooSmall {}) => {}
+        _ => panic!("Must return a PeriodDurationTooSmall error"),
     };
 }
 
