@@ -49,6 +49,25 @@ fn run_execute_msg_expect_ok(deps: DepsMut, sender: String, msg: ExecuteMsg, tim
     }
 }
 
+#[test]
+fn failed_instantiate_invalid_period_duration() {
+    let mut deps = mock_dependencies(&[]);
+    let msg = InstantiateMsg {
+        owner: "owner".to_string(),
+        anchor_token: "anchor_token".to_string(),
+        anchor_voting_escrow: "anchor_voting_escrow".to_string(),
+        period_duration: 0,
+        user_vote_delay: VOTE_DELAY,
+    };
+    let info = mock_info("addr0000", &[]);
+
+    let res = instantiate(deps.as_mut(), mock_env(), info, msg);
+    match res {
+        Err(ContractError::PeriodDurationTooSmall {}) => {}
+        _ => panic!("Must return a PeriodDurationTooSmall error"),
+    };
+}
+
 fn run_execute_msg_expect_error(
     expect_err: ContractError,
     deps: DepsMut,
@@ -1008,6 +1027,7 @@ fn update_config() {
         owner: Some("gov".to_string()),
         anchor_token: Some("anchor2.0".to_string()),
         anchor_voting_escrow: Some("voting_escrow2.0".to_string()),
+        user_vote_delay: Some(2 * VOTE_DELAY),
     };
 
     run_execute_msg_expect_error(
@@ -1025,7 +1045,7 @@ fn update_config() {
             owner: "gov".to_string(),
             anchor_token: "anchor2.0".to_string(),
             anchor_voting_escrow: "voting_escrow2.0".to_string(),
-            user_vote_delay: VOTE_DELAY,
+            user_vote_delay: 2 * VOTE_DELAY,
             period_duration: WEEK,
         },
         deps.as_ref(),

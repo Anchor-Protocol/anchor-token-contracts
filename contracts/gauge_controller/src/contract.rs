@@ -32,6 +32,7 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    validate_period_duration(msg.period_duration)?;
     CONFIG.save(
         deps.storage,
         &Config {
@@ -67,7 +68,15 @@ pub fn execute(
             owner,
             anchor_token,
             anchor_voting_escrow,
-        } => update_config(deps, info, owner, anchor_token, anchor_voting_escrow),
+            user_vote_delay,
+        } => update_config(
+            deps,
+            info,
+            owner,
+            anchor_token,
+            anchor_voting_escrow,
+            user_vote_delay,
+        ),
     }
 }
 
@@ -77,6 +86,7 @@ pub fn update_config(
     owner: Option<String>,
     anchor_token: Option<String>,
     anchor_voting_escrow: Option<String>,
+    user_vote_delay: Option<u64>,
 ) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
     if deps.api.addr_canonicalize(info.sender.as_str())? != config.owner {
@@ -95,8 +105,20 @@ pub fn update_config(
         config.anchor_voting_escrow = deps.api.addr_canonicalize(&anchor_voting_escrow)?;
     }
 
+    if let Some(user_vote_delay) = user_vote_delay {
+        config.user_vote_delay = user_vote_delay;
+    }
+
     CONFIG.save(deps.storage, &config)?;
     Ok(Response::new().add_attributes(vec![("action", "update_config")]))
+}
+
+fn validate_period_duration(period_duration: u64) -> Result<(), ContractError> {
+    if Uint128::from(period_duration) <= Uint128::zero() {
+        Err(ContractError::PeriodDurationTooSmall {})
+    } else {
+        Ok(())
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

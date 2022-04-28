@@ -32,4 +32,7 @@ pub enum ContractError {
 
     #[error("InsufficientStaked")]
     InsufficientStaked {},
+
+    #[error("Period duration is too small")]
+    PeriodDurationTooSmall {},
 }
