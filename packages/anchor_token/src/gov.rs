@@ -111,10 +111,7 @@ pub enum QueryMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {
-    pub anchor_voting_escrow: String,
-    pub voter_weight: Decimal,
-}
+pub struct MigrateMsg {}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
 pub struct ConfigResponse {

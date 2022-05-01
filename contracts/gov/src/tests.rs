@@ -1,13 +1,10 @@
 use crate::contract::{execute, instantiate, migrate, query, reply};
 use crate::error::ContractError;
-use crate::migration::{
-    LegacyConfig, LegacyPoll, LegacyState, KEY_LEGACY_CONFIG, KEY_LEGACY_STATE, PREFIX_LEGACY_POLL,
-};
 use crate::mock_querier::mock_dependencies;
 use crate::staking::extend_lock_time;
 use crate::state::{
-    bank_read, bank_store, config_read, config_store, poll_read, poll_store, poll_voter_read,
-    poll_voter_store, state_read, Config, Poll, State, TokenManager,
+    bank_read, bank_store, config_read, config_store, is_synced_read, is_synced_store, poll_store,
+    poll_voter_read, poll_voter_store, state_read, Config, Poll, State, TokenManager,
 };
 use crate::voting_escrow::{
     generate_extend_lock_amount_message, generate_extend_lock_time_message,
@@ -23,10 +20,8 @@ use astroport::querier::query_token_balance;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     attr, coins, from_binary, to_binary, Addr, Api, CanonicalAddr, ContractResult, CosmosMsg,
-    Decimal, Deps, DepsMut, Env, Reply, Response, StdError, StdResult, Storage, SubMsg, Timestamp,
-    Uint128, WasmMsg,
+    Decimal, Deps, DepsMut, Env, Reply, Response, StdError, SubMsg, Timestamp, Uint128, WasmMsg,
 };
-use cosmwasm_storage::{bucket, singleton};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
 const VOTING_TOKEN: &str = "voting_token";
@@ -4054,134 +4049,34 @@ fn happy_days_end_poll_with_controlled_quorum() {
     assert_eq!(actual_staked_weight.u128(), (10 * stake_amount))
 }
 
-fn store_legacy_config(storage: &mut dyn Storage, legacy_config: &LegacyConfig) -> StdResult<()> {
-    singleton(storage, KEY_LEGACY_CONFIG).save(legacy_config)
-}
-
-fn store_legacy_state(storage: &mut dyn Storage, legacy_state: &LegacyState) -> StdResult<()> {
-    singleton(storage, KEY_LEGACY_STATE).save(legacy_state)
-}
-
-fn store_legacy_poll(
-    storage: &mut dyn Storage,
-    poll_id: u64,
-    legacy_poll: &LegacyPoll,
-) -> StdResult<()> {
-    bucket(storage, PREFIX_LEGACY_POLL).save(&poll_id.to_be_bytes(), legacy_poll)
-}
-
 #[test]
 fn test_migrate() {
     let mut deps = mock_dependencies(&[]);
 
-    let legacy_config: LegacyConfig = LegacyConfig {
-        anchor_token: CanonicalAddr::from(vec![]),
-        owner: deps.api.addr_canonicalize(TEST_CREATOR).unwrap(),
-        quorum: Decimal::percent(DEFAULT_QUORUM),
-        threshold: Decimal::percent(DEFAULT_THRESHOLD),
-        voting_period: DEFAULT_VOTING_PERIOD,
-        timelock_period: DEFAULT_TIMELOCK_PERIOD,
-        expiration_period: 0u64, // Deprecated
-        proposal_deposit: Uint128::from(DEFAULT_PROPOSAL_DEPOSIT),
-        snapshot_period: DEFAULT_FIX_PERIOD,
-    };
+    let msg = instantiate_msg();
+    let info = mock_info(TEST_CREATOR, &coins(2, VOTING_TOKEN));
+    instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
-    let legacy_state: LegacyState = LegacyState {
-        contract_addr: deps.api.addr_canonicalize(MOCK_CONTRACT_ADDR).unwrap(),
-        poll_count: 30,
-        total_share: Uint128::from(11u128),
-        total_deposit: Uint128::zero(),
-    };
-
-    store_legacy_config(&mut deps.storage, &legacy_config).unwrap();
-    store_legacy_state(&mut deps.storage, &legacy_state).unwrap();
-
-    let mut legacy_polls: Vec<LegacyPoll> = vec![];
-
-    for poll_id in 1..=30 {
-        let legacy_poll = LegacyPoll {
-            id: poll_id,
-            creator: deps.api.addr_canonicalize(TEST_CREATOR).unwrap(),
-            status: PollStatus::InProgress,
-            yes_votes: Uint128::zero(),
-            no_votes: Uint128::zero(),
-            end_height: 0,
-            title: String::from("title"),
-            description: String::from("description"),
-            link: None,
-            execute_data: None,
-            deposit_amount: Uint128::from(100000000u128),
-            total_balance_at_end_poll: None,
-            staked_amount: None,
-        };
-        store_legacy_poll(&mut deps.storage, poll_id, &legacy_poll).unwrap();
-        legacy_polls.push(legacy_poll);
-    }
-
-    migrate(
-        deps.as_mut(),
-        mock_env(),
-        MigrateMsg {
-            anchor_voting_escrow: VOTING_ESCROW.to_string(),
-            voter_weight: Decimal::percent(DEFAULT_VOTER_WEIGHT),
-        },
-    )
-    .unwrap();
-
-    let new_config: Config = config_read(deps.as_ref().storage).load().unwrap();
-
-    assert_eq!(legacy_config.owner, new_config.owner);
-    assert_eq!(legacy_config.anchor_token, new_config.anchor_token);
-    assert_eq!(legacy_config.quorum, new_config.quorum);
-    assert_eq!(legacy_config.threshold, new_config.threshold);
-    assert_eq!(legacy_config.voting_period, new_config.voting_period);
-    assert_eq!(legacy_config.timelock_period, new_config.timelock_period);
+    let addr = String::from("terra1k529hl5nvrvavnzv4jm3um2lllxujrshpn5um2");
+    is_synced_store(&mut deps.storage)
+        .save(addr.as_bytes(), &true)
+        .unwrap();
+    migrate(deps.as_mut(), mock_env(), MigrateMsg {}).unwrap();
     assert_eq!(
-        legacy_config.expiration_period,
-        new_config.expiration_period
-    );
-    assert_eq!(legacy_config.proposal_deposit, new_config.proposal_deposit);
-    assert_eq!(legacy_config.snapshot_period, new_config.snapshot_period);
-    assert_eq!(
-        new_config.anchor_voting_escrow,
-        deps.api.addr_canonicalize(VOTING_ESCROW).unwrap()
+        is_synced_read(&deps.storage)
+            .may_load(addr.as_bytes())
+            .unwrap(),
+        None
     );
     assert_eq!(
-        new_config.voter_weight,
-        Decimal::percent(DEFAULT_VOTER_WEIGHT)
+        config_read(&deps.storage)
+            .load()
+            .unwrap()
+            .anchor_voting_escrow,
+        deps.api
+            .addr_canonicalize("terra1g54zpg3tjkrxp267z0y3mm60fdf2fhtmmtgm36")
+            .unwrap()
     );
-
-    let new_state: State = state_read(deps.as_ref().storage).load().unwrap();
-
-    assert_eq!(legacy_state.contract_addr, new_state.contract_addr);
-    assert_eq!(legacy_state.poll_count, new_state.poll_count);
-    assert_eq!(legacy_state.total_share, new_state.total_share);
-    assert_eq!(legacy_state.total_deposit, new_state.total_deposit);
-    assert_eq!(new_state.pending_voting_rewards, Uint128::zero());
-
-    for legacy_poll in legacy_polls {
-        let new_poll: Poll = poll_read(deps.as_ref().storage)
-            .load(&legacy_poll.id.to_be_bytes())
-            .unwrap();
-
-        assert_eq!(legacy_poll.id, new_poll.id);
-        assert_eq!(legacy_poll.creator, new_poll.creator);
-        assert_eq!(legacy_poll.status, new_poll.status);
-        assert_eq!(legacy_poll.yes_votes, new_poll.yes_votes);
-        assert_eq!(legacy_poll.no_votes, new_poll.no_votes);
-        assert_eq!(legacy_poll.end_height, new_poll.end_height);
-        assert_eq!(legacy_poll.title, new_poll.title);
-        assert_eq!(legacy_poll.description, new_poll.description);
-        assert_eq!(legacy_poll.link, new_poll.link);
-        assert_eq!(legacy_poll.execute_data, new_poll.execute_data);
-        assert_eq!(legacy_poll.deposit_amount, new_poll.deposit_amount);
-        assert_eq!(
-            legacy_poll.total_balance_at_end_poll,
-            new_poll.total_balance_at_end_poll
-        );
-        assert_eq!(legacy_poll.staked_amount, new_poll.staked_amount);
-        assert_eq!(new_poll.voters_reward, Uint128::zero());
-    }
 }
 
 #[test]

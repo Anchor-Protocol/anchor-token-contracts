@@ -1,20 +1,20 @@
 use crate::error::ContractError;
-use crate::migration::{migrate_config, migrate_polls, migrate_state};
 use crate::staking::{
     deposit_reward, extend_lock_amount, extend_lock_time, query_staker, withdraw_voting_rewards,
     withdraw_voting_tokens,
 };
 use crate::state::{
-    bank_read, bank_store, config_read, config_store, poll_indexer_store, poll_read, poll_store,
-    poll_voter_read, poll_voter_store, read_poll_voters, read_polls, read_tmp_poll_id, state_read,
-    state_store, store_tmp_poll_id, Config, ExecuteData, Poll, State,
+    bank_read, bank_store, config_read, config_store, is_synced_read, is_synced_store,
+    poll_indexer_store, poll_read, poll_store, poll_voter_read, poll_voter_store, read_poll_voters,
+    read_polls, read_tmp_poll_id, state_read, state_store, store_tmp_poll_id, Config, ExecuteData,
+    Poll, State,
 };
 use crate::voting_escrow::{query_total_voting_power, query_user_voting_power};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, from_binary, to_binary, Binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    MessageInfo, Order, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
@@ -885,18 +885,26 @@ fn query_voters(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
-    migrate_config(
-        deps.storage,
-        deps.api.addr_canonicalize(&msg.anchor_voting_escrow)?,
-        msg.voter_weight,
-    )?;
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    let all_keys: Vec<Vec<u8>> = is_synced_read(deps.storage)
+        .range(None, None, Order::Ascending)
+        .map(|item| {
+            let (k, _) = item.unwrap();
+            k
+        })
+        .collect();
+    for key in all_keys {
+        is_synced_store(deps.storage).remove(&key);
+    }
 
-    migrate_state(deps.storage)?;
-
-    let poll_count = state_read(deps.storage).load()?.poll_count;
-
-    migrate_polls(deps.storage, poll_count)?;
-
+    let api = deps.api;
+    config_store(deps.storage)
+        .update(|mut config| -> StdResult<Config> {
+            config.anchor_voting_escrow = api
+                .addr_canonicalize("terra1g54zpg3tjkrxp267z0y3mm60fdf2fhtmmtgm36")
+                .unwrap();
+            Ok(config)
+        })
+        .unwrap();
     Ok(Response::default())
 }
