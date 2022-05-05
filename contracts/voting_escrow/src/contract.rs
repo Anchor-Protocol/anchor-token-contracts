@@ -86,10 +86,9 @@ pub fn instantiate(
 /// or [`ContractError`] if error occurred.
 ///
 /// ## Execute messages
-/// * **ExecuteMsg::ExtendLockTime { time }** increase current lock time
+/// * **ExecuteMsg::ExtendLockAmount { user, amount }** increase current lock amount
 ///
-/// * **ExecuteMsg::Receive(msg)** parse incoming message from the ANC token.
-/// msg should have [`Cw20ReceiveMsg`] type.
+/// * **ExecuteMsg::ExtendLockTime { user, time }** increase current lock time
 ///
 /// * **ExecuteMsg::Withdraw {}** withdraw whole amount from the current lock if it has expired
 #[cfg_attr(not(feature = "library"), entry_point)]
