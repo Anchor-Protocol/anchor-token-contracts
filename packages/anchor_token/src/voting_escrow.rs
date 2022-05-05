@@ -141,4 +141,5 @@ pub struct UpdateConfigParams {
     pub boost_coefficient: Option<u64>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}

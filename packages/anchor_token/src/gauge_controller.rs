@@ -103,4 +103,5 @@ pub struct ConfigResponse {
     pub user_vote_delay: u64,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}

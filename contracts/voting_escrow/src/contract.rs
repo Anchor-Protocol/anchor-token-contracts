@@ -610,6 +610,7 @@ fn set_token_info(deps: &mut DepsMut<'_>, env: Env) -> StdResult<()> {
     Ok(())
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }
