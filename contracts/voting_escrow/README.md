@@ -1,7 +1,7 @@
 # Voting Escrow
 
-The veANC contract allows locking ANC to gain voting power. Voting power depends on the amount of time the user is locking for.
-Maximum lock time is 2 years which equals to 2.5 coefficient. For example, if the user locks 100 ANC for 2 years he
+The veANC contract allows locking sANC (staked ANC) to gain voting power. Voting power depends on the amount of time the user is locking for.
+Maximum lock time is 4 years which equals to 2.5 coefficient. For example, if the user locks 100 sANC for 4 years he
 gains 250 voting power. Voting power is linearly decreased by passed periods. One period equals to 1 week.
 
 ## InstantiateMsg
@@ -9,33 +9,37 @@ gains 250 voting power. Voting power is linearly decreased by passed periods. On
 ```json
 {
   "owner": "terra...",
-  "anchor_token": "terra..."
+  "anchor_token": "terra...",
+  "min_lock_time": 2419200,
+  "max_lock_time": 62899200,
+  "period_duration": 604800,
+  "boost_coefficient": 25
 }
 ```
 
 ## ExecuteMsg
 
-### `receive`
+### `extend_lock_amount`
 
-Create new lock, extend current lock's amount or deposit on behalf other address.
+Extends lock amount for specified user.
 
 ```json
 {
-  "receive": {
-    "sender": "terra...",
-    "amount": "123",
-    "msg": "<base64_encoded_json_string>"
+  "extend_lock_amount": {
+    "user": "terra...",
+    "amount": "500"
   }
 }
 ```
 
 ### `extend_lock_time`
 
-Extends lock time by 1 week.
+Extends lock time by 1 week for specified user.
 
 ```json
 {
   "extend_lock_time": {
+    "user": "terra...",
     "time": 604800
   }
 }
@@ -43,50 +47,16 @@ Extends lock time by 1 week.
 
 ### `withdraw`
 
-Withdraws whole amount of veANC if lock is expired.
+Withdraws specified amount of veANC for user if lock has expired.
 
 ```json
 {
-  "withdraw": {}
-}
-```
-
-## Receive Hooks
-
-### `create_lock`
-
-Creates new lock for 'sender'.
-
-```json
-{
-  "create_look": {
-    "time": 604800
+  "withdraw": {
+    "user": "terra...",
+    "amount": "500"
   }
 }
 ```
-
-### `deposit_for`
-
-Deposits 'amount' (provided in `cw20 msg`) to user's lock.
-
-```json
-{
-  "deposit_for": {
-    "user": "terra..."
-  }
-}
-```
-
-### `extend_lock_amount`
-
-Extends lock for 'sender' by specified 'amount' (provided in `cw20 msg`).
-
-```json
-{
-  "extend_lock_amount": {}
-}
-```
-
 ## QueryMsg
 
 All query messages are described below. A custom struct is defined for each query response.
@@ -95,13 +65,18 @@ All query messages are described below. A custom struct is defined for each quer
 
 Returns total voting power at the current block period.
 
+Request 
+```json
+{
+  "total_voting_power": {}
+}
+```
+
 Response:
 
 ```json
 {
-  "voting_power_response": {
-    "voting_power": 100
-  }
+  "voting_power": 100
 }
 ```
 
@@ -123,9 +98,7 @@ Response:
 
 ```json
 {
-  "voting_power_response": {
-    "voting_power": 10
-  }
+  "voting_power": 10
 }
 ```
 
@@ -147,9 +120,7 @@ Response:
 
 ```json
 {
-  "voting_power_response": {
-    "voting_power": 10
-  }
+  "voting_power": "10"
 }
 ```
 
@@ -171,9 +142,7 @@ Response:
 
 ```json
 {
-  "voting_power_response": {
-    "voting_power": 10
-  }
+  "voting_power": "10"
 }
 ```
 
@@ -196,9 +165,7 @@ Response:
 
 ```json
 {
-  "voting_power_response": {
-    "voting_power": 10
-  }
+  "voting_power": "10"
 }
 ```
 
@@ -221,9 +188,7 @@ Response:
 
 ```json
 {
-  "voting_power_response": {
-    "voting_power": 10
-  }
+  "voting_power": "10"
 }
 ```
 
@@ -245,7 +210,7 @@ Response:
 
 ```json
 {
-  "slope": 2
+  "slope": "2.0"
 }
 ```
 
@@ -289,12 +254,10 @@ Response:
 
 ```json
 {
-  "lock_info_response": {
-    "amount": 10,
-    "coefficient": 2.5,
-    "start": 2600,
-    "end": 2704
-  }
+  "amount": "10",
+  "coefficient": "2.5",
+  "start": 2600,
+  "end": 2704
 }
 ```
 
@@ -304,9 +267,11 @@ Returns contract's config.
 
 ```json
 {
-  "config_response": {
-    "owner": "terra...",
-    "anchor_token": "terra..."
-  }
+  "owner": "terra...",
+  "anchor_token": "terra...",
+  "min_lock_time": 2419200,
+  "max_lock_time": 62899200,
+  "period_duration": 604800,
+  "boost_coefficient": 25
 }
 ```
