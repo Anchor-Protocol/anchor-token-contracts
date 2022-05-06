@@ -47,7 +47,7 @@ pub enum QueryMsg {
     GaugeAddr { gauge_id: u64 },
     AllGaugeAddr {},
     Config {},
-    Voter { address: String }
+    Voter { address: String },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
