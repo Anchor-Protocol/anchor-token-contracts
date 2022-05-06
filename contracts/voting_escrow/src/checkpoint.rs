@@ -63,8 +63,15 @@ pub(crate) fn checkpoint(
         // cancel previously scheduled slope change
         cancel_scheduled_slope(deps.branch(), point.slope, point.end)?;
 
-        // we need to subtract it from total VP slope
-        old_slope = point.slope;
+        // we need to subtract it from total VP slope if the slope change hasn't been applied
+        let last_slope_change = LAST_SLOPE_CHANGE
+            .may_load(deps.as_ref().storage)?
+            .unwrap_or(0);
+        old_slope = if point.end > last_slope_change {
+            point.slope
+        } else {
+            Decimal::zero()
+        };
 
         Point {
             power: current_power + add_voting_power,
