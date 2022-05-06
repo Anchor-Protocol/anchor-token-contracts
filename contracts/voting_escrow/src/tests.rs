@@ -1148,7 +1148,7 @@ fn test_slope_changes_be_applied_multiple_times() {
         user: "addr0000".to_string(),
         time: 5160,
     };
-    execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+    execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     let user_voting_power: VotingPowerResponse =
         from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::TotalVotingPower {}).unwrap())
@@ -1159,8 +1159,7 @@ fn test_slope_changes_be_applied_multiple_times() {
     env.block.time = Timestamp::from_seconds(env.block.time.seconds() + 2400);
 
     let user_voting_power: VotingPowerResponse =
-        from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::TotalVotingPower {}).unwrap())
-            .unwrap();
+        from_binary(&query(deps.as_ref(), env, QueryMsg::TotalVotingPower {}).unwrap()).unwrap();
 
     assert_eq!(user_voting_power.voting_power, Uint128::from(6944444u128));
 }
@@ -1204,7 +1203,7 @@ fn test_slope_changes_be_applied_multiple_times_2() {
         user: "addr0000".to_string(),
         time: 5160,
     };
-    execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+    execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     let user_voting_power: VotingPowerResponse =
         from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::TotalVotingPower {}).unwrap())
@@ -1215,10 +1214,7 @@ fn test_slope_changes_be_applied_multiple_times_2() {
     env.block.time = Timestamp::from_seconds(env.block.time.seconds() + 2400);
 
     let user_voting_power: VotingPowerResponse =
-        from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::TotalVotingPower {}).unwrap())
-            .unwrap();
+        from_binary(&query(deps.as_ref(), env, QueryMsg::TotalVotingPower {}).unwrap()).unwrap();
 
     assert_eq!(user_voting_power.voting_power, Uint128::from(6944444u128));
-
-    // assert!(false);
 }
