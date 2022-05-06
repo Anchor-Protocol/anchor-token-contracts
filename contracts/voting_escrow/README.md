@@ -47,11 +47,14 @@ Extends lock time by 1 week for specified user.
 
 ### `withdraw`
 
-Withdraws whole amount of veANC if lock is expired.
+Withdraws specified amount of veANC for user if lock has expired.
 
 ```json
 {
-  "withdraw": {}
+  "withdraw": {
+    "user": "terra...",
+    "amount": 500
+  }
 }
 ```
 ## QueryMsg
