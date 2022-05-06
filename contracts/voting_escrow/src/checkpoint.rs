@@ -64,7 +64,11 @@ pub(crate) fn checkpoint(
         cancel_scheduled_slope(deps.branch(), point.slope, point.end)?;
 
         // we need to subtract it from total VP slope
-        old_slope = point.slope;
+        old_slope = if point.end > cur_period {
+            point.slope
+        } else {
+            Decimal::zero()
+        };
 
         Point {
             power: current_power + add_voting_power,

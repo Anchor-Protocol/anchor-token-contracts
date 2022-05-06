@@ -1100,3 +1100,53 @@ fn init_lock_factory(
 
     (deps, anchor_info, owner_info)
 }
+
+#[test]
+fn test_slope_apply_multi_times_bug() {
+    let mut deps = mock_dependencies(&[]);
+
+    let msg = InstantiateMsg {
+        owner: "owner".to_string(),
+        anchor_token: "anchor".to_string(),
+        min_lock_time: 1200,
+        max_lock_time: 86400,
+        period_duration: 1200,
+        boost_coefficient: 25,
+        marketing: None,
+    };
+
+    let info = mock_info("owner", &[]);
+    instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+    let info = mock_info("owner", &[]);
+
+    let msg = ExecuteMsg::ExtendLockTime {
+        user: "addr0000".to_string(),
+        time: 5160,
+    };
+    execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+
+    let mut env = mock_env();
+
+    let msg = ExecuteMsg::ExtendLockAmount {
+        user: "addr0000".to_string(),
+        amount: Uint128::from(100000000u128),
+    };
+
+    execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+
+    env.block.time = Timestamp::from_seconds(env.block.time.seconds() + 52000);
+    let msg = ExecuteMsg::ExtendLockTime {
+        user: "addr0002".to_string(),
+        time: 5160,
+    };
+
+    execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+
+    env.block.time = Timestamp::from_seconds(env.block.time.seconds() + 52000);
+    let msg = ExecuteMsg::ExtendLockTime {
+        user: "addr0000".to_string(),
+        time: 5160,
+    };
+    execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+}
