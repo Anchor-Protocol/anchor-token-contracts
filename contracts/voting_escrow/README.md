@@ -1,7 +1,7 @@
 # Voting Escrow
 
-The veANC contract allows locking ANC to gain voting power. Voting power depends on the amount of time the user is locking for.
-Maximum lock time is 2 years which equals to 2.5 coefficient. For example, if the user locks 100 ANC for 2 years he
+The veANC contract allows locking sANC (staked ANC) to gain voting power. Voting power depends on the amount of time the user is locking for.
+Maximum lock time is 4 years which equals to 2.5 coefficient. For example, if the user locks 100 sANC for 4 years he
 gains 250 voting power. Voting power is linearly decreased by passed periods. One period equals to 1 week.
 
 ## InstantiateMsg
@@ -27,7 +27,7 @@ Extends lock amount for specified user.
 {
   "extend_lock_amount": {
     "user": "terra...",
-    "amount": 500
+    "amount": "500"
   }
 }
 ```
@@ -53,7 +53,7 @@ Withdraws specified amount of veANC for user if lock has expired.
 {
   "withdraw": {
     "user": "terra...",
-    "amount": 500
+    "amount": "500"
   }
 }
 ```
@@ -120,7 +120,7 @@ Response:
 
 ```json
 {
-  "voting_power": 10
+  "voting_power": "10"
 }
 ```
 
@@ -142,7 +142,7 @@ Response:
 
 ```json
 {
-  "voting_power": 10
+  "voting_power": "10"
 }
 ```
 
@@ -165,7 +165,7 @@ Response:
 
 ```json
 {
-  "voting_power": 10
+  "voting_power": "10"
 }
 ```
 
@@ -188,7 +188,7 @@ Response:
 
 ```json
 {
-  "voting_power": 10
+  "voting_power": "10"
 }
 ```
 
@@ -210,7 +210,7 @@ Response:
 
 ```json
 {
-  "slope": 2
+  "slope": "2.0"
 }
 ```
 
@@ -254,8 +254,8 @@ Response:
 
 ```json
 {
-  "amount": 10,
-  "coefficient": 2.5,
+  "amount": "10",
+  "coefficient": "2.5",
   "start": 2600,
   "end": 2704
 }
