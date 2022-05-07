@@ -22,7 +22,7 @@ use anchor_token::gauge_controller::{
     AllGaugeAddrResponse, ConfigResponse, ExecuteMsg, GaugeAddrResponse, GaugeCountResponse,
     GaugeRelativeWeightAtResponse, GaugeRelativeWeightResponse, GaugeWeightAtResponse,
     GaugeWeightResponse, InstantiateMsg, MigrateMsg, QueryMsg, TotalWeightAtResponse,
-    TotalWeightResponse,
+    TotalWeightResponse, Vote, VoterResponse,
 };
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -142,6 +142,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
         QueryMsg::GaugeAddr { gauge_id } => Ok(to_binary(&query_gauge_addr(deps, gauge_id)?)?),
         QueryMsg::AllGaugeAddr {} => Ok(to_binary(&query_all_gauge_addr(deps)?)?),
         QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
+        QueryMsg::Voter { address } => Ok(to_binary(&query_voter(deps, env, address)?)?),
     }
 }
 
@@ -447,6 +448,41 @@ fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
         period_duration: config.period_duration,
         user_vote_delay: config.user_vote_delay,
     })
+}
+
+fn query_voter(deps: Deps, env: Env, address: String) -> Result<VoterResponse, ContractError> {
+    let gauge_count = GAUGE_COUNT.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
+    let mut votes: Vec<Vote> = vec![];
+    let address = deps.api.addr_validate(&address)?;
+    let current_period = get_period(env.block.time.seconds(), config.period_duration);
+
+    for i in 0..gauge_count {
+        let gauge_addr = GAUGE_ADDR.load(deps.storage, U64Key::new(i))?;
+        if let Some(vote) =
+            USER_VOTES.may_load(deps.storage, (address.clone(), gauge_addr.clone()))?
+        {
+            votes.push(Vote {
+                gauge_addr: gauge_addr.to_string(),
+                next_vote_time: (vote.vote_period + config.user_vote_delay)
+                    * config.period_duration,
+                vote_amount: if vote.unlock_period > current_period {
+                    vote.slope
+                        .checked_mul(vote.unlock_period - current_period)?
+                } else {
+                    Uint128::zero()
+                },
+            });
+        } else {
+            votes.push(Vote {
+                gauge_addr: gauge_addr.to_string(),
+                next_vote_time: 0,
+                vote_amount: Uint128::zero(),
+            });
+        }
+    }
+
+    Ok(VoterResponse { votes })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

@@ -47,6 +47,7 @@ pub enum QueryMsg {
     GaugeAddr { gauge_id: u64 },
     AllGaugeAddr {},
     Config {},
+    Voter { address: String },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
@@ -101,6 +102,18 @@ pub struct ConfigResponse {
     pub anchor_voting_escrow: String,
     pub period_duration: u64,
     pub user_vote_delay: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+pub struct Vote {
+    pub gauge_addr: String,
+    pub vote_amount: Uint128,
+    pub next_vote_time: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+pub struct VoterResponse {
+    pub votes: Vec<Vote>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

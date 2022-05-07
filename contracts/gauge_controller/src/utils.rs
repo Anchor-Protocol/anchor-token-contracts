@@ -25,7 +25,7 @@ pub(crate) fn query_last_user_slope(deps: Deps, user: Addr) -> StdResult<Decimal
     Ok(deps
         .querier
         .query::<UserSlopResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: anchor_voting_escrow.to_string(),
+            contract_addr: deps.api.addr_humanize(&anchor_voting_escrow)?.to_string(),
             msg: to_binary(&VotingEscrowContractQueryMsg::LastUserSlope {
                 user: user.to_string(),
             })?,
@@ -38,7 +38,7 @@ pub(crate) fn query_user_unlock_period(deps: Deps, user: Addr) -> StdResult<u64>
     Ok(deps
         .querier
         .query::<UserUnlockPeriodResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: anchor_voting_escrow.to_string(),
+            contract_addr: deps.api.addr_humanize(&anchor_voting_escrow)?.to_string(),
             msg: to_binary(&VotingEscrowContractQueryMsg::UserUnlockPeriod {
                 user: user.to_string(),
             })?,

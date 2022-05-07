@@ -2,18 +2,18 @@ use crate::error::ContractError;
 
 use crate::contract::{execute, instantiate, query};
 use crate::mock_querier::{mock_dependencies, BASE_TIME, WEEK};
-use crate::utils::DecimalRoundedCheckedMul;
+use crate::utils::{get_period, DecimalRoundedCheckedMul};
 
 use anchor_token::gauge_controller::{
     AllGaugeAddrResponse, ConfigResponse, ExecuteMsg, GaugeAddrResponse, GaugeCountResponse,
     GaugeRelativeWeightAtResponse, GaugeRelativeWeightResponse, GaugeWeightAtResponse,
     GaugeWeightResponse, InstantiateMsg, QueryMsg, TotalWeightAtResponse, TotalWeightResponse,
+    Vote, VoterResponse,
 };
 
 use cosmwasm_std::testing::{mock_env, mock_info};
 use cosmwasm_std::{from_binary, Decimal, Deps, DepsMut, Timestamp, Uint128};
 use serde::de::DeserializeOwned;
-
 const VOTE_DELAY: u64 = 2;
 
 #[test]
@@ -343,6 +343,21 @@ fn test_vote_for_single_gauge_by_single_user() {
         time,
     );
 
+    run_query_msg_expect_ok::<VoterResponse>(
+        VoterResponse {
+            votes: vec![Vote {
+                gauge_addr: "gauge_addr_1".to_string(),
+                next_vote_time: WEEK * (get_period(time, WEEK) + VOTE_DELAY),
+                vote_amount: Uint128::from(998244353_u64),
+            }],
+        },
+        deps.as_ref(),
+        QueryMsg::Voter {
+            address: "user_1".to_string(),
+        },
+        time,
+    );
+
     time += WEEK * (VOTE_DELAY - 1);
 
     run_execute_msg_expect_error(
@@ -386,6 +401,21 @@ fn test_vote_for_single_gauge_by_single_user() {
         ExecuteMsg::VoteForGaugeWeight {
             gauge_addr: "gauge_addr_1".to_string(),
             ratio: 0,
+        },
+        time,
+    );
+
+    run_query_msg_expect_ok::<VoterResponse>(
+        VoterResponse {
+            votes: vec![Vote {
+                gauge_addr: "gauge_addr_1".to_string(),
+                next_vote_time: WEEK * (get_period(time, WEEK) + VOTE_DELAY),
+                vote_amount: Uint128::zero(),
+            }],
+        },
+        deps.as_ref(),
+        QueryMsg::Voter {
+            address: "user_1".to_string(),
         },
         time,
     );
@@ -494,6 +524,21 @@ fn test_vote_for_single_gauge_by_multiple_users() {
         time,
     );
 
+    run_query_msg_expect_ok::<VoterResponse>(
+        VoterResponse {
+            votes: vec![Vote {
+                gauge_addr: "gauge_addr_1".to_string(),
+                next_vote_time: WEEK * (get_period(time, WEEK) + VOTE_DELAY),
+                vote_amount: Uint128::from(76665166_u64),
+            }],
+        },
+        deps.as_ref(),
+        QueryMsg::Voter {
+            address: "user_1".to_string(),
+        },
+        time,
+    );
+
     time += WEEK;
 
     run_execute_msg_expect_ok(
@@ -502,6 +547,21 @@ fn test_vote_for_single_gauge_by_multiple_users() {
         ExecuteMsg::VoteForGaugeWeight {
             gauge_addr: "gauge_addr_1".to_string(),
             ratio: 8453,
+        },
+        time,
+    );
+
+    run_query_msg_expect_ok::<VoterResponse>(
+        VoterResponse {
+            votes: vec![Vote {
+                gauge_addr: "gauge_addr_1".to_string(),
+                next_vote_time: WEEK * (get_period(time, WEEK) + VOTE_DELAY),
+                vote_amount: Uint128::from(832492430_u64),
+            }],
+        },
+        deps.as_ref(),
+        QueryMsg::Voter {
+            address: "user_2".to_string(),
         },
         time,
     );
@@ -630,6 +690,28 @@ fn test_vote_for_multiple_gauges_by_single_user() {
         time,
     );
 
+    run_query_msg_expect_ok::<VoterResponse>(
+        VoterResponse {
+            votes: vec![
+                Vote {
+                    gauge_addr: "gauge_addr_1".to_string(),
+                    next_vote_time: WEEK * (get_period(time, WEEK) + VOTE_DELAY),
+                    vote_amount: Uint128::from(434935065_u64),
+                },
+                Vote {
+                    gauge_addr: "gauge_addr_2".to_string(),
+                    next_vote_time: 0,
+                    vote_amount: Uint128::zero(),
+                },
+            ],
+        },
+        deps.as_ref(),
+        QueryMsg::Voter {
+            address: "user_1".to_string(),
+        },
+        time,
+    );
+
     run_execute_msg_expect_error(
         ContractError::InsufficientVotingRatio {},
         deps.as_mut(),
@@ -647,6 +729,28 @@ fn test_vote_for_multiple_gauges_by_single_user() {
         ExecuteMsg::VoteForGaugeWeight {
             gauge_addr: "gauge_addr_2".to_string(),
             ratio: 5643,
+        },
+        time,
+    );
+
+    run_query_msg_expect_ok::<VoterResponse>(
+        VoterResponse {
+            votes: vec![
+                Vote {
+                    gauge_addr: "gauge_addr_1".to_string(),
+                    next_vote_time: WEEK * (get_period(time, WEEK) + VOTE_DELAY),
+                    vote_amount: Uint128::from(434935065_u64),
+                },
+                Vote {
+                    gauge_addr: "gauge_addr_2".to_string(),
+                    next_vote_time: WEEK * (get_period(time, WEEK) + VOTE_DELAY),
+                    vote_amount: Uint128::from(563309288_u64),
+                },
+            ],
+        },
+        deps.as_ref(),
+        QueryMsg::Voter {
+            address: "user_1".to_string(),
         },
         time,
     );
@@ -787,12 +891,42 @@ fn test_vote_for_single_gauge_and_cancel() {
         time,
     );
 
+    run_query_msg_expect_ok::<VoterResponse>(
+        VoterResponse {
+            votes: vec![Vote {
+                gauge_addr: "gauge_addr_1".to_string(),
+                next_vote_time: WEEK * (get_period(time, WEEK) + VOTE_DELAY),
+                vote_amount: Uint128::from(434935065_u64),
+            }],
+        },
+        deps.as_ref(),
+        QueryMsg::Voter {
+            address: "user_1".to_string(),
+        },
+        time,
+    );
+
     run_execute_msg_expect_ok(
         deps.as_mut(),
         "user_3".to_string(),
         ExecuteMsg::VoteForGaugeWeight {
             gauge_addr: "gauge_addr_1".to_string(),
             ratio: 5644,
+        },
+        time,
+    );
+
+    run_query_msg_expect_ok::<VoterResponse>(
+        VoterResponse {
+            votes: vec![Vote {
+                gauge_addr: "gauge_addr_1".to_string(),
+                next_vote_time: WEEK * (get_period(time, WEEK) + VOTE_DELAY),
+                vote_amount: Uint128::from(478287439_u64),
+            }],
+        },
+        deps.as_ref(),
+        QueryMsg::Voter {
+            address: "user_3".to_string(),
         },
         time,
     );
@@ -844,6 +978,21 @@ fn test_vote_for_single_gauge_and_cancel() {
         time,
     );
 
+    run_query_msg_expect_ok::<VoterResponse>(
+        VoterResponse {
+            votes: vec![Vote {
+                gauge_addr: "gauge_addr_1".to_string(),
+                next_vote_time: WEEK * (get_period(time, WEEK) + VOTE_DELAY),
+                vote_amount: Uint128::from(552140931_u64),
+            }],
+        },
+        deps.as_ref(),
+        QueryMsg::Voter {
+            address: "user_1".to_string(),
+        },
+        time,
+    );
+
     time += 33 * WEEK;
 
     run_query_msg_expect_ok::<GaugeWeightResponse>(
@@ -867,6 +1016,21 @@ fn test_vote_for_single_gauge_and_cancel() {
         time,
     );
 
+    run_query_msg_expect_ok::<VoterResponse>(
+        VoterResponse {
+            votes: vec![Vote {
+                gauge_addr: "gauge_addr_1".to_string(),
+                next_vote_time: WEEK * (get_period(time, WEEK) + VOTE_DELAY),
+                vote_amount: Uint128::zero(),
+            }],
+        },
+        deps.as_ref(),
+        QueryMsg::Voter {
+            address: "user_1".to_string(),
+        },
+        time,
+    );
+
     run_query_msg_expect_ok::<GaugeWeightResponse>(
         GaugeWeightResponse {
             gauge_weight: Uint128::from(310910170_u64),
@@ -886,6 +1050,21 @@ fn test_vote_for_single_gauge_and_cancel() {
         ExecuteMsg::VoteForGaugeWeight {
             gauge_addr: "gauge_addr_1".to_string(),
             ratio: 9999,
+        },
+        time,
+    );
+
+    run_query_msg_expect_ok::<VoterResponse>(
+        VoterResponse {
+            votes: vec![Vote {
+                gauge_addr: "gauge_addr_1".to_string(),
+                next_vote_time: WEEK * (get_period(time, WEEK) + VOTE_DELAY),
+                vote_amount: Uint128::from(479109374_u64),
+            }],
+        },
+        deps.as_ref(),
+        QueryMsg::Voter {
+            address: "user_1".to_string(),
         },
         time,
     );
@@ -969,6 +1148,21 @@ fn test_bias_be_negative() {
         ExecuteMsg::VoteForGaugeWeight {
             gauge_addr: "gauge_addr_1".to_string(),
             ratio: 10000,
+        },
+        time,
+    );
+
+    run_query_msg_expect_ok::<VoterResponse>(
+        VoterResponse {
+            votes: vec![Vote {
+                gauge_addr: "gauge_addr_1".to_string(),
+                next_vote_time: WEEK * (get_period(time, WEEK) + VOTE_DELAY),
+                vote_amount: Uint128::from(998244353_u64),
+            }],
+        },
+        deps.as_ref(),
+        QueryMsg::Voter {
+            address: "user_1".to_string(),
         },
         time,
     );
